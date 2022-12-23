@@ -55,11 +55,11 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string) (*
 	return eng, nil
 }
 
-// RunUntilQuit begins reading commands from the streams and applying them to the game until the
-// QUIT command is received.
+// RunUntilQuit begins reading commands from the streams and applying them to
+// the game until the QUIT command is received.
 func (eng *Engine) RunUntilQuit() error {
-	introMsg := "Welcome to GoQuest\n"
-	introMsg += "==================\n"
+	introMsg := "Welcome to TunaQuest Engine\n"
+	introMsg += "===========================\n"
 	introMsg += "\n"
 	introMsg += "You are in " + eng.state.CurrentRoom.Name + "\n"
 

@@ -4,4 +4,13 @@
 # mac
 .DS_Store
 
+# IDEs
+/.vscode
+/.idea
+
+# bins
+/tqi
+
+# we are a go mod household tyvm
+/vendor
 
