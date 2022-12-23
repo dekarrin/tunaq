@@ -1,0 +1,6 @@
+# EOL beahvior
+* text=auto
+
+# go files are text
+*.go text
+
