@@ -23,7 +23,6 @@ The flags are:
 Once a session has started, the user input will be parsed for TunaQuest
 commands. For an explanation of the commands, type "HELP" once in a session. To
 exit the interpreter, type "QUIT".
-
 */
 package main
 
