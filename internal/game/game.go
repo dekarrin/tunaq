@@ -5,6 +5,8 @@ import (
 	"bufio"
 	"fmt"
 	"strings"
+
+	"github.com/dekarrin/tunaq/internal/tqerrors"
 )
 
 // Inventory is a store of items.
@@ -254,7 +256,8 @@ func GetCommand(istream *bufio.Reader, ostream *bufio.Writer) (Command, error) {
 		// now attempt to parse the input
 		cmd, err = ParseCommand(input)
 		if err != nil {
-			errMsg := fmt.Sprintf("%v\nTry HELP for valid commands\n", err.Error())
+			consoleMessage := tqerrors.GameMessage(err)
+			errMsg := fmt.Sprintf("%v\nTry HELP for valid commands\n", consoleMessage)
 			// IO to report error and prompt user to try again
 			if _, err := ostream.WriteString(errMsg); err != nil {
 				return cmd, fmt.Errorf("could not write output: %w", err)

@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/dekarrin/tunaq/internal/game"
+	"github.com/dekarrin/tunaq/internal/tqerrors"
 )
 
 // Engine contains the things needed to run a game from an interactive shell
@@ -91,7 +92,8 @@ func (eng *Engine) RunUntilQuit() error {
 
 		err = eng.state.Advance(cmd, eng.out)
 		if err != nil {
-			if _, err := eng.out.WriteString(err.Error() + "\n"); err != nil {
+			consoleMessage := tqerrors.GameMessage(err)
+			if _, err := eng.out.WriteString(consoleMessage + "\n"); err != nil {
 				return fmt.Errorf("could not write output: %w", err)
 			}
 			if err := eng.out.Flush(); err != nil {

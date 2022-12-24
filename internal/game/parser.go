@@ -1,8 +1,9 @@
 package game
 
 import (
-	"fmt"
 	"strings"
+
+	"github.com/dekarrin/tunaq/internal/tqerrors"
 )
 
 var (
@@ -93,7 +94,7 @@ func ParseCommand(toParse string) (Command, error) {
 		// ensure there are no additional args glub
 		if len(tokens) > 1 {
 			errMsg := "You can't %s *something*; type %s by itself to show exits"
-			return parsedCmd, fmt.Errorf(errMsg, originalTokens[0], originalTokens[0])
+			return parsedCmd, tqerrors.Interpreterf(errMsg, originalTokens[0], originalTokens[0])
 		}
 	case "GO":
 		// make shore we ignore prepositions
@@ -103,30 +104,30 @@ func ParseCommand(toParse string) (Command, error) {
 
 		// need the object; WHERE are we going?
 		if len(tokens) < 2 {
-			return parsedCmd, fmt.Errorf("I don't know where you want to go")
+			return parsedCmd, tqerrors.Interpreterf("I don't know where you want to go")
 		}
 
 		if len(tokens) < 2 {
-			return parsedCmd, fmt.Errorf("I don't know where you want to go")
+			return parsedCmd, tqerrors.Interpreterf("I don't know where you want to go")
 		}
 
 		parsedCmd.Recipient = tokens[1]
 	case "TAKE":
 		// need to know what we are taking
 		if len(tokens) < 2 {
-			return parsedCmd, fmt.Errorf("I don't know what you want to take")
+			return parsedCmd, tqerrors.Interpreterf("I don't know what you want to take")
 		}
 		parsedCmd.Recipient = tokens[1]
 	case "DROP":
 		// what are we dropping
 		if len(tokens) < 2 {
-			return parsedCmd, fmt.Errorf("I don't know what you want to drop")
+			return parsedCmd, tqerrors.Interpreterf("I don't know what you want to drop")
 		}
 		parsedCmd.Recipient = tokens[1]
 	case "USE":
 		// what are we using
 		if len(tokens) < 2 {
-			return parsedCmd, fmt.Errorf("I don't know what you want to use")
+			return parsedCmd, tqerrors.Interpreterf("I don't know what you want to use")
 		}
 		parsedCmd.Recipient = tokens[1]
 	case "TALK":
@@ -137,7 +138,7 @@ func ParseCommand(toParse string) (Command, error) {
 
 		// who are we talking to
 		if len(tokens) < 2 {
-			return parsedCmd, fmt.Errorf("I don't know what or who you want to talk to")
+			return parsedCmd, tqerrors.Interpreterf("I don't know what or who you want to talk to")
 		}
 		parsedCmd.Recipient = tokens[1]
 	case "LOOK":
@@ -152,28 +153,28 @@ func ParseCommand(toParse string) (Command, error) {
 		}
 	case "DEBUG":
 		if len(tokens) < 2 {
-			return parsedCmd, fmt.Errorf("Debug what, exactly?")
+			return parsedCmd, tqerrors.Interpreterf("Debug what, exactly?")
 		}
 
 		if tokens[1] == "ROOM" {
 			parsedCmd.Recipient = "ROOM"
 		} else {
-			return parsedCmd, fmt.Errorf("%q is not a valid thing to be debugged", tokens[1])
+			return parsedCmd, tqerrors.Interpreterf("%q is not a valid thing to be debugged", tokens[1])
 		}
 	case "INVENTORY":
 		// ensure there are no additional args glub
 		if len(tokens) > 1 {
 			errMsg := "You can't %s *something*; type %s by itself to show inventory"
-			return parsedCmd, fmt.Errorf(errMsg, originalTokens[0], originalTokens[0])
+			return parsedCmd, tqerrors.Interpreterf(errMsg, originalTokens[0], originalTokens[0])
 		}
 	case "QUIT":
 		// quit takes no additional args, make sure this is true
 		if len(tokens) > 1 {
 			errMsg := "You can't %s *something*; type %s by itself to quit"
-			return parsedCmd, fmt.Errorf(errMsg, originalTokens[0], originalTokens[0])
+			return parsedCmd, tqerrors.Interpreterf(errMsg, originalTokens[0], originalTokens[0])
 		}
 	default:
-		return parsedCmd, fmt.Errorf("I don't know what you mean by %q", originalTokens[0])
+		return parsedCmd, tqerrors.Interpreterf("I don't know what you mean by %q", originalTokens[0])
 	}
 
 	return parsedCmd, nil

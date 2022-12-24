@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/dekarrin/rosed"
+	"github.com/dekarrin/tunaq/internal/tqerrors"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
@@ -73,11 +74,11 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 
 	switch cmd.Verb {
 	case "QUIT":
-		return fmt.Errorf("I can't QUIT; I'm not being executed by a quitable engine")
+		return tqerrors.Interpreterf("I can't QUIT; I'm not being executed by a quitable engine")
 	case "GO":
 		egress := gs.CurrentRoom.GetEgressByAlias(cmd.Recipient)
 		if egress == nil {
-			return fmt.Errorf("%q isn't a place you can go from here", cmd.Recipient)
+			return tqerrors.Interpreterf("%q isn't a place you can go from here", cmd.Recipient)
 		}
 
 		gs.CurrentRoom = gs.World[egress.DestLabel]
@@ -97,7 +98,7 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 	case "TAKE":
 		item := gs.CurrentRoom.GetItemByAlias(cmd.Recipient)
 		if item == nil {
-			return fmt.Errorf("I don't see any %q here", cmd.Recipient)
+			return tqerrors.Interpreterf("I don't see any %q here", cmd.Recipient)
 		}
 
 		// first remove the item from the room
@@ -110,7 +111,7 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 	case "DROP":
 		item := gs.Inventory.GetItemByAlias(cmd.Recipient)
 		if item == nil {
-			return fmt.Errorf("You don't have a %q", cmd.Recipient)
+			return tqerrors.Interpreterf("You don't have a %q", cmd.Recipient)
 		}
 
 		// first remove item from inven
@@ -122,7 +123,7 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 		output = fmt.Sprintf("You drop the %s onto the ground", item.Name)
 	case "LOOK":
 		if cmd.Recipient != "" {
-			return fmt.Errorf("I can't LOOK at particular things yet")
+			return tqerrors.Interpreterf("I can't LOOK at particular things yet")
 		}
 
 		output = gs.CurrentRoom.Description
@@ -154,7 +155,7 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 		if cmd.Recipient == "ROOM" {
 			output = gs.CurrentRoom.String()
 		} else {
-			return fmt.Errorf("I don't know how to debug %q", cmd.Recipient)
+			return tqerrors.Interpreterf("I don't know how to debug %q", cmd.Recipient)
 		}
 	case "HELP":
 		ed := rosed.
@@ -165,7 +166,7 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 			Insert(0, "Here are the commands you can use (WIP commands do not yet work fully):\n").
 			String()
 	default:
-		return fmt.Errorf("I don't know how to %q", cmd.Verb)
+		return tqerrors.Interpreterf("I don't know how to %q", cmd.Verb)
 	}
 
 	// IO to give output:
