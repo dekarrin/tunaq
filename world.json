@@ -54,5 +54,61 @@
 				}
             ]
 		}
-    ]
+    ],
+	"npcs": [
+		{
+			"label": "JOEYC",
+			"aliases": [
+				"JOEY",
+				"JOEY CLAIRE",
+				"GIRL"
+			],
+			"name": "Joey Claire, gumshoe extraordinaire",
+			"pronouns": {
+				"nominative": "she",
+				"objective": "her",
+				"possesive": "hers",
+				"COMMENT": "if a key is missing, it will try to be assumed for the common ones (he/her/they and a few spivaks), else it will default to they/them/theirs"
+			},
+			"movement": null,
+			"COMMENT_movement": "(case-insensitive) can be STATIC, empty, null: remain in start, PATROL: follow patrol path [WIP], WANDER: char can wander each turn, includes either 'BLOCK_LIST', or 'ALLOW_LIST' of some kind.",
+			"start": "HALLWAY",
+			"dialog": [
+				{
+					"action": "line",
+					"COMMENT_type": "can be LINE/empty/null for 'just say content, then go to next in list', or CHOICE for convo tree.",
+					"label": "",
+					"COMMENT_label": "label is optional but provides a way to refer to a convo for choice.",
+					"content": "Hi there, I'm Joey!",
+					"response": "Hello, Joey.",
+					"COMMENT_response": "not having response is okay but it will default to (cont...)"
+				},
+				"alternate syntax: just having a string implies type=line, content of string, response of null",
+				{
+					"action": "choice",
+					"content": "Who are you?",
+					"choices": [
+						["Just a wanderer", "IM_WANDERER"],
+						["I'm PLAYER!", "IM_PLAYER"]
+					]
+				},
+				{
+					"label": "IM_WANDERER",
+					"action": "line",
+					"content": "Oh, wow! It's nice to meet you, I haven't seen other people here in a long, long time!"
+				},
+				{
+					"action": "end"
+				},
+				{
+					"label": "IM_PLAYER",
+					"content": "Your name is PLAYER? That's a weird name!"
+				},
+				{
+					"action": "end"
+				}
+			],
+			"description": "A girl dressed in typical 90's gear, complete with a kaleidoscope of colors. She's carrying around a magnifying glass and looking over the wall, stopping every few moments to examine a spot under her magnifying glass."
+		}
+	]
 }
