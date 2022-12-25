@@ -68,7 +68,8 @@
 				"nominative": "she",
 				"objective": "her",
 				"possesive": "hers",
-				"COMMENT": "if a key is missing, it will try to be assumed for the common ones (he/her/they and a few spivaks), else it will default to they/them/theirs"
+				"COMMENT": "if a key is missing, it will try to be assumed for the common ones (he/her/they and a few spivaks), else it will default to they/them/theirs",
+				"COMMENT2": "alternatively, specifying she/her, he/him, they/them, some pre-defined key (or defininig one elsewhere in world file) is allowed instead of inline pronoun setting"
 			},
 			"movement": null,
 			"COMMENT_movement": "(case-insensitive) can be STATIC, empty, null: remain in start, PATROL: follow patrol path [WIP], WANDER: char can wander each turn, includes either 'BLOCK_LIST', or 'ALLOW_LIST' of some kind.",

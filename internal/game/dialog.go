@@ -39,14 +39,19 @@ type DialogStep struct {
 	// Choices and the label of dialog step they map to. If one isn't given, it
 	// is assumed to end the conversation.
 	Choices map[string]string
+
+	// Label of the DialogStep. If not set it will just be the index within the
+	// conversation tree.
+	Label string
 }
 
 // Conversation includes the dialog tree and the current position within it. It
 // can be created simply by manually creating a Conversation and assigning a
 // sequence of steps to Dialog.
 type Conversation struct {
-	Dialog []DialogStep
-	cur    int
+	Dialog  []DialogStep
+	cur     int
+	aliases map[string]int
 }
 
 // NextStep gets the next DialogStep in the conversation. If it returns a
@@ -67,7 +72,36 @@ func (convo *Conversation) NextStep() DialogStep {
 }
 
 // JumpTo makes the Conversation JumpTo the step with the given label, so that
-// the next call to NextStep returns that DialogStep.
+// the next call to NextStep returns that DialogStep. If an invalid label is
+// given, the next call to NextStep will return an END step. This is a valid
+// option for moving the convo to the appropriate position after the user has
+// entered a choice.
 func (convo *Conversation) JumpTo(label string) {
+	if convo.aliases == nil {
+		convo.buildAliases()
+	}
 
+	pos, ok := convo.aliases[label]
+
+	if !ok {
+		convo.buildAliases()
+		pos, ok = convo.aliases[label]
+	}
+
+	convo.cur = len(convo.Dialog)
+
+	if ok {
+		convo.cur = pos
+	}
+}
+
+func (convo *Conversation) buildAliases() {
+	convo.aliases = make(map[string]int)
+	for i := range convo.Dialog {
+		if convo.Dialog[i].Label == "" {
+			convo.Dialog[i].Label = fmt.Sprintf("%d", i)
+		}
+
+		convo.aliases[convo.Dialog[i].Label] = i
+	}
 }
