@@ -57,6 +57,28 @@ func New(world map[string]*Room, startingRoom string) (State, error) {
 	return gs, nil
 }
 
+// MoveNPCs applies all movements on NPCs that are in the world.
+func (gs *State) MoveNPCs() {
+	alreadyMovedNPCs := map[string]bool{}
+	for _, room := range gs.World {
+		for _, npc := range room.NPCs {
+			if _, hasMoved := alreadyMovedNPCs[npc.Label]; hasMoved {
+				continue
+			}
+
+			next := npc.NextRouteStep(room)
+
+			if next != "" {
+				nextRoom := gs.World[next]
+				nextRoom.NPCs[npc.Label] = npc
+				delete(room.NPCs, npc.Label)
+			}
+
+			alreadyMovedNPCs[npc.Label] = true
+		}
+	}
+}
+
 // Advance advances the game state based on the given command. If there is a
 // problem executing the command, it is given in the error output and the game
 // state is not advanced. If it is, the result of the command is written to the
@@ -82,6 +104,8 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 		}
 
 		gs.CurrentRoom = gs.World[egress.DestLabel]
+
+		gs.MoveNPCs()
 
 		output = egress.TravelMessage
 	case "EXITS":

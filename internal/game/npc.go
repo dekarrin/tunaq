@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"math/rand"
 )
 
 // This file contains structs and routines related to NPCs.
@@ -131,7 +132,7 @@ func (r Route) Copy() Route {
 	return rCopy
 }
 
-func (r Route) Route() string {
+func (r Route) String() string {
 	str := fmt.Sprintf("Route<%q", r.Action)
 
 	switch r.Action {
@@ -175,7 +176,7 @@ func (r Route) Route() string {
 type NPC struct {
 	// Label is a name for the NPC and canonical way to index it
 	// programmatically. It should be upper case and MUST be unique within all
-	// labels of the world.
+	// NPC labels of the world.
 	Label string
 
 	// Name is the short description of the NPC.
@@ -202,6 +203,78 @@ type NPC struct {
 	// set to nil, there is no active conversation between the player and the
 	// NPC.
 	Convo *Conversation
+
+	// for NPCs with a path movement route, routeCur gives the step it is
+	// currently on.
+	routeCur *int
+}
+
+// ResetRoute resets the route of the NPC. It should always be called before
+// attempting to call NextRouteStep().
+func (npc *NPC) ResetRoute() {
+	npc.routeCur = new(int)
+	*npc.routeCur = -1
+}
+
+// NextRouteStep gets the name of the next location this character would like to
+// travel to. If it returns an empty string, the NPC's route dictates that they
+// should stay.
+//
+// room is the current room that they are in.
+func (npc NPC) NextRouteStep(room *Room) string {
+	if npc.routeCur == nil {
+		return ""
+	}
+
+	switch npc.Movement.Action {
+	case RouteStatic:
+		return ""
+	case RoutePatrol:
+		*npc.routeCur++
+		*npc.routeCur %= len(npc.Movement.Path)
+		return npc.Movement.Path[*npc.routeCur]
+	case RouteWander:
+		// first, get the list of allowed rooms. if allowedrooms is not set,
+		// all rooms are allowed.
+		candidateRooms := map[string]bool{}
+		for _, egress := range room.Exits {
+			label := egress.DestLabel
+
+			if len(npc.Movement.AllowedRooms) > 0 {
+				for _, allowed := range npc.Movement.AllowedRooms {
+					if label == allowed {
+						candidateRooms[label] = true
+						break
+					}
+				}
+			} else {
+				candidateRooms[label] = true
+			}
+
+			for _, forbidden := range npc.Movement.ForbiddenRooms {
+				delete(candidateRooms, forbidden)
+			}
+
+			if len(candidateRooms) < 1 {
+				// should never happen but check anyways and refuse to move if
+				// conditions are as such
+				return ""
+			}
+
+			candidateRoomsSlice := []string{}
+			for k := range candidateRooms {
+				candidateRoomsSlice = append(candidateRoomsSlice, k)
+			}
+
+			selectionIdx := rand.Intn(len(candidateRoomsSlice))
+			choice := candidateRoomsSlice[selectionIdx]
+			return choice
+		}
+	default:
+		return ""
+	}
+
+	return ""
 }
 
 // Copy returns a deeply-copied NPC.

@@ -113,6 +113,29 @@ func (jp *jsonPronounSet) UnmarshalText(text []byte) error {
 	return nil
 }
 
+func (jp *jsonPronounSet) UnmarshalJSON(b []byte) error {
+	type pronounFill struct {
+		Nominative string `json:"nominative"`
+		Objective  string `json:"objective"`
+		Possessive string `json:"possessive"`
+		Determiner string `json:"determiner"`
+		Reflexive  string `json:"reflexive"`
+	}
+
+	fill := pronounFill{}
+	if jsonErr := json.Unmarshal(b, &fill); jsonErr != nil {
+		return jsonErr
+	}
+
+	jp.Nominative = fill.Nominative
+	jp.Objective = fill.Objective
+	jp.Determiner = fill.Determiner
+	jp.Possessive = fill.Possessive
+	jp.Reflexive = fill.Reflexive
+
+	return nil
+}
+
 func (ps PronounSet) toJSON() jsonPronounSet {
 	jp := jsonPronounSet{
 		Nominative: ps.Nominative,
@@ -309,9 +332,17 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 	}
 
 	// ensure that all npc routes are valid, that convo trees make sense, then place NPCs in their start rooms
+	// also ensure that all labels are unique among NPCs.
+	seenNPCLabels := map[string]int{}
 	pf := Pathfinder{World: world}
 	for idx, npc := range npcs {
-		// first check start label
+		// check labels
+		if seenInIndex, ok := seenNPCLabels[npc.Label]; ok {
+			return nil, "", fmt.Errorf("validating: npcs[%d]: duplicate label %q; already used by npc[%d]", idx, npc.Label, seenInIndex)
+		}
+		seenNPCLabels[npc.Label] = idx
+
+		// check start label
 		_, ok := world[npc.Start]
 		if !ok {
 			return nil, "", fmt.Errorf("validating: npcs[%d]: start: no room with label %q exists", idx, npc.Start)
@@ -406,7 +437,10 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 		}
 
 		// should be good to go, add the NPC to the world
-		world[npc.Start].NPCs = append(world[npc.Start].NPCs, npc)
+		if world[npc.Start].NPCs == nil {
+			world[npc.Start].NPCs = make(map[string]*NPC)
+		}
+		world[npc.Start].NPCs[npc.Label] = &npc
 	}
 
 	// TODO: check that no item overwrites another

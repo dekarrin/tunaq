@@ -133,7 +133,7 @@ type Room struct {
 	Items []Item
 
 	// NPCs is the non-player characters currently in the world.
-	NPCs []NPC
+	NPCs map[string]*NPC
 }
 
 // Copy returns a deeply-copied Room.
@@ -144,7 +144,7 @@ func (room Room) Copy() Room {
 		Description: room.Description,
 		Exits:       make([]Egress, len(room.Exits)),
 		Items:       make([]Item, len(room.Items)),
-		NPCs:        make([]NPC, len(room.NPCs)),
+		NPCs:        make(map[string]*NPC, len(room.NPCs)),
 	}
 
 	for i := range room.Exits {
@@ -155,8 +155,9 @@ func (room Room) Copy() Room {
 		rCopy.Items[i] = room.Items[i].Copy()
 	}
 
-	for i := range room.NPCs {
-		rCopy.NPCs[i] = room.NPCs[i].Copy()
+	for k := range room.NPCs {
+		copiedNPC := room.NPCs[k].Copy()
+		rCopy.NPCs[k] = &copiedNPC
 	}
 
 	return rCopy
