@@ -473,7 +473,7 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 				choiceNum := -1
 				for _, dest := range diaStep.Choices {
 					choiceNum++
-					if _, ok := seenConvoLabels[dest]; ok {
+					if _, ok := seenConvoLabels[dest]; !ok {
 						msg := "validating: npcs[%d]: dialog[%d]: choices[%d]: %q is not a label or index that exists in this NPC's dialog set"
 						return nil, "", fmt.Errorf(msg, idx, diaIdx, choiceNum, dest)
 					}
