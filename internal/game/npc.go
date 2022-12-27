@@ -250,31 +250,29 @@ func (npc NPC) NextRouteStep(room *Room) string {
 			} else {
 				candidateRooms[label] = true
 			}
-
-			for _, forbidden := range npc.Movement.ForbiddenRooms {
-				delete(candidateRooms, forbidden)
-			}
-
-			if len(candidateRooms) < 1 {
-				// should never happen but check anyways and refuse to move if
-				// conditions are as such
-				return ""
-			}
-
-			candidateRoomsSlice := []string{}
-			for k := range candidateRooms {
-				candidateRoomsSlice = append(candidateRoomsSlice, k)
-			}
-
-			selectionIdx := rand.Intn(len(candidateRoomsSlice))
-			choice := candidateRoomsSlice[selectionIdx]
-			return choice
 		}
+
+		for _, forbidden := range npc.Movement.ForbiddenRooms {
+			delete(candidateRooms, forbidden)
+		}
+
+		if len(candidateRooms) < 1 {
+			// should never happen but check anyways and refuse to move if
+			// conditions are as such
+			return ""
+		}
+
+		candidateRoomsSlice := []string{}
+		for k := range candidateRooms {
+			candidateRoomsSlice = append(candidateRoomsSlice, k)
+		}
+
+		selectionIdx := rand.Intn(len(candidateRoomsSlice))
+		choice := candidateRoomsSlice[selectionIdx]
+		return choice
 	default:
 		return ""
 	}
-
-	return ""
 }
 
 // Copy returns a deeply-copied NPC.
