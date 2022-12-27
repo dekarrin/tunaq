@@ -93,7 +93,7 @@
 					"response": "Hello, Joey.",
 					"COMMENT_response": "not having response is okay but it will default to (cont...)"
 				},
-				"alternate syntax: just having a string implies type=line, content of string, response of null",
+				"alternate syntax: \" just having a string implies type=line, content of string, response of null",
 				{
 					"action": "choice",
 					"content": "Who are you?",

@@ -69,6 +69,39 @@ type jsonDialogStep struct {
 	Choices  [][]string `json:"choices"`
 }
 
+func (jds *jsonDialogStep) UnmarshalJSON(b []byte) error {
+	if len(b) > 0 && string(b[0:1]) == "\"" {
+		var content string
+		if jsonErr := json.Unmarshal(b, &content); jsonErr != nil {
+			return jsonErr
+		}
+		jds.Action = "LINE"
+		jds.Content = content
+		return nil
+	}
+
+	type jdsFill struct {
+		Action   string     `json:"action"`
+		Label    string     `json:"label"`
+		Content  string     `json:"content"`
+		Response string     `json:"response"`
+		Choices  [][]string `json:"choices"`
+	}
+
+	fill := jdsFill{}
+	if jsonErr := json.Unmarshal(b, &fill); jsonErr != nil {
+		return jsonErr
+	}
+
+	jds.Action = fill.Action
+	jds.Label = fill.Label
+	jds.Content = fill.Content
+	jds.Response = fill.Response
+	jds.Choices = fill.Choices
+
+	return nil
+}
+
 func (jds jsonDialogStep) toDialogStep() DialogStep {
 	act, ok := DialogActionsByString[strings.ToUpper(jds.Action)]
 	if !ok {
@@ -301,8 +334,20 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 	}
 
 	npcs := make([]NPC, 0)
-	// validate individual npcs
+	// parse individual npcs
 	for idx, npc := range loadedWorld.NPCs {
+		if npc.Movement.Action == "" {
+			npc.Movement.Action = "STATIC"
+		}
+
+		// set any blank dialog types to line
+		for idx, ds := range npc.Dialog {
+			if ds.Action == "" {
+				ds.Action = "LINE"
+				npc.Dialog[idx] = ds
+			}
+		}
+
 		if err := validateNPCDef(npc, pronouns); err != nil {
 			return nil, "", fmt.Errorf("parsing: npcs[%d]: %w", idx, err)
 		}
@@ -545,10 +590,10 @@ func validateRouteDef(ps jsonRoute) error {
 			return fmt.Errorf("'WANDER' route type does not use 'path' property")
 		}
 	case RouteStatic:
-		if len(ps.Path) < 2 {
+		if len(ps.Path) > 0 {
 			return fmt.Errorf("'STATIC' route type does not use 'path' property")
 		}
-		if len(ps.AllowedRooms) < 2 {
+		if len(ps.AllowedRooms) > 0 {
 			return fmt.Errorf("'STATIC' route type does not use 'allowedRooms' property")
 		}
 		if len(ps.ForbiddenRooms) > 0 {
