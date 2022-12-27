@@ -158,6 +158,11 @@ func ParseCommand(toParse string) (Command, error) {
 
 		if tokens[1] == "ROOM" {
 			parsedCmd.Recipient = "ROOM"
+		} else if tokens[1] == "NPC" {
+			parsedCmd.Recipient = "NPC"
+			if len(tokens) > 3 {
+				parsedCmd.Instrument = tokens[2]
+			}
 		} else {
 			return parsedCmd, tqerrors.Interpreterf("%q is not a valid thing to be debugged", tokens[1])
 		}

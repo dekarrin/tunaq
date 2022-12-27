@@ -13,6 +13,7 @@ import (
 var commandHelp = [][2]string{
 	{"HELP", "show this help"},
 	{"DROP/PUT", "put down an object in the room"},
+	{"DEBUG NPC [label]", "print info on all NPCs with 'DEBUG NPC' or for NPC with label 'NPC_LABEL' with 'DEBUG NPC NPC_LABEL'"},
 	{"DEBUG ROOM", "print info on the current room"},
 	{"EXITS", "show the names of all exits from the room"},
 	{"GO/MOVE", "go to another room via one of the exits"},
@@ -178,6 +179,10 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 	case "DEBUG":
 		if cmd.Recipient == "ROOM" {
 			output = gs.CurrentRoom.String()
+		} else if cmd.Recipient == "NPC" {
+			if cmd.Instrument == "" {
+				// info on all NPCs and their locations
+			}
 		} else {
 			return tqerrors.Interpreterf("I don't know how to debug %q", cmd.Recipient)
 		}
