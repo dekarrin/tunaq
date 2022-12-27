@@ -23,6 +23,14 @@ func (dst DialogAction) String() string {
 	}
 }
 
+// DialogActionsByString is a map indexing string values to their corresponding
+// DialogAction.
+var DialogActionsByString map[string]DialogAction = map[string]DialogAction{
+	DialogEnd.String():    DialogEnd,
+	DialogLine.String():   DialogLine,
+	DialogChoice.String(): DialogChoice,
+}
+
 // DialogStep is a single step of a Dialog tree. It instructions a Dialog as to
 // what should happen in it and how to do it. A step either specifies an end,
 // a line, or a choice.
@@ -43,6 +51,52 @@ type DialogStep struct {
 	// Label of the DialogStep. If not set it will just be the index within the
 	// conversation tree.
 	Label string
+}
+
+// Copy returns a deeply-copied DialogStep.
+func (ds DialogStep) Copy() DialogStep {
+	dsCopy := DialogStep{
+		Action:   ds.Action,
+		Label:    ds.Label,
+		Response: ds.Response,
+		Choices:  make(map[string]string, len(ds.Choices)),
+		Content:  ds.Content,
+	}
+
+	for k, v := range ds.Choices {
+		dsCopy.Choices[k] = v
+	}
+
+	return dsCopy
+}
+
+func (ds DialogStep) String() string {
+	str := fmt.Sprintf("DialogStep<%q", ds.Action)
+
+	switch ds.Action {
+	case DialogEnd:
+		return str + ">"
+	case DialogLine:
+		if ds.Label != "" {
+			str += fmt.Sprintf(" (%q)", ds.Label)
+		}
+		return str + fmt.Sprintf(" %q>", ds.Content)
+	case DialogChoice:
+		str += fmt.Sprint(" (")
+		choiceCount := len(ds.Choices)
+		gotChoices := 0
+		for text, dest := range ds.Choices {
+			str += fmt.Sprintf("%q->%q", text, dest)
+			gotChoices++
+			if gotChoices+1 < choiceCount {
+				str += ", "
+			}
+		}
+		str += ")>"
+		return str
+	default:
+		return str + " (UNKNOWN TYPE)>"
+	}
 }
 
 // Conversation includes the dialog tree and the current position within it. It

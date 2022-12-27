@@ -131,6 +131,9 @@ type Room struct {
 
 	// Items is the items on the ground. This can be changed over time.
 	Items []Item
+
+	// NPCs is the non-player characters currently in the world.
+	NPCs []NPC
 }
 
 // Copy returns a deeply-copied Room.
@@ -141,6 +144,7 @@ func (room Room) Copy() Room {
 		Description: room.Description,
 		Exits:       make([]Egress, len(room.Exits)),
 		Items:       make([]Item, len(room.Items)),
+		NPCs:        make([]NPC, len(room.NPCs)),
 	}
 
 	for i := range room.Exits {
@@ -149,6 +153,10 @@ func (room Room) Copy() Room {
 
 	for i := range room.Items {
 		rCopy.Items[i] = room.Items[i].Copy()
+	}
+
+	for i := range room.NPCs {
+		rCopy.NPCs[i] = room.NPCs[i].Copy()
 	}
 
 	return rCopy

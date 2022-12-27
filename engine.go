@@ -36,12 +36,12 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string) (*
 	}
 
 	// load world file
-	world, start, err := game.LoadWorldDefFile(worldFilePath)
+	world, start, npcs, err := game.LoadWorldDefFile(worldFilePath)
 	if err != nil {
 		return nil, err
 	}
 
-	state, err := game.New(world, start)
+	state, err := game.New(world, start, npcs)
 	if err != nil {
 		return nil, fmt.Errorf("initializing CLI engine: %w", err)
 	}

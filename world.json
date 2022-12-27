@@ -55,6 +55,15 @@
             ]
 		}
     ],
+	"pronouns": {
+		"joey": {
+			"nominative": "JOEY",
+			"objective": "JOEY",
+			"possesive": "JOEY'S",
+			"determiner": "JOEY'S",
+			"reflexive": "JOEYSELF"
+		}
+	},
 	"npcs": [
 		{
 			"label": "JOEYC",

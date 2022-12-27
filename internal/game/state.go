@@ -41,7 +41,7 @@ type State struct {
 // normalizes them as needed.
 //
 // startingRoom is the label of the room to start with.
-func New(world map[string]*Room, startingRoom string) (State, error) {
+func New(world map[string]*Room, startingRoom string, npcs []NPC) (State, error) {
 	gs := State{
 		World:     world,
 		Inventory: make(Inventory),
