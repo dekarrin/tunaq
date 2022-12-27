@@ -82,7 +82,7 @@ func (ds DialogStep) String() string {
 		}
 		return str + fmt.Sprintf(" %q>", ds.Content)
 	case DialogChoice:
-		str += fmt.Sprint(" (")
+		str += " ("
 		choiceCount := len(ds.Choices)
 		gotChoices := 0
 		for text, dest := range ds.Choices {

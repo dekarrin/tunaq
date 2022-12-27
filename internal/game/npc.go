@@ -138,7 +138,7 @@ func (r Route) Route() string {
 	case RouteStatic:
 		return str + ">"
 	case RoutePatrol:
-		str += fmt.Sprintf(" path=[")
+		str += " path=["
 		for idx, p := range r.Path {
 			str += fmt.Sprintf("%q", p)
 			if idx+1 < len(r.Path) {
@@ -148,7 +148,7 @@ func (r Route) Route() string {
 		str += "]>"
 		return str
 	case RouteWander:
-		str += fmt.Sprintf(" allowed=[")
+		str += " allowed=["
 		for idx, ar := range r.AllowedRooms {
 			str += fmt.Sprintf("%q", ar)
 			if idx+1 < len(r.AllowedRooms) {
