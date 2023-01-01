@@ -16,17 +16,25 @@ type Inventory map[string]Item
 // given alias. If no Item in the inventory has that alias, the returned item is
 // nil.
 func (inv Inventory) GetItemByAlias(alias string) *Item {
-	var foundItem *Item
+	foundLabel := ""
 
-	for _, it := range inv {
+	for label, it := range inv {
 		for _, al := range it.Aliases {
 			if al == alias {
-				foundItem = &it
+				foundLabel = label
 				break
 			}
 		}
+		if foundLabel != "" {
+			break
+		}
 	}
 
+	var foundItem *Item
+	if foundLabel != "" {
+		item := inv[foundLabel]
+		foundItem = &item
+	}
 	return foundItem
 }
 
@@ -176,34 +184,48 @@ func (room Room) String() string {
 // GetEgressByAlias returns the egress from the room that is represented by the
 // given alias. If no Egress has that alias, the returned egress is nil.
 func (room Room) GetEgressByAlias(alias string) *Egress {
-	var foundEgress *Egress
+	foundIdx := -1
 
-	for _, eg := range room.Exits {
+	for egIdx, eg := range room.Exits {
 		for _, al := range eg.Aliases {
 			if al == alias {
-				foundEgress = &eg
+				foundIdx = egIdx
 				break
 			}
 		}
+		if foundIdx != -1 {
+			break
+		}
 	}
 
+	var foundEgress *Egress
+	if foundIdx != -1 {
+		foundEgress = &room.Exits[foundIdx]
+	}
 	return foundEgress
 }
 
 // GetItemByAlias returns the item from the room that is represented by the
 // given alias. If no Item has that alias, the returned item is nil.
 func (room Room) GetItemByAlias(alias string) *Item {
-	var foundItem *Item
+	foundIdx := -1
 
-	for _, it := range room.Items {
+	for idx, it := range room.Items {
 		for _, al := range it.Aliases {
 			if al == alias {
-				foundItem = &it
+				foundIdx = idx
 				break
 			}
 		}
+		if foundIdx != -1 {
+			break
+		}
 	}
 
+	var foundItem *Item
+	if foundIdx != -1 {
+		foundItem = &room.Items[foundIdx]
+	}
 	return foundItem
 }
 

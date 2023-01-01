@@ -122,7 +122,7 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 
 		gs.MoveNPCs()
 
-		output = egress.TravelMessage
+		output += egress.TravelMessage
 	case "EXITS":
 		exitTable := ""
 
