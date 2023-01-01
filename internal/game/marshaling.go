@@ -18,7 +18,7 @@ type jsonNPC struct {
 
 func (jn jsonNPC) toNPC() NPC {
 	npc := NPC{
-		Label:       jn.Label,
+		Label:       strings.ToUpper(jn.Label),
 		Name:        jn.Name,
 		Pronouns:    jn.Pronouns.toPronounSet(),
 		Description: jn.Description,

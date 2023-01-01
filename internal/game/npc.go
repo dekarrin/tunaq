@@ -40,6 +40,46 @@ type PronounSet struct {
 	Reflexive string
 }
 
+func (ps PronounSet) String() string {
+	return fmt.Sprintf("PronounSet<%q/%q/%q/%q/%q>", ps.Nominative, ps.Objective, ps.Possessive, ps.Determiner, ps.Reflexive)
+}
+
+// Short returns the string representing the shortened version of the pronoun
+// set. Only nominative, objective, and possessive are shown.
+//
+// If Nominative isn't set, the output will show it as "<?>". If Objective isn't
+// set, the output will show it as the same as whatever Nominative is set to. If
+// Possessive isn't set, the output will show it as the same as whatever
+// Objective is set to but with an 's' added.
+//
+// If Possessive is just Objective but with 's' at the end, it will be omitted
+// from the output.
+func (ps PronounSet) Short() string {
+	showPossessive := false
+
+	if ps.Nominative == "" {
+		ps.Nominative = "<?>"
+	}
+	if ps.Objective == "" {
+		ps.Objective = ps.Nominative
+	}
+	if ps.Possessive == "" {
+		showPossessive = false
+	}
+
+	if showPossessive {
+		// don't show possessive if it is the same as objective but with S
+		if ps.Possessive == ps.Objective+"S" || ps.Possessive == ps.Objective+"s" {
+			showPossessive = false
+		}
+	}
+
+	if showPossessive {
+		return fmt.Sprintf("%s/%s/%s", ps.Nominative, ps.Objective, ps.Possessive)
+	}
+	return fmt.Sprintf("%s/%s", ps.Nominative, ps.Objective)
+}
+
 var (
 
 	// PronounsFeminine is the predefined set of feminine pronouns, commonly

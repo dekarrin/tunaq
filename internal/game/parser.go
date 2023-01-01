@@ -160,7 +160,7 @@ func ParseCommand(toParse string) (Command, error) {
 			parsedCmd.Recipient = "ROOM"
 		} else if tokens[1] == "NPC" {
 			parsedCmd.Recipient = "NPC"
-			if len(tokens) > 3 {
+			if len(tokens) > 2 {
 				parsedCmd.Instrument = tokens[2]
 			}
 		} else {

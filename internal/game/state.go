@@ -3,6 +3,7 @@ package game
 import (
 	"bufio"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/dekarrin/rosed"
@@ -35,6 +36,10 @@ type State struct {
 
 	// Inventory is the objects that the player currently has.
 	Inventory Inventory
+
+	// npcLocations is a map of an NPC's label to the label of the room that the
+	// NPC is currently in.
+	npcLocations map[string]string
 }
 
 // New creates a new State and loads the list of rooms into it. It performs
@@ -44,8 +49,9 @@ type State struct {
 // startingRoom is the label of the room to start with.
 func New(world map[string]*Room, startingRoom string) (State, error) {
 	gs := State{
-		World:     world,
-		Inventory: make(Inventory),
+		World:        world,
+		Inventory:    make(Inventory),
+		npcLocations: make(map[string]string),
 	}
 
 	// now set the current room
@@ -55,29 +61,37 @@ func New(world map[string]*Room, startingRoom string) (State, error) {
 		return gs, fmt.Errorf("starting room with label %q does not exist in passed-in rooms", startingRoom)
 	}
 
+	// and read current npc locations
+	for _, r := range gs.World {
+		for _, npc := range r.NPCs {
+			gs.npcLocations[npc.Label] = r.Label
+		}
+	}
+
 	return gs, nil
 }
 
 // MoveNPCs applies all movements on NPCs that are in the world.
 func (gs *State) MoveNPCs() {
-	alreadyMovedNPCs := map[string]bool{}
-	for _, room := range gs.World {
-		for _, npc := range room.NPCs {
-			if _, hasMoved := alreadyMovedNPCs[npc.Label]; hasMoved {
-				continue
-			}
+	newLocs := map[string]string{}
 
-			next := npc.NextRouteStep(room)
+	for npcLabel, roomLabel := range gs.npcLocations {
+		room := gs.World[roomLabel]
+		npc := room.NPCs[npcLabel]
 
-			if next != "" {
-				nextRoom := gs.World[next]
-				nextRoom.NPCs[npc.Label] = npc
-				delete(room.NPCs, npc.Label)
-			}
+		next := npc.NextRouteStep(room)
 
-			alreadyMovedNPCs[npc.Label] = true
+		if next != "" {
+			nextRoom := gs.World[next]
+			nextRoom.NPCs[npc.Label] = npc
+			delete(room.NPCs, npc.Label)
+			newLocs[npc.Label] = nextRoom.Label
+		} else {
+			newLocs[npc.Label] = room.Label
 		}
 	}
+
+	gs.npcLocations = newLocs
 }
 
 // Advance advances the game state based on the given command. If there is a
@@ -182,6 +196,94 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 		} else if cmd.Recipient == "NPC" {
 			if cmd.Instrument == "" {
 				// info on all NPCs and their locations
+				data := [][]string{{"NPC", "Movement", "Room"}}
+
+				for npcLabel, roomLabel := range gs.npcLocations {
+					room := gs.World[roomLabel]
+					npc := room.NPCs[npcLabel]
+					infoRow := []string{npc.Label, npc.Movement.Action.String(), room.Label}
+					data = append(data, infoRow)
+				}
+
+				tableOpts := rosed.Options{
+					TableHeaders: true,
+				}
+				output = rosed.Edit("\n(Type \"DEBUG NPC\" followed by the label of an NPC for more info on that NPC)").
+					InsertTableOpts(0, data, 80, tableOpts).
+					String()
+			} else {
+				roomLabel, ok := gs.npcLocations[cmd.Instrument]
+				if !ok {
+					return tqerrors.Interpreterf("There doesn't seem to be any NPCs named %q in this world", cmd.Instrument)
+				}
+
+				room := gs.World[roomLabel]
+				npc := room.NPCs[cmd.Instrument]
+
+				npcInfo := [][2]string{
+					{"Name", npc.Name},
+					{"Pronouns", npc.Pronouns.Short()},
+					{"Room", room.Label},
+					{"Movement Type", npc.Movement.Action.String()},
+					{"Start Room", npc.Start},
+				}
+
+				if npc.Movement.Action == RoutePatrol {
+					routeInfo := ""
+					for i := range npc.Movement.Path {
+						if npc.routeCur != nil && *npc.routeCur == i {
+							routeInfo += "==> "
+						} else {
+							routeInfo += "--> "
+						}
+						routeInfo += npc.Movement.Path[i]
+					}
+					npcInfo = append(npcInfo, [2]string{"Route", routeInfo})
+				} else if npc.Movement.Action == RouteWander {
+					allowed := strings.Join(npc.Movement.AllowedRooms, ", ")
+					forbidden := strings.Join(npc.Movement.AllowedRooms, ", ")
+
+					if forbidden == "" {
+						if allowed == "" {
+							forbidden = "(none)"
+						} else {
+							forbidden = "(any not in Allowed list)"
+						}
+					}
+					if allowed == "" {
+						allowed = "(all)"
+					}
+
+					npcInfo = append(npcInfo, [2]string{"Allowed Rooms", allowed})
+					npcInfo = append(npcInfo, [2]string{"Forbidden Rooms", forbidden})
+				}
+
+				diaStr := "(none defined)"
+				if len(npc.Dialog) > 0 {
+					node := "step"
+					if len(npc.Dialog) != 1 {
+						node += "s"
+					}
+					diaStr = fmt.Sprintf("%d %s in dialog tree", len(npc.Dialog), node)
+				}
+				npcInfo = append(npcInfo, [2]string{"Dialog", diaStr})
+
+				npcInfo = append(npcInfo, [2]string{"Description", npc.Description})
+
+				// build at width + 2 then eliminate the left margin that
+				// InsertDefinitionsTable always adds to remove the 2 extra
+				// chars
+				tableOpts := rosed.Options{ParagraphSeparator: "\n"}
+				output = rosed.Edit("NPC Info for "+npc.Label+"\n"+
+					"\n",
+				).
+					InsertDefinitionsTableOpts(math.MaxInt, npcInfo, 82, tableOpts).
+					LinesFrom(2).
+					Apply(func(idx int, line string) []string {
+						line = strings.Replace(line[2:], "  -", "  :", 1)
+						return []string{line}
+					}).
+					String()
 			}
 		} else {
 			return tqerrors.Interpreterf("I don't know how to debug %q", cmd.Recipient)
