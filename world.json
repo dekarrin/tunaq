@@ -51,8 +51,65 @@
 					"description":   "the door to your bedroom",
 					"aliases":       ["BEDROOM", "ROOM", "NORTH"],
 					"travelMessage": "You step into your bedroom, closing the door behind you for privacy."
+				},
+				{
+					"destLabel": "LIVING_ROOM",
+					"description": "The end of the hall, leading to the living room",
+					"aliases": ["LIVING_ROOM", "LIVINGROOM", "LIVING ROOM", "DOORWAY", "END"],
+					"travelMessage": "Your feelings were wrong, turns out you can pass right through the boards! You go into the living room."
 				}
             ]
+		},
+		{
+			"label": "LIVING_ROOM",
+			"name": "the communal gathering and hangout room in your house",
+			"description": "You are standing in the living room. It is here that you have formed many memories with many people. But... for some reason who those people are eludes you. You seem to remember something about a boy and his father fighting over cake or something like that... or... was it a girl? Perhaps one set to inherit a major baking corporation.\n\nFrom here you can go to the kitchen, through the front door to the yard outside, or back to the hallway towards the bedroom.",
+			"exits": [
+				{
+					"destLabel": "HALLWAY",
+					"description": "the hall leading to the bedrooms",
+					"aliases": ["HALL", "HALLWAY", "BEDROOMS", "DOORWAY"],
+					"travelMessage": "You walk into the hallway towards the bedrooms."
+				},
+				{
+					"destLabel": "KITCHEN",
+					"description": "the kitchen of the house",
+					"aliases": ["KITCHEN", "MEALBLOCK", "MEAL BLOCK"],
+					"travelMessage": "You walk into the kitchen."
+				},
+				{
+					"destLabel": "FRONT_YARD",
+					"description": "the front door of the house. There's a neat little window to see people outside, but you don't usually get visitors.",
+					"aliases": ["OUTSIDE", "OUT", "YARD", "DOOR", "FRONT DOOR"],
+					"travelMessage": "You pull open the front door, letting in a whoosh of wind. It blows your hair into a mess as you step outside, and you brush it out of your eyes."
+				}
+			]
+		},
+		{
+			"label": "KITCHEN",
+			"name": "the kitchen",
+			"description": "The place where food is made. It's completely spotless, everything put away nicely and every surface gleaming. The windows let in plenty of light and let you see that there is an exit back to the living room.",
+			"exits": [
+				{
+					"destLabel": "LIVING_ROOM",
+					"description": "the entryway back into the living room",
+					"aliases": ["LIVINGROOM", "LIVING_ROOM", "LIVING ROOM", "OUT"],
+					"travelMessage": "You walk back into the living room."
+				}
+			]
+		},
+		{
+			"label": "FRONT_YARD",
+			"name": "the yard outside your house's front door",
+			"description": "You are outside on the lawn of your house. The grass is green and very healthy-looking. From here you can go back into the house and that's pretty much it.",
+			"exits": [
+				{
+					"destLabel": "LIVING_ROOM",
+					"description": "the front door of your house, leading directly to the living room",
+					"aliases": ["LIVINGROOM", "LIVING_ROOM", "LIVING ROOM", "INSIDE", "HOUSE", "FRONT DOOR", "DOOR"],
+					"travelMessage": "You pull open the heavy door and are comforted by the familiar sight of your living room. You step in and shut the door behind you."
+				}
+			]
 		}
     ],
 	"pronouns": {
