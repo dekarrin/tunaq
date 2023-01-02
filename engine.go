@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/game"
 	"github.com/dekarrin/tunaq/internal/tqerrors"
 )
@@ -20,6 +21,8 @@ type Engine struct {
 	out     *bufio.Writer
 	running bool
 }
+
+const consoleOutputWidth = 80
 
 // New creates a new engine ready to operate on the given input and output
 // streams. It will immediately open a buffered reader on the input stream and a
@@ -41,7 +44,7 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string) (*
 		return nil, err
 	}
 
-	state, err := game.New(world, start)
+	state, err := game.New(world, start, consoleOutputWidth)
 	if err != nil {
 		return nil, fmt.Errorf("initializing CLI engine: %w", err)
 	}
@@ -93,6 +96,7 @@ func (eng *Engine) RunUntilQuit() error {
 		err = eng.state.Advance(cmd, eng.out)
 		if err != nil {
 			consoleMessage := tqerrors.GameMessage(err)
+			consoleMessage = rosed.Edit(consoleMessage).Wrap(consoleOutputWidth).String()
 			if _, err := eng.out.WriteString(consoleMessage + "\n"); err != nil {
 				return fmt.Errorf("could not write output: %w", err)
 			}

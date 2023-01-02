@@ -26,6 +26,10 @@ var commandHelp = [][2]string{
 	{"USE", "use an object in your inventory [WIP]"},
 }
 
+var textFormatOptions = rosed.Options{
+	PreserveParagraphs: true,
+}
+
 // State is the game's entire state.
 type State struct {
 	// World is all rooms that exist and their current state.
@@ -40,6 +44,9 @@ type State struct {
 	// npcLocations is a map of an NPC's label to the label of the room that the
 	// NPC is currently in.
 	npcLocations map[string]string
+
+	// width is how wide to make output
+	width int
 }
 
 // New creates a new State and loads the list of rooms into it. It performs
@@ -47,11 +54,18 @@ type State struct {
 // normalizes them as needed.
 //
 // startingRoom is the label of the room to start with.
-func New(world map[string]*Room, startingRoom string) (State, error) {
+// outputWidth is how wide the output should be. State will try to make all
+// output fit within this width. If not set or < 2, it will be automatically
+// assumed to be 80.
+func New(world map[string]*Room, startingRoom string, outputWidth int) (State, error) {
+	if outputWidth < 2 {
+		outputWidth = 80
+	}
 	gs := State{
 		World:        world,
 		Inventory:    make(Inventory),
 		npcLocations: make(map[string]string),
+		width:        outputWidth,
 	}
 
 	// now set the current room
@@ -122,7 +136,7 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 
 		gs.MoveNPCs()
 
-		output += egress.TravelMessage
+		output += rosed.Edit(egress.TravelMessage).WrapOpts(gs.width, textFormatOptions).String()
 	case "EXITS":
 		exitTable := ""
 
@@ -178,6 +192,8 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 
 			output += util.MakeTextList(itemNames) + "."
 		}
+
+		output = rosed.Edit(output).WrapOpts(gs.width, textFormatOptions).String()
 	case "INVENTORY":
 		if len(gs.Inventory) < 1 {
 			output = "You aren't carrying anything"
@@ -190,6 +206,8 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 			output = "You currently have the following items:\n"
 			output += util.MakeTextList(itemNames) + "."
 		}
+
+		output = rosed.Edit(output).WrapOpts(gs.width, textFormatOptions).String()
 	case "DEBUG":
 		if cmd.Recipient == "ROOM" {
 			output = gs.CurrentRoom.String()
@@ -277,7 +295,7 @@ func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
 				output = rosed.Edit("NPC Info for "+npc.Label+"\n"+
 					"\n",
 				).
-					InsertDefinitionsTableOpts(math.MaxInt, npcInfo, 82, tableOpts).
+					InsertDefinitionsTableOpts(math.MaxInt, npcInfo, gs.width+2, tableOpts).
 					LinesFrom(2).
 					Apply(func(idx int, line string) []string {
 						line = strings.Replace(line[2:], "  -", "  :", 1)
