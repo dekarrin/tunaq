@@ -10,22 +10,15 @@ import (
 
 	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/game"
+	"github.com/dekarrin/tunaq/internal/input"
 	"github.com/dekarrin/tunaq/internal/tqerrors"
 )
-
-type stdinCommandReader struct {
-	r *bufio.Reader
-}
-
-func (scr stdinCommandReader) ReadCommand() (string, error) {
-	return scr.r.ReadString('\n')
-}
 
 // Engine contains the things needed to run a game from an interactive shell
 // attached to an input stream and an output stream.
 type Engine struct {
 	state   game.State
-	in      stdinCommandReader
+	in      game.CommandReader
 	out     *bufio.Writer
 	running bool
 }
@@ -58,7 +51,7 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string) (*
 	}
 
 	eng := &Engine{
-		in:      stdinCommandReader{r: bufio.NewReader(inputStream)},
+		in:      input.NewDirectReader(inputStream),
 		out:     bufio.NewWriter(outputStream),
 		state:   state,
 		running: false,
