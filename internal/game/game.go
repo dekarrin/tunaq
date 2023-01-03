@@ -9,6 +9,12 @@ import (
 	"github.com/dekarrin/tunaq/internal/tqerrors"
 )
 
+// CommandReader is a type that can be used for getting command input.
+type CommandReader interface {
+	// ReadCommand reads a single user command.
+	ReadCommand() (string, error)
+}
+
 // Inventory is a store of items.
 type Inventory map[string]Item
 
@@ -260,7 +266,7 @@ func (room *Room) RemoveItem(label string) {
 //
 // Note that this function does not check if the command is executable, only
 // that a Command can be parsed from the user input.
-func GetCommand(istream *bufio.Reader, ostream *bufio.Writer) (Command, error) {
+func GetCommand(cmdStream CommandReader, ostream *bufio.Writer) (Command, error) {
 	var cmd Command
 	gotValidCommand := false
 
@@ -279,10 +285,14 @@ func GetCommand(istream *bufio.Reader, ostream *bufio.Writer) (Command, error) {
 		if err := ostream.Flush(); err != nil {
 			return cmd, fmt.Errorf("could not flush output: %w", err)
 		}
-		input, err := istream.ReadString('\n')
+		input, err := cmdStream.ReadCommand()
 		if err != nil {
 			return cmd, fmt.Errorf("could not get input: %w", err)
 		}
+
+		// clear off ansi escape sequences for arrows; in future probably want
+		// full terminal raw-mode
+		input = clearANSIArrows(input)
 
 		// now attempt to parse the input
 		cmd, err = ParseCommand(input)
@@ -302,4 +312,70 @@ func GetCommand(istream *bufio.Reader, ostream *bufio.Writer) (Command, error) {
 	}
 
 	return cmd, nil
+}
+
+func clearANSIArrows(s string) string {
+	var cleared []rune
+	var cursor int
+	escChars := 0
+	for _, ch := range s {
+		switch escChars {
+		case 0:
+			if ch == 033 { // ascii 'ESC'
+				escChars++
+			} else {
+				for len(cleared) <= cursor {
+					// make it at least that long, with spaces
+					cleared = append(cleared, ' ')
+				}
+				cleared[cursor] = ch
+				cursor++
+			}
+		case 1:
+			if ch == '[' {
+				escChars++
+			} else {
+				for len(cleared) <= cursor+1 {
+					// make it at least that long, with spaces
+					cleared = append(cleared, ' ')
+				}
+
+				cleared[cursor] = 033
+				cleared[cursor+1] = ch
+				cursor += 2
+
+				escChars = 0
+			}
+		case 2:
+			if ch == 'A' {
+				// up arrow, ignore this
+				escChars = 0
+			} else if ch == 'B' {
+				// down arrow, ignore this
+				escChars = 0
+			} else if ch == 'C' {
+				// right arrow
+				cursor++
+				escChars = 0
+			} else if ch == 'D' {
+				if cursor > 0 {
+					cursor--
+				}
+				escChars = 0
+			} else {
+				for len(cleared) <= cursor+2 {
+					// make it at least that long, with spaces
+					cleared = append(cleared, ' ')
+				}
+				cleared[cursor] = 033
+				cleared[cursor+1] = '['
+				cleared[cursor+2] = ch
+				cursor += 3
+
+				escChars = 0
+			}
+		}
+	}
+
+	return string(cleared)
 }
