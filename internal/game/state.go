@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dekarrin/rosed"
+	"github.com/dekarrin/tunaq/internal/command"
 	"github.com/dekarrin/tunaq/internal/tqerrors"
 	"github.com/dekarrin/tunaq/internal/util"
 )
@@ -120,7 +121,7 @@ func (gs *State) MoveNPCs() {
 // a controlling engine to end the game state based on that.
 //
 // TODO: differentiate syntax errors from io errors
-func (gs *State) Advance(cmd Command, ostream *bufio.Writer) error {
+func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 	var output string
 
 	switch cmd.Verb {

@@ -11,7 +11,7 @@ import (
 	"github.com/chzyer/readline"
 )
 
-// DirectCommandReader implements game.CommandReader and reads commands from any
+// DirectCommandReader implements command.Reader and reads commands from any
 // generic input stream directly. It can be used generically with any io.Reader
 // but does not sanitize the input of control and escape sequences.
 //
@@ -21,9 +21,9 @@ type DirectCommandReader struct {
 	r *bufio.Reader
 }
 
-// InteractiveCommandReader implements game.CommandReader and reads commands
-// from stdin using a go implementation of the GNU Readline library. This keeps
-// input clear of all typing and editing escape sequences and enables the use of
+// InteractiveCommandReader implements command.Reader and reads commands from
+// stdin using a go implementation of the GNU Readline library. This keeps input
+// clear of all typing and editing escape sequences and enables the use of
 // command history. This should in general probably only be used when directly
 // connecting to a TTY for input.
 //

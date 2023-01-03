@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/dekarrin/rosed"
+	"github.com/dekarrin/tunaq/internal/command"
 	"github.com/dekarrin/tunaq/internal/game"
 	"github.com/dekarrin/tunaq/internal/input"
 	"github.com/dekarrin/tunaq/internal/tqerrors"
@@ -18,7 +19,7 @@ import (
 // attached to an input stream and an output stream.
 type Engine struct {
 	state   game.State
-	in      game.CommandReader
+	in      command.Reader
 	out     *bufio.Writer
 	running bool
 }
@@ -108,7 +109,7 @@ func (eng *Engine) RunUntilQuit() error {
 	}()
 
 	for eng.running {
-		cmd, err := game.GetCommand(eng.in, eng.out)
+		cmd, err := command.Get(eng.in, eng.out)
 		if err != nil {
 			return fmt.Errorf("get user command: %w", err)
 		}

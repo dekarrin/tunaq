@@ -2,32 +2,9 @@
 package game
 
 import (
-	"bufio"
 	"fmt"
 	"strings"
-
-	"github.com/dekarrin/tunaq/internal/tqerrors"
 )
-
-// CommandReader is a type that can be used for getting command input.
-// TODO: abstract this into own package (cmd, perhaps `cmd.Reader`) and make it
-// return parsed commands, not 'lines'.
-type CommandReader interface {
-	// ReadCommand reads a single user command. It will block until one is
-	// ready. If there is an error or output is at end (EOF), the returned
-	// string will be empty, otherwise it will always be non-empty.
-	//
-	// When error is io.EOF, string will always be empty. If EOF was encountered
-	// on a call but some input was received, the input will be returned and
-	// error will be nil, and the next call to ReadCommand will return "",
-	// io.EOF.
-	ReadCommand() (string, error)
-
-	// Close performs any operations required to clean the resources created by
-	// the CommandReader. It should be called at least once when the
-	// CommandReader is no longer needed.
-	Close() error
-}
 
 // Inventory is a store of items.
 type Inventory map[string]Item
@@ -270,53 +247,4 @@ func (room *Room) RemoveItem(label string) {
 
 	// otherwise, rewrite items to not include that.
 	room.Items = append(room.Items[:itemIndex], room.Items[itemIndex+1:]...)
-}
-
-// GetCommand is the fundamental unit of obtaining input from the user in an
-// interactive fashion. It prompts the user for an input and attempts to parse
-// it as a valid command, returning that command if it is successful. If it is
-// not, error output is printed to the ostream and the user is prompted until
-// they enter a valid command.
-//
-// Note that this function does not check if the command is executable, only
-// that a Command can be parsed from the user input.
-//
-// TODO: abstract this and the entire command parsing structure to new package,
-// cmd.
-func GetCommand(cmdStream CommandReader, ostream *bufio.Writer) (Command, error) {
-	var cmd Command
-	gotValidCommand := false
-
-	if _, err := ostream.WriteString("Enter command\n"); err != nil {
-		return cmd, fmt.Errorf("could not write output: %w", err)
-	}
-	if err := ostream.Flush(); err != nil {
-		return cmd, fmt.Errorf("could not flush output: %w", err)
-	}
-
-	for !gotValidCommand {
-		// IO to get input:
-		input, err := cmdStream.ReadCommand()
-		if err != nil {
-			return cmd, fmt.Errorf("could not get input: %w", err)
-		}
-
-		// now attempt to parse the input
-		cmd, err = ParseCommand(input)
-		if err != nil {
-			consoleMessage := tqerrors.GameMessage(err)
-			errMsg := fmt.Sprintf("%v\nTry HELP for valid commands\n", consoleMessage)
-			// IO to report error and prompt user to try again
-			if _, err := ostream.WriteString(errMsg); err != nil {
-				return cmd, fmt.Errorf("could not write output: %w", err)
-			}
-			if err := ostream.Flush(); err != nil {
-				return cmd, fmt.Errorf("could not flush output: %w", err)
-			}
-		} else if cmd.Verb != "" {
-			gotValidCommand = true
-		}
-	}
-
-	return cmd, nil
 }
