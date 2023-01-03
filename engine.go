@@ -89,7 +89,7 @@ func (eng *Engine) Close() error {
 // RunUntilQuit begins reading commands from the streams and applying them to
 // the game until the QUIT command is received.
 func (eng *Engine) RunUntilQuit() error {
-	/*introMsg := "Welcome to TunaQuest Engine\n"
+	introMsg := "Welcome to TunaQuest Engine\n"
 	introMsg += "===========================\n"
 	introMsg += "\n"
 	introMsg += "You are in " + eng.state.CurrentRoom.Name + "\n"
@@ -99,7 +99,7 @@ func (eng *Engine) RunUntilQuit() error {
 	}
 	if err := eng.out.Flush(); err != nil {
 		return fmt.Errorf("could not flush output: %w", err)
-	}*/
+	}
 
 	eng.running = true
 	// so we dont have to remember to do this on every returned error condition

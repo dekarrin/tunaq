@@ -11,6 +11,7 @@
 # bins
 /tqi
 /tqi.exe
+/tqi.sh
 
 # we are a go mod household tyvm
 /vendor
