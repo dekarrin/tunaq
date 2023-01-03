@@ -10,6 +10,8 @@ import (
 )
 
 // CommandReader is a type that can be used for getting command input.
+// TODO: abstract this into own package (cmd, perhaps `cmd.Reader`) and make it
+// return parsed commands, not 'lines'.
 type CommandReader interface {
 	// ReadCommand reads a single user command. It will block until one is
 	// ready. If there is an error or output is at end (EOF), the returned
@@ -291,12 +293,6 @@ func GetCommand(cmdStream CommandReader, ostream *bufio.Writer) (Command, error)
 
 	for !gotValidCommand {
 		// IO to get input:
-		if _, err := ostream.WriteString("> "); err != nil {
-			return cmd, fmt.Errorf("could not write output: %w", err)
-		}
-		if err := ostream.Flush(); err != nil {
-			return cmd, fmt.Errorf("could not flush output: %w", err)
-		}
 		input, err := cmdStream.ReadCommand()
 		if err != nil {
 			return cmd, fmt.Errorf("could not get input: %w", err)

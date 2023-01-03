@@ -88,6 +88,7 @@ func main() {
 		returnCode = ExitInitError
 		return
 	}
+	defer gameEng.Close()
 
 	err := gameEng.RunUntilQuit()
 	if err != nil {

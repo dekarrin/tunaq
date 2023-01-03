@@ -47,17 +47,43 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string) (*
 
 	state, err := game.New(world, start, consoleOutputWidth)
 	if err != nil {
-		return nil, fmt.Errorf("initializing CLI engine: %w", err)
+		return nil, fmt.Errorf("initializing game engine: %w", err)
 	}
 
 	eng := &Engine{
-		in:      input.NewDirectReader(inputStream),
 		out:     bufio.NewWriter(outputStream),
 		state:   state,
 		running: false,
 	}
 
+	if inputStream == os.Stdin && outputStream == os.Stdout {
+		eng.in, err = input.NewInteractiveReader()
+		if err != nil {
+			return nil, fmt.Errorf("initializing interactive-mode input reader: %w", err)
+		}
+	} else {
+		eng.in = input.NewDirectReader(inputStream)
+	}
+
 	return eng, nil
+}
+
+// Close closes all resources associated with the Engine, including any
+// readline-related resources created for interactive mode.
+func (eng *Engine) Close() error {
+	// TODO: make it so Close called on running engine actually shuts it down.
+	// requirements: need to tell CommandReader that it is time to stop reading
+	// immediately and go EOF.
+	if eng.running {
+		return fmt.Errorf("cannot close a running game engine")
+	}
+
+	err := eng.in.Close()
+	if err != nil {
+		return fmt.Errorf("close command reader: %w", err)
+	}
+
+	return nil
 }
 
 // RunUntilQuit begins reading commands from the streams and applying them to
