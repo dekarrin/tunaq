@@ -140,13 +140,16 @@ type jsonPronounSet struct {
 	Label string
 }
 
-func (jp *jsonPronounSet) UnmarshalText(text []byte) error {
-	// if its just text then set Label instead of actually setting the props.
-	jp.Label = string(text)
-	return nil
-}
-
 func (jp *jsonPronounSet) UnmarshalJSON(b []byte) error {
+	if len(b) > 0 && string(b[0:1]) == "\"" {
+		var content string
+		if jsonErr := json.Unmarshal(b, &content); jsonErr != nil {
+			return jsonErr
+		}
+		jp.Label = content
+		return nil
+	}
+
 	type pronounFill struct {
 		Nominative string `json:"nominative"`
 		Objective  string `json:"objective"`
@@ -485,7 +488,8 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 		if world[npc.Start].NPCs == nil {
 			world[npc.Start].NPCs = make(map[string]*NPC)
 		}
-		world[npc.Start].NPCs[npc.Label] = &npc
+		npcRef := npc
+		world[npc.Start].NPCs[npc.Label] = &npcRef
 	}
 
 	// TODO: check that no item overwrites another
@@ -612,7 +616,7 @@ func validatePronounSetDef(ps jsonPronounSet, topLevel map[string]jsonPronounSet
 		if topLevel == nil {
 			return fmt.Errorf("top-level pronoun must be full pronoun definition, not a label (%q)", ps.Label)
 		}
-		if _, ok := topLevel[strings.ToUpper(ps.Label)]; ok {
+		if _, ok := topLevel[strings.ToUpper(ps.Label)]; !ok {
 			return fmt.Errorf("no pronoun set called %q exists", ps.Label)
 		}
 	}

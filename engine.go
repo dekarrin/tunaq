@@ -32,7 +32,7 @@ const consoleOutputWidth = 80
 //
 // If nil is given for the input stream, a bufio.Reader is opened on stdin. If
 // nil is given for the output stream, a bufio.Writer is opened on stdout.
-func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string) (*Engine, error) {
+func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string, forceDirectInput bool) (*Engine, error) {
 	if inputStream == nil {
 		inputStream = os.Stdin
 	}
@@ -57,7 +57,7 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string) (*
 		running: false,
 	}
 
-	if inputStream == os.Stdin && outputStream == os.Stdout {
+	if !forceDirectInput && inputStream == os.Stdin && outputStream == os.Stdout {
 		eng.in, err = input.NewInteractiveReader()
 		if err != nil {
 			return nil, fmt.Errorf("initializing interactive-mode input reader: %w", err)

@@ -20,6 +20,11 @@ The flags are:
 		Use the provided JSON world file. Defaults to the file "world.json" in
 		the current working directory.
 
+	-d/--direct
+	    Force reading directly from the console as opposed to using GNU readline
+		based routines for reading command input even if launched in a tty with
+		stdin and stdout.
+
 Once a session has started, the user input will be parsed for TunaQuest
 commands. For an explanation of the commands, type "HELP" once in a session. To
 exit the interpreter, type "QUIT".
@@ -53,15 +58,19 @@ var (
 	returnCode  int   = ExitSuccess
 	flagVersion *bool = flag.Bool("version", false, "Gives the version info")
 	worldFile   string
+	forceDirect bool
 )
 
 func init() {
 	const (
 		defaultWorldFile = "world.json"
 		worldUsage       = "the JSON file that contains the definition of the world"
+		forceDirectUsage = "force reading directly from stdin instead of going through GNU readline where possible"
 	)
 	flag.StringVar(&worldFile, "world", defaultWorldFile, worldUsage)
 	flag.StringVar(&worldFile, "w", defaultWorldFile, worldUsage+" (shorthand)")
+	flag.BoolVar(&forceDirect, "direct", false, forceDirectUsage)
+	flag.BoolVar(&forceDirect, "d", false, forceDirectUsage+" (shorthand)")
 }
 
 func main() {
@@ -82,7 +91,7 @@ func main() {
 		return
 	}
 
-	gameEng, initErr := tunaq.New(os.Stdin, os.Stdout, worldFile)
+	gameEng, initErr := tunaq.New(os.Stdin, os.Stdout, worldFile, forceDirect)
 	if initErr != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", initErr.Error())
 		returnCode = ExitInitError

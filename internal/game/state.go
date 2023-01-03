@@ -220,6 +220,7 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 				for npcLabel, roomLabel := range gs.npcLocations {
 					room := gs.World[roomLabel]
 					npc := room.NPCs[npcLabel]
+
 					infoRow := []string{npc.Label, npc.Movement.Action.String(), room.Label}
 					data = append(data, infoRow)
 				}
