@@ -280,6 +280,9 @@ func (room *Room) RemoveItem(label string) {
 //
 // Note that this function does not check if the command is executable, only
 // that a Command can be parsed from the user input.
+//
+// TODO: abstract this and the entire command parsing structure to new package,
+// cmd.
 func GetCommand(cmdStream CommandReader, ostream *bufio.Writer) (Command, error) {
 	var cmd Command
 	gotValidCommand := false

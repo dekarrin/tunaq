@@ -108,6 +108,8 @@ func (icr *InteractiveCommandReader) ReadCommand() (string, error) {
 	var line string
 	var err error
 
+	fmt.Printf("UGH\n")
+
 	for line == "" {
 		line, err = icr.rl.Readline()
 		if err != nil && (err != io.EOF || line == "") {
