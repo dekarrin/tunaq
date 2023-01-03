@@ -101,13 +101,32 @@
 		{
 			"label": "FRONT_YARD",
 			"name": "the yard outside your house's front door",
-			"description": "You are outside on the lawn of your house. The grass is green and very healthy-looking. From here you can go back into the house and that's pretty much it.",
+			"description": "You are outside on the lawn of your house. The grass is green and very healthy-looking. From here you can go back into the house, the backyard, and that's pretty much it.",
 			"exits": [
 				{
 					"destLabel": "LIVING_ROOM",
 					"description": "the front door of your house, leading directly to the living room",
 					"aliases": ["LIVINGROOM", "LIVING_ROOM", "LIVING ROOM", "INSIDE", "HOUSE", "FRONT DOOR", "DOOR"],
 					"travelMessage": "You pull open the heavy door and are comforted by the familiar sight of your living room. You step in and shut the door behind you."
+				},
+				{
+					"destLabel": "BACKYARD",
+					"description": "the lawn and yard in the back of your house",
+					"aliases": ["BACKYARD", "BACK YARD", "BACK", "YARD"],
+					"travelMessage": "Grass and twigs crunch under your feet as you walk around to the back yard."
+				}
+			]
+		},
+		{
+			"label": "BACKYARD",
+			"name": "your house's backyard",
+			"description": "This is the outside of your house, in the back. There's a nice lawn here, well-kept and manicured, and you see a Pogo ride in a nearby sandbox that seems oddly familiar. There's nowhere to go but back to the front yard, but maybe you should stay for a moment and take a break.",
+			"exits": [
+				{
+					"destLabel": "FRONT_YARD",
+					"description": "the yard outside of your house's front door",
+					"aliases": ["YARD", "FRONT", "FRONT YARD", "FRONTYARD", "FRONT_YARD", "FRONT LAWN"],
+					"travelMessage": "You decide you've had enough of the backyard and decide to go to the front."
 				}
 			]
 		}
@@ -122,6 +141,17 @@
 		}
 	},
 	"npcs": [
+		{
+			"label": "IMP",
+			"aliases": [
+				"IMP",
+				"WANDERING IMP",
+				"WANDERER"
+			],
+			"name": "Wanderer, the wandering imp",
+			"pronouns": "THEY/THEM",
+			"movement": ""
+		},
 		{
 			"label": "JOEYC",
 			"aliases": [
