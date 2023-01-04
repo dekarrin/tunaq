@@ -60,7 +60,9 @@ name = "the main hallway in your house"
 description = '''
 This is the main hallway in your house that connects the bedrooms with the living room and kitchen. There's a doorway at
 the end, but it seems boarded up, and you're pretty sure that's because it represents the limits of the game you're in.
-I guess you're stuck here. In your home. Housetrapped.\n\nAnyways, there's also your bedroom door at the north end.
+I guess you're stuck here. In your home. Housetrapped.
+
+Anyways, there's also your bedroom door at the north end.
 '''
 
 [[rooms.exits]]
