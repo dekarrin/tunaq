@@ -146,7 +146,6 @@
 					"description": "the other end of the tunnel, leading to the backyard",
 					"aliases": ["BACKYARD", "OUTSIDE", "TUNNEL"],
 					"travelMessage": "You pass around several corners and are delighted to see the tunnel end in a patch of light. You climb out and see your familiar pogo ride next to you. You've made it into your backyard."
-
 				},
 				{
 					"destLabel": "KITCHEN",

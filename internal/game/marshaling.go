@@ -306,11 +306,11 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 
 	for idx, r := range loadedWorld.Rooms {
 		if roomErr := validateRoomDef(r); roomErr != nil {
-			return nil, "", fmt.Errorf("parsing: rooms[%d]: %w", idx, roomErr)
+			return nil, "", fmt.Errorf("parsing: rooms[%d (%q)]: %w", idx, r.Label, roomErr)
 		}
 
 		if _, ok := world[r.Label]; ok {
-			return nil, "", fmt.Errorf("parsing: rooms[%d]: duplicate room label %q", idx, r.Label)
+			return nil, "", fmt.Errorf("parsing: rooms[%d (%q)]: room label %q has already been used", idx, r.Label, r.Label)
 		}
 
 		room := r.toRoom()
@@ -353,7 +353,7 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 		}
 
 		if err := validateNPCDef(npc, pronouns); err != nil {
-			return nil, "", fmt.Errorf("parsing: npcs[%d]: %w", idx, err)
+			return nil, "", fmt.Errorf("parsing: npcs[%d (%q)]: %w", idx, npc.Label, err)
 		}
 
 		// set pronouns to actual
@@ -369,8 +369,8 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 	for roomIdx, r := range loadedWorld.Rooms {
 		for egressIdx, eg := range r.Exits {
 			if _, ok := world[eg.DestLabel]; !ok {
-				errMsg := "validating: rooms[%d]: exits[%d]: no room with label %q exists"
-				return nil, "", fmt.Errorf(errMsg, roomIdx, egressIdx, eg.DestLabel)
+				errMsg := "validating: rooms[%d (%q)]: exits[%d]: no room with label %q exists"
+				return nil, "", fmt.Errorf(errMsg, roomIdx, r.Label, egressIdx, eg.DestLabel)
 			}
 		}
 	}
@@ -387,14 +387,14 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 	for idx, npc := range npcs {
 		// check labels
 		if seenInIndex, ok := seenNPCLabels[npc.Label]; ok {
-			return nil, "", fmt.Errorf("validating: npcs[%d]: duplicate label %q; already used by npc[%d]", idx, npc.Label, seenInIndex)
+			return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: duplicate label %q; already used by npc %d", idx, npc.Label, npc.Label, seenInIndex)
 		}
 		seenNPCLabels[npc.Label] = idx
 
 		// check start label
 		_, ok := world[npc.Start]
 		if !ok {
-			return nil, "", fmt.Errorf("validating: npcs[%d]: start: no room with label %q exists", idx, npc.Start)
+			return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: start: no room with label %q exists", idx, npc.Label, npc.Start)
 		}
 
 		// then check route based on movement type
@@ -403,28 +403,28 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 			// can npc get to initial position?
 			err = pf.ValidatePath(append([]string{npc.Start}, npc.Movement.Path[0]), false)
 			if err != nil {
-				return nil, "", fmt.Errorf("validating: npcs[%d]: %w", idx, err)
+				return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: %w", idx, npc.Label, err)
 			}
 
 			// once at initial, can npc loop through patrol?
 			err = pf.ValidatePath(npc.Movement.Path, true)
 			if err != nil {
-				return nil, "", fmt.Errorf("validating: npcs[%d]: %w", idx, err)
+				return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: %w", idx, npc.Label, err)
 			}
 		case RouteWander:
 			for roomIdx, roomLabel := range npc.Movement.AllowedRooms {
 				_, ok := world[roomLabel]
 				if !ok {
-					errMsg := "validating: npcs[%d]: movement: allowedRooms[%d]: no room with label %q exists"
-					return nil, "", fmt.Errorf(errMsg, idx, roomIdx, roomLabel)
+					errMsg := "validating: npcs[%d (%q)]: movement: allowedRooms[%d]: no room with label %q exists"
+					return nil, "", fmt.Errorf(errMsg, idx, npc.Label, roomIdx, roomLabel)
 				}
 			}
 
 			for roomIdx, roomLabel := range npc.Movement.ForbiddenRooms {
 				_, ok := world[roomLabel]
 				if !ok {
-					errMsg := "validating: npcs[%d]: movement: forbiddenRooms[%d]: no room with label %q exists"
-					return nil, "", fmt.Errorf(errMsg, idx, roomIdx, roomLabel)
+					errMsg := "validating: npcs[%d (%q)]: movement: forbiddenRooms[%d]: no room with label %q exists"
+					return nil, "", fmt.Errorf(errMsg, idx, npc.Label, roomIdx, roomLabel)
 				}
 			}
 
@@ -436,8 +436,8 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 				for aRoomIdx, aRoom := range npc.Movement.AllowedRooms {
 					path := pf.Dijkstra(source, aRoom)
 					if len(path) < 1 {
-						errMsg := "validating: npcs[%d]: movement: allowedRooms[%d]: %q is not reachable from start"
-						return nil, "", fmt.Errorf(errMsg, idx, aRoomIdx, aRoom)
+						errMsg := "validating: npcs[%d (%q)]: movement: allowedRooms[%d]: %q is not reachable from start"
+						return nil, "", fmt.Errorf(errMsg, idx, npc.Label, aRoomIdx, aRoom)
 					}
 				}
 
@@ -450,8 +450,8 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 					for fRoomIdx, fRoom := range npc.Movement.ForbiddenRooms {
 						path := pf.Dijkstra(source, fRoom)
 						if len(path) < 1 {
-							errMsg := "validating: npcs[%d]: movement: forbiddenRooms[%d]: %q is not reachable from start"
-							return nil, "", fmt.Errorf(errMsg, idx, fRoomIdx, fRoom)
+							errMsg := "validating: npcs[%d (%q)]: movement: forbiddenRooms[%d]: %q is not reachable from start"
+							return nil, "", fmt.Errorf(errMsg, idx, npc.Label, fRoomIdx, fRoom)
 						}
 					}
 				}
@@ -459,7 +459,7 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 		case RouteStatic:
 			// nothing more to validate, they don't move
 		default:
-			return nil, "", fmt.Errorf("validating: npcs[%d]: movement: action: unknown action type '%v'", idx, npc.Movement.Action)
+			return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: movement: action: unknown action type '%v'", idx, npc.Label, npc.Movement.Action)
 		}
 
 		// check convo tree for duplicate labels
@@ -473,7 +473,7 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 			}
 
 			if seenInIndex, ok := seenConvoLabels[label]; ok {
-				return nil, "", fmt.Errorf("validating: npcs[%d]: dialog[%d]: duplicate label %q; already used by dialog[%d]", idx, diaIdx, label, seenInIndex)
+				return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: dialog[%d]: duplicate label %q; already used by dialog[%d]", idx, npc.Label, diaIdx, label, seenInIndex)
 			}
 			seenConvoLabels[label] = diaIdx
 		}
@@ -485,8 +485,8 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 				for _, dest := range diaStep.Choices {
 					choiceNum++
 					if _, ok := seenConvoLabels[dest]; !ok {
-						msg := "validating: npcs[%d]: dialog[%d]: choices[%d]: %q is not a label or index that exists in this NPC's dialog set"
-						return nil, "", fmt.Errorf(msg, idx, diaIdx, choiceNum, dest)
+						msg := "validating: npcs[%d (%q)]: dialog[%d]: choices[%d]: %q is not a label or index that exists in this NPC's dialog set"
+						return nil, "", fmt.Errorf(msg, idx, npc.Label, diaIdx, choiceNum, dest)
 					}
 				}
 			}
