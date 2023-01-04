@@ -1,10 +1,11 @@
-format = "tuna"
+format = "TUNA"
 type = "DATA"
 
 [world]
 start = "YOUR_ROOM"
 
-# your room
+
+# your_room
 [[rooms]]
 label = "YOUR_ROOM"
 name = "your bedroom"
@@ -15,24 +16,27 @@ the east, and a door leading to the hall to the south.
 '''
 
 [[rooms.exits]]
+aliases = ["BATHROOM", "TOILET", "DOOR", "EAST"]
 destLabel = "BATHROOM"
 description = "your bathroom door"
-aliases = ["BATHROOM", "TOILET", "DOOR", "EAST", ]
-travelMessage = "You go through the door and enter the bathroom."
+travelMessage = '''
+You go through the door and enter the bathroom.
+'''
 
 [[rooms.exits]]
+aliases = ["HALLWAY", "HALL", "OUT", "SOUTH"]
 destLabel = "HALLWAY"
 description = "the door to the hall"
-aliases = ["HALLWAY", "HALL", "OUT", "SOUTH"]
-travelMessage = "You shut the door behind you as you go into the hall."
+travelMessage = '''
+You shut the door behind you as you go into the hall.
+'''
 
 [[rooms.items]]
 label = "POGO_HAMMER"
-name = "a pogo hammer"
 aliases = ["HAMMER", "POGOHAMMER", "POGO", "POGO_HAMMER"]
+name = "a pogo hammer"
 description = '''
-Your treasured hammer mixed with a pogo stick. This probably shouldn't be left where children can reach it (that's a
-quip, not a game mechanic).
+the door to the hall
 '''
 
 
@@ -47,10 +51,12 @@ the west leads back to your bedroom.
 '''
 
 [[rooms.exits]]
+aliases = ["BEDROOM", "ROOM", "DOOR", "WEST"]
 destLabel = "YOUR_ROOM"
 description = "the door"
-aliases = ["BEDROOM", "ROOM", "DOOR", "WEST"]
-travelMessage = "You head back into the bedroom."
+travelMessage = '''
+You head back into the bedroom.
+'''
 
 
 # hallway
@@ -60,13 +66,553 @@ name = "the main hallway in your house"
 description = '''
 This is the main hallway in your house that connects the bedrooms with the living room and kitchen. There's a doorway at
 the end, but it seems boarded up, and you're pretty sure that's because it represents the limits of the game you're in.
-I guess you're stuck here. In your home. Housetrapped.
-
-Anyways, there's also your bedroom door at the north end.
+I guess you're stuck here. In your home. Housetrapped.  Anyways, there's also your bedroom door at the north end.
 '''
 
 [[rooms.exits]]
+aliases = ["BEDROOM", "ROOM", "NORTH"]
 destLabel = "YOUR_ROOM"
 description = "the door to your bedroom"
-aliases = ["BEDROOM", "ROOM", "NORTH"]
-travelMessage = "You step into your bedroom, closing the door behind you for privacy."
+travelMessage = '''
+You step into your bedroom, closing the door behind you for privacy.
+'''
+
+[[rooms.exits]]
+aliases = ["LIVING_ROOM", "LIVINGROOM", "LIVING ROOM", "DOORWAY", "END"]
+destLabel = "LIVING_ROOM"
+description = "The end of the hall, leading to the living room"
+travelMessage = '''
+Your feelings were wrong, turns out you can pass right through the boards! You go into the living room.
+'''
+
+
+# living_room
+[[rooms]]
+label = "LIVING_ROOM"
+name = "the communal gathering and hangout room in your house"
+description = '''
+You are standing in the living room. It is here that you have formed many memories with many people. But... for some
+reason who those people are eludes you. You seem to remember something about a boy and his father fighting over cake or
+something like that... or... was it a girl? Perhaps one set to inherit a major baking corporation.  From here you can go
+to the kitchen, through the front door to the yard outside, or back to the hallway towards the bedroom.
+'''
+
+[[rooms.exits]]
+aliases = ["HALL", "HALLWAY", "BEDROOMS", "DOORWAY"]
+destLabel = "HALLWAY"
+description = "the hall leading to the bedrooms"
+travelMessage = '''
+You walk into the hallway towards the bedrooms.
+'''
+
+[[rooms.exits]]
+aliases = ["KITCHEN", "MEALBLOCK", "MEAL BLOCK"]
+destLabel = "KITCHEN"
+description = "the kitchen of the house"
+travelMessage = '''
+You walk into the kitchen.
+'''
+
+[[rooms.exits]]
+aliases = ["OUTSIDE", "OUT", "YARD", "DOOR", "FRONT DOOR"]
+destLabel = "FRONT_YARD"
+description = "the front door of the house. There's a neat little window to see people outside, but you don't usually get visitors."
+travelMessage = '''
+You pull open the front door, letting in a whoosh of wind. It blows your hair into a mess as you step outside, and you
+brush it out of your eyes.
+'''
+
+
+# kitchen
+[[rooms]]
+label = "KITCHEN"
+name = "the kitchen"
+description = '''
+The place where food is made. It's completely spotless, everything put away nicely and every surface gleaming. The
+windows let in plenty of light and let you see that there is an exit back to the living room.
+'''
+
+[[rooms.exits]]
+aliases = ["LIVINGROOM", "LIVING_ROOM", "LIVING ROOM", "OUT"]
+destLabel = "LIVING_ROOM"
+description = "the entryway back into the living room"
+travelMessage = '''
+You walk back into the living room.
+'''
+
+
+# front_yard
+[[rooms]]
+label = "FRONT_YARD"
+name = "the yard outside your house's front door"
+description = '''
+You are outside on the lawn of your house. The grass is green and very healthy-looking. From here you can go back into
+the house, the backyard, and that's pretty much it.
+'''
+
+[[rooms.exits]]
+aliases = ["LIVINGROOM", "LIVING_ROOM", "LIVING ROOM", "INSIDE", "HOUSE", "FRONT DOOR", "DOOR"]
+destLabel = "LIVING_ROOM"
+description = "the front door of your house, leading directly to the living room"
+travelMessage = '''
+You pull open the heavy door and are comforted by the familiar sight of your living room. You step in and shut the door
+behind you.
+'''
+
+[[rooms.exits]]
+aliases = ["BACKYARD", "BACK YARD", "BACK", "YARD"]
+destLabel = "BACKYARD"
+description = "the lawn and yard in the back of your house"
+travelMessage = '''
+Grass and twigs crunch under your feet as you walk around to the back yard.
+'''
+
+
+# backyard
+[[rooms]]
+label = "BACKYARD"
+name = "your house's backyard"
+description = '''
+This is the outside of your house, in the back. There's a nice lawn here, well-kept and manicured, and you see a Pogo
+ride in a nearby sandbox that seems oddly familiar. Maybe you should stay for a moment and take a break.  From here, you
+could go back to the front yard. Or, bizarrely, there seems to be an opening in the ground near the pogo ride, so you
+could go in there.
+'''
+
+[[rooms.exits]]
+aliases = ["YARD", "FRONT", "FRONT YARD", "FRONTYARD", "FRONT_YARD", "FRONT LAWN"]
+destLabel = "FRONT_YARD"
+description = "the yard outside of your house's front door"
+travelMessage = '''
+You decide you've had enough of the backyard and decide to go to the front.
+'''
+
+[[rooms.exits]]
+aliases = ["CAVE", "TUNNEL", "POGO", "HOLE", "OPENING", "GROUND"]
+destLabel = "NPC_HALL"
+description = "a dank tunnel leading down into the depths of the earth under your house"
+travelMessage = '''
+You take a deep breath and follow the tunnel underground, past a couple of turns and into the depths.
+'''
+
+
+# npc_hall
+[[rooms]]
+label = "NPC_HALL"
+name = "a dark hall in the ground under your house"
+description = '''
+You are standing in the middle of a concrete, artificial tunnel underneath your house. At first it feels pitch black,
+but your eyes slowly adjust and you can make out what's in here by the light of several bioluminescent mushrooms on
+several of the walls.  There's a set of three antique doors dotting the walls of the hall. An oak one that says 'GLUB',
+a maplewood one that says 'NAK', and a rosewood one that says 'THIP'. There's also a ladder leading to a hatch above
+you, or you could head back through the tunnel to the backyard.
+'''
+
+[[rooms.exits]]
+aliases = ["BACKYARD", "OUTSIDE", "TUNNEL"]
+destLabel = "BACKYARD"
+description = "the other end of the tunnel, leading to the backyard"
+travelMessage = '''
+You pass around several corners and are delighted to see the tunnel end in a patch of light. You climb out and see your
+familiar pogo ride next to you. You've made it into your backyard.
+'''
+
+[[rooms.exits]]
+aliases = ["LADDER", "UP", "CLIMB", "HATCH"]
+destLabel = "KITCHEN"
+description = "a ladder leading up to a hatch in the ceiling of the tunnel"
+travelMessage = '''
+You climb up the ladder and throw open the hatch. You go through and find yourself in complete darkness, and you trip
+and accidentally slam the hatch shut behind you! Looks like you won't be going back that way. After fumbling about a bit
+more, you find a door and walk out of your pantry into your kitchen.
+'''
+
+[[rooms.exits]]
+aliases = ["GLUB", "OAK", "GLUB DOOR", "DOOR GLUB"]
+destLabel = "SALAMANDER_FOYER"
+description = "an old oak door, with a placard reading 'GLUB' next to it"
+travelMessage = '''
+You heave open the heavy oak door and walk into a well-lit sitting room. The door closes behind you.
+'''
+
+[[rooms.exits]]
+aliases = ["NAK", "MAPLE", "MAPLEWOOD", "NAK DOOR", "DOOR NAK"]
+destLabel = "CROC_FOYER"
+description = "an old... maple door?! Who makes a door out of maple?! Anyways, this one is. And there's a sign next to it that says 'NAK'."
+travelMessage = '''
+You manage to pull open the maple door, which looks suspiciously like flooring. As you walk through, a soft blue glow
+hits your skin.
+'''
+
+[[rooms.exits]]
+aliases = ["THIP", "ROSEWOOD", "THIP DOOR", "DOOR THIP"]
+destLabel = "IGUANA_FOYER"
+description = "a gorgeous rosewood door with intricate designs carved into it, under a well-crafted sign-board with 'THIP' eloquently carved into it"
+travelMessage = '''
+The rosewood door opens easily without a hitch or a single creak, and you go on through.
+'''
+
+
+# croc_foyer
+[[rooms]]
+label = "CROC_FOYER"
+name = "the investor room"
+description = '''
+You're standing in a lounge-looking room covered in plush couches with huge big-screen TVs lining the walls. The screens
+are showing market trend lines moving up and down, tickers scrolling across showing sale prices of various stock
+symbols, and huge green and red text accompanied by a plus sign or minus as approriate flashing across the screens. This
+place looks like the trading floor of the New York Stock Exchange combined with a casino.  Strangely, it seems
+completely deserted. Oh well. You guess you could head back NORTH through the maplewood door to the tunnel, once you're
+done here.
+'''
+
+[[rooms.exits]]
+aliases = ["MAPLE", "MAPLEWOOD", "DOOR", "TUNNEL", "NORTH"]
+destLabel = "NPC_HALL"
+description = "a maplewood door leading back to the underground tunnel"
+travelMessage = '''
+You decide to leave the excitment of Wall Street to the bankers and head back through the maplewood door into the
+tunnel.
+'''
+
+
+# iguana_foyer
+[[rooms]]
+label = "IGUANA_FOYER"
+name = "the swimming room"
+description = '''
+You can hardly believe your eyes but, you're standing in an indoor swimming pool room. Well, a small one anyways.
+There's various pool equipment and pool-side chairs lining a small pool about the size of a large sedan, and the air is
+uncomfortably heavy with moisture. Whoever hung out here must have really enjoyed swimming.  You don't have a swimsuit
+on you and you aren't confident enough that you're alone to risk go skinny-dipping, so all there is to do is go back
+NORTH through the rosewood door to the tunnel.
+'''
+
+[[rooms.exits]]
+aliases = ["ROSEWOOD", "DOOR", "TUNNEL", "NORTH"]
+destLabel = "NPC_HALL"
+description = "a rosewood door leading back to the underground tunnel"
+travelMessage = '''
+You go back to the tunnel, glad to be away from the humidity of the pool room.
+'''
+
+
+# salamander_foyer
+[[rooms]]
+label = "SALAMANDER_FOYER"
+name = "The room of salamanders going GLUB"
+description = '''
+Oh this is absolutely a test room used for wandering NPCs. Though, it's very cold and damp, with breezes going by every
+now and then.  You can go NORTH through a doorway or SOUTH back into the tunnel via the oak door.
+'''
+
+[[rooms.exits]]
+aliases = ["OAK", "DOOR", "TUNNEL", "SOUTH"]
+destLabel = "NPC_HALL"
+description = "an oak door leading back to the underground tunnel."
+travelMessage = '''
+You go back through the oak door into the tunnel.
+'''
+
+[[rooms.exits]]
+aliases = ["DOORWAY", "NORTH"]
+destLabel = "SALAMANDER_OFFICE_FORK"
+description = "Just a normal opening into FORK-A."
+travelMessage = '''
+You make your way into the Salamander version of Fork-A.
+'''
+
+
+# salamander_office_fork
+[[rooms]]
+label = "SALAMANDER_OFFICE_FORK"
+name = "the first forking room of salamander caves"
+description = '''
+This is the first forking point in the Salamander caves. The ground is covered in dinner forks. Hilarious.  You can go
+through a SOUTH doorway back to the foyer, NORTH into a inner hall, or WEST into a side passage leading to the
+Salamander offices.
+'''
+
+[[rooms.exits]]
+aliases = ["DOORWAY", "SOUTH"]
+destLabel = "SALAMANDER_FOYER"
+description = "doorway back to the foyer"
+travelMessage = '''
+You go back into the foyer.
+'''
+
+[[rooms.exits]]
+aliases = ["PASSAGE", "SIDE PASSAGE", "SIDE", "WEST", "OFFICE", "OFFICES"]
+destLabel = "SALAMANDER_OFFICE_FRONT"
+description = "The side passage of salamander land."
+travelMessage = '''
+You enter the side passage.
+'''
+
+[[rooms.exits]]
+aliases = ["HALL", "INNER HALL", "HALLWAY", "INNER", "NORTH"]
+destLabel = "SALAMANDER_HALL"
+description = "hall deep within salamander territory. Full of glubs, and... is that a knife on the ground?"
+travelMessage = '''
+You enter the hall to the sound of glubs echoing about.
+'''
+
+
+# salamander_office_front
+[[rooms]]
+label = "SALAMANDER_OFFICE_FRONT"
+name = "the salamander accountancy room"
+description = '''
+You are in the front half of a well-lit office workspace covered in desks and workstations. Various whiteboards are
+covered in variations of the words 'glub', 'business', and 'profit', along with several pie charts and graphs you can't
+make sense of. There's a large partition on the north end of the room separating your side from the rest, but there's a
+gap in it for going from one side to another.  From here you can go EAST, though the way is paved in dinner forks, or
+NORTH into the back of the room.
+'''
+
+[[rooms.exits]]
+aliases = ["FORKS", "FORK", "EAST", "FORK ROOM"]
+destLabel = "SALAMANDER_OFFICE_FORK"
+description = "a doorway with dinner forks covering the ground"
+travelMessage = '''
+The ground clinks as you step into the fork room.
+'''
+
+[[rooms.exits]]
+aliases = ["BACKROOM", "BACK", "NORTH", "PARTITION"]
+destLabel = "SALAMANDER_OFFICE_BACK"
+description = "the back half of the large office room, separated from where you are with a partition"
+travelMessage = '''
+You walk around the partition.
+'''
+
+
+# salamander_office_back
+[[rooms]]
+label = "SALAMANDER_OFFICE_BACK"
+name = "the salamander records room"
+description = '''
+You are in the back half of the salamander office. This side is covered in drab corporate paintings and lights
+specifically designed to cast an eerie green glow on everything. File cabinets are vaguely organized against a wall,
+though the huge pile of papers on the ground shows that this didn't do much. There's an iron partition with an opening
+in it to the south separating this half of room from the rest.  From here you could go SOUTH to the front of the room,
+or EAST, though the way east is paved in spoons.
+'''
+
+[[rooms.exits]]
+aliases = ["SPOONS", "SPOON", "EAST", "SPOON ROOM"]
+destLabel = "SALAMANDER_OFFICE_SPOON"
+description = "a doorway with dinner spoons covering the ground"
+travelMessage = '''
+You nearly faceplant after tripping on a spoon, but manage to find your balance as you walk into the spoon room.
+'''
+
+[[rooms.exits]]
+aliases = ["FRONT", "SOUTH", "PARTITION"]
+destLabel = "SALAMANDER_OFFICE_FRONT"
+description = "the front half of the large office room, spearated from where you are with a partition"
+travelMessage = '''
+You step around the partition.
+'''
+
+
+# salamander_office_spoon
+[[rooms]]
+label = "SALAMANDER_OFFICE_SPOON"
+name = "the second forking room of the salamanders"
+description = '''
+You are at the end of a series of rooms leading to either the entrance of the salamander caves, dinner, or both. The
+ground is littered in dinner spoons that someone has been hoarding.  From here, you can head SOUTH to a hall that has a
+knife on the ground, or to the WEST you can see a soft green glow coming from a doorway.
+'''
+
+[[rooms.exits]]
+aliases = ["WEST", "RECKARDS", "RECORDS", "RECORD", "RECKARD", "DOORWAY", "GREEN"]
+destLabel = "SALAMANDER_OFFICE_BACK"
+description = "a doorway leading to a room with pale green light spilling out, with a label reading 'RECKARDS' above it"
+travelMessage = '''
+You step through the doorway and into the sickly light.
+'''
+
+[[rooms.exits]]
+aliases = ["SOUTH", "KNIVES", "KNIFE", "HALL", "HALLWAY"]
+destLabel = "SALAMANDER_HALL"
+description = "a narrow hallway with a few knives on the ground"
+travelMessage = '''
+You carefully avoid the fallen knives as you step into the hall. Glubs echo about as you do.
+'''
+
+
+# salamander_hall
+[[rooms]]
+label = "SALAMANDER_HALL"
+name = "an inner hall within the Salamander caves"
+description = '''
+You are in a hall connecting the fork and spoon rooms of the Salamander caves. True to theme, this one has *KNIVES* in
+it, although instead of being completely strewn across the floor, these ones are nicely racked on the wall. Well, most
+of them. There's still the occasional fallen knife on the ground, which you are very careful to avoid as you walk about.
+There's a shelf set into one of the walls, which has a tape recorder and a speaker on it. The recorder keeps playing
+someone saying 'glub' over and over again.  There is a door to the side with 'treasure' scrawled on a sign nearby.  From
+here you can go NORTH to a room that has spoons on the gound, SOUTH to a room that has forks on the ground, or you can
+go EAST through the treasure door.
+'''
+
+[[rooms.exits]]
+aliases = ["NORTH", "SPOONS", "SPOON"]
+destLabel = "SALAMANDER_OFFICE_SPOON"
+description = "a room at the north end of the hall, with the ground covered in spoons"
+travelMessage = '''
+You make your way carefully to the north end of the knife hall, and you step into the spoon room.
+'''
+
+[[rooms.exits]]
+aliases = ["SOUTH", "FORKS", "FORK"]
+destLabel = "SALAMANDER_OFFICE_FORK"
+description = "a room at the south end of the hall, with the ground covered in forks"
+travelMessage = '''
+You pick your way across the knives on the ground to the south end of the hall and step into the fork room.
+'''
+
+[[rooms.exits]]
+aliases = ["EAST", "TREASURE", "DOOR", "METAL DOOR"]
+destLabel = "SALAMANDER_TREASURE"
+description = "a heavy metal door with a hand-written sign reading 'TREASURE' next to it"
+travelMessage = '''
+Despite looking like it should be locked, the metal door opens easily and you step into a small vault.
+'''
+
+
+# salamander_treasure
+[[rooms]]
+label = "SALAMANDER_TREASURE"
+name = "the salamander's vault"
+description = '''
+You are in a small vault. The ceiling is low and there's plenty of light to see that the room has been stripped bare.
+There are shelves and drawers that look like they once held great riches, but now are completely empty.  Kind of a
+bummer, but then the fact that there was a hole in your yard leading to this place should have been a tip that perhaps
+you and/or your family and possibly others had completely explored this place already.  There's only once entrance from
+here, and that's back to the knife hall you came from via the vault door to the WEST.
+'''
+
+[[rooms.exits]]
+aliases = ["WEST", "DOOR", "VAULT DOOR", "HALL", "HALLWAY", "KNIFE", "KNIVES"]
+destLabel = "SALAMANDER_HALL"
+description = "a heavy open door that once hid the contents of this vault away behind lock and key"
+travelMessage = '''
+You go back into the hall and pull the vault door shut behind you. Best to leave things as you found them.
+'''
+
+
+[pronouns."joey"]
+nominative = "JOEY"
+objective = "JOEY"
+possessive = ""
+determiner = "JOEY'S"
+reflexive = "JOEYSELF"
+
+
+[[npcs]]
+label = "CASEY"
+aliases = [
+	"CASEY",
+	"VICEROY",
+	"SALAMANDER",
+	"WANDERER",
+]
+name = "Casey the salamander"
+start = "SALAMANDER_HALL"
+pronouns = "he/him"
+description = '''
+A small yellow salamander who likes to go glub. Also known as 'VICEROY' after the Viceroy Bubbles Von Salamancer.
+'''
+
+[npcs.movement]
+action = "wander"
+forbiddenRooms = [
+	"SALAMANDER_FOYER",
+]
+
+[[npcs.dialog]]
+content = "Glub!"
+
+[[npcs]]
+label = "IMP"
+aliases = [
+	"IMP",
+	"PATROLING IMP",
+	"PATROLLER",
+]
+name = "Patroller, the patroling imp"
+start = "BACKYARD"
+pronouns = "they/them"
+description = '''
+A weird imp covered in strange ink. It's wearing a jester's hat and has a surprisingly cat-like face.
+'''
+
+[npcs.movement]
+action = "patrol"
+path = [
+	"FRONT_YARD",
+	"LIVING_ROOM",
+	"KITCHEN",
+	"LIVING_ROOM",
+	"FRONT_YARD",
+	"BACKYARD",
+]
+
+[[npcs.dialog]]
+content = "Grrrr :3"
+
+[[npcs]]
+label = "JOEYC"
+aliases = [
+	"JOEY",
+	"JOEY CLAIRE",
+	"GIRL",
+]
+name = "Joey Claire, gumshoe extraordinaire"
+start = "HALLWAY"
+description = '''
+A girl dressed in typical 90's gear, complete with a kaleidoscope of colors. She's carrying around a magnifying glass
+and looking over the wall, stopping every few moments to examine a spot under her magnifying glass.
+'''
+
+[npcs.pronouns]
+nominative = "she"
+objective = "her"
+possessive = ""
+determiner = ""
+reflexive = ""
+
+[[npcs.dialog]]
+label = ""
+action = "line"
+content = "Hi there, I'm Joey!"
+response = "Hello, Joey."
+
+[[npcs.dialog]]
+content = "alternate syntax: \" just having a string implies type=line, content of string, response of null"
+
+[[npcs.dialog]]
+action = "choice"
+content = "Who are you?"
+choices = [
+	["Just a wanderer", "IM_WANDERER"],
+	["I'm PLAYER!", "IM_PLAYER"],
+]
+
+[[npcs.dialog]]
+label = "IM_WANDERER"
+action = "line"
+content = "Oh, wow! It's nice to meet you, I haven't seen other people here in a long, long time!"
+
+[[npcs.dialog]]
+action = "end"
+
+[[npcs.dialog]]
+label = "IM_PLAYER"
+content = "Your name is PLAYER? That's a weird name!"
+
+[[npcs.dialog]]
+action = "end"
+
