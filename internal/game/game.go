@@ -252,7 +252,7 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 				if npc.Movement.Action == RoutePatrol {
 					routeInfo := ""
 					for i := range npc.Movement.Path {
-						if npc.routeCur != nil && *npc.routeCur == i {
+						if npc.routeCur != nil && (((*npc.routeCur)+1)%len(npc.Movement.Path) == i) {
 							routeInfo += "==> "
 						} else {
 							routeInfo += "--> "
