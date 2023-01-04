@@ -268,6 +268,7 @@ func (jr jsonRoom) toRoom() Room {
 		Description: jr.Description,
 		Exits:       make([]Egress, len(jr.Exits)),
 		Items:       make([]Item, len(jr.Items)),
+		NPCs:        make(map[string]*NPC),
 	}
 
 	for i := range jr.Exits {
@@ -399,7 +400,14 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 		// then check route based on movement type
 		switch npc.Movement.Action {
 		case RoutePatrol:
-			err = pf.ValidatePath(append(npc.Movement.Path, npc.Start), true)
+			// can npc get to initial position?
+			err = pf.ValidatePath(append([]string{npc.Start}, npc.Movement.Path[0]), false)
+			if err != nil {
+				return nil, "", fmt.Errorf("validating: npcs[%d]: %w", idx, err)
+			}
+
+			// once at initial, can npc loop through patrol?
+			err = pf.ValidatePath(npc.Movement.Path, true)
 			if err != nil {
 				return nil, "", fmt.Errorf("validating: npcs[%d]: %w", idx, err)
 			}
@@ -485,9 +493,6 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 		}
 
 		// should be good to go, add the NPC to the world
-		if world[npc.Start].NPCs == nil {
-			world[npc.Start].NPCs = make(map[string]*NPC)
-		}
 		npcRef := npc
 		world[npc.Start].NPCs[npc.Label] = &npcRef
 	}

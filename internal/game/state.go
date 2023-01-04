@@ -76,9 +76,10 @@ func New(world map[string]*Room, startingRoom string, outputWidth int) (State, e
 		return gs, fmt.Errorf("starting room with label %q does not exist in passed-in rooms", startingRoom)
 	}
 
-	// and read current npc locations
+	// read current npc locations and prep them for movement
 	for _, r := range gs.World {
 		for _, npc := range r.NPCs {
+			npc.ResetRoute()
 			gs.npcLocations[npc.Label] = r.Label
 		}
 	}
@@ -257,6 +258,9 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 							routeInfo += "--> "
 						}
 						routeInfo += npc.Movement.Path[i]
+						if i+1 < len(npc.Movement.Path) {
+							routeInfo += " "
+						}
 					}
 					npcInfo = append(npcInfo, [2]string{"Route", routeInfo})
 				} else if npc.Movement.Action == RouteWander {
