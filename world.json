@@ -120,13 +120,222 @@
 		{
 			"label": "BACKYARD",
 			"name": "your house's backyard",
-			"description": "This is the outside of your house, in the back. There's a nice lawn here, well-kept and manicured, and you see a Pogo ride in a nearby sandbox that seems oddly familiar. There's nowhere to go but back to the front yard, but maybe you should stay for a moment and take a break.",
+			"description": "This is the outside of your house, in the back. There's a nice lawn here, well-kept and manicured, and you see a Pogo ride in a nearby sandbox that seems oddly familiar. Maybe you should stay for a moment and take a break.\n\nFrom here, you could go back to the front yard. Or, bizarrely, there seems to be an opening in the ground near the pogo ride, so you could go in there.",
 			"exits": [
 				{
 					"destLabel": "FRONT_YARD",
 					"description": "the yard outside of your house's front door",
 					"aliases": ["YARD", "FRONT", "FRONT YARD", "FRONTYARD", "FRONT_YARD", "FRONT LAWN"],
 					"travelMessage": "You decide you've had enough of the backyard and decide to go to the front."
+				},
+				{
+					"destLabel": "NPC_HALL",
+					"description": "a dank tunnel leading down into the depths of the earth under your house",
+					"aliases": ["CAVE", "TUNNEL", "POGO", "HOLE", "OPENING", "GROUND"],
+					"travelMessage": "You take a deep breath and follow the tunnel underground, past a couple of turns and into the depths."
+				}
+			]
+		},
+		{
+			"label": "NPC_HALL",
+			"name": "a dark hall in the ground under your house",
+			"description": "You are standing in the middle of a concrete, artificial tunnel underneath your house. At first it feels pitch black, but your eyes slowly adjust and you can make out what's in here by the light of several bioluminescent mushrooms on several of the walls.\n\nThere's a set of three antique doors dotting the walls of the hall. An oak one that says 'GLUB', a maplewood one that says 'NAK', and a rosewood one that says 'THIP'. There's also a ladder leading to a hatch above you, or you could head back through the tunnel to the backyard.",
+			"exits": [
+				{
+					"destLabel": "BACKYARD",
+					"description": "the other end of the tunnel, leading to the backyard",
+					"aliases": ["BACKYARD", "OUTSIDE", "TUNNEL"],
+					"travelMessage": "You pass around several corners and are delighted to see the tunnel end in a patch of light. You climb out and see your familiar pogo ride next to you. You've made it into your backyard."
+
+				},
+				{
+					"destLabel": "KITCHEN",
+					"description": "a ladder leading up to a hatch in the ceiling of the tunnel",
+					"aliases": ["LADDER", "UP", "CLIMB", "HATCH"],
+					"travelMessage": "You climb up the ladder and throw open the hatch. You go through and find yourself in complete darkness, and you trip and accidentally slam the hatch shut behind you! Looks like you won't be going back that way. After fumbling about a bit more, you find a door and walk out of your pantry into your kitchen."
+				},
+				{
+					"destLabel": "SALAMANDER_FOYER",
+					"description": "an old oak door, with a placard reading 'GLUB' next to it",
+					"aliases": ["GLUB", "OAK", "GLUB DOOR", "DOOR GLUB"],
+					"travelMessage": "You heave open the heavy oak door and walk into a well-lit sitting room. The door closes behind you."
+				},
+				{
+					"destLabel": "CROC_FOYER",
+					"description": "an old... maple door?! Who makes a door out of maple?! Anyways, this one is. And there's a sign next to it that says 'NAK'.",
+					"aliases": ["NAK", "MAPLE", "MAPLEWOOD", "NAK DOOR", "DOOR NAK"],
+					"travelMessage": "You manage to pull open the maple door, which looks suspiciously like flooring. As you walk through, a soft blue glow hits your skin."
+				},
+				{
+					"destLabel": "IGUANA_FOYER",
+					"description": "a gorgeous rosewood door with intricate designs carved into it, under a well-crafted sign-board with 'THIP' eloquently carved into it",
+					"aliases": ["THIP", "ROSEWOOD", "THIP DOOR", "DOOR THIP"],
+					"travelMessage": "The rosewood door opens easily without a hitch or a single creak, and you go on through."
+				}
+			]
+		},
+		{
+			"label": "CROC_FOYER",
+			"name": "the investor room",
+			"description": "You're standing in a lounge-looking room covered in plush couches with huge big-screen TVs lining the walls. The screens are showing market trend lines moving up and down, tickers scrolling across showing sale prices of various stock symbols, and huge green and red text accompanied by a plus sign or minus as approriate flashing across the screens. This place looks like the trading floor of the New York Stock Exchange combined with a casino.\n\nStrangely, it seems completely deserted. Oh well. You guess you could head back NORTH through the maplewood door to the tunnel, once you're done here.",
+			"exits": [
+				{
+					"destLabel": "NPC_HALL",
+					"description": "a maplewood door leading back to the underground tunnel",
+					"aliases": ["MAPLE", "MAPLEWOOD", "DOOR", "TUNNEL", "NORTH"],
+					"travelMessage": "You decide to leave the excitment of Wall Street to the bankers and head back through the maplewood door into the tunnel."
+				}
+			]
+		},
+		{
+			"label": "IGUANA_FOYER",
+			"name": "the swimming room",
+			"description": "You can hardly believe your eyes but, you're standing in an indoor swimming pool room. Well, a small one anyways. There's various pool equipment and pool-side chairs lining a small pool about the size of a large sedan, and the air is uncomfortably heavy with moisture. Whoever hung out here must have really enjoyed swimming.\n\nYou don't have a swimsuit on you and you aren't confident enough that you're alone to risk go skinny-dipping, so all there is to do is go back NORTH through the rosewood door to the tunnel.",
+			"exits": [
+				{
+					"destLabel": "NPC_HALL",
+					"description": "a rosewood door leading back to the underground tunnel",
+					"aliases": ["ROSEWOOD", "DOOR", "TUNNEL", "NORTH"],
+					"travelMessage": "You go back to the tunnel, glad to be away from the humidity of the pool room."
+				}
+			]
+		},
+		{
+			"label": "SALAMANDER_FOYER",
+			"name": "The room of salamanders going GLUB",
+			"description": "Oh this is absolutely a test room used for wandering NPCs. Though, it's very cold and damp, with breezes going by every now and then.\n\nYou can go NORTH through a doorway or SOUTH back into the tunnel via the oak door.",
+			"exits": [
+				{
+					"destLabel": "NPC_HALL",
+					"description": "an oak door leading back to the underground tunnel.",
+					"aliases": ["OAK", "DOOR", "TUNNEL", "SOUTH"],
+					"travelMessage": "You go back through the oak door into the tunnel."
+				},
+				{
+					"destLabel": "SALAMANDER_OFFICE_FORK",
+					"description": "Just a normal opening into FORK-A.",
+					"aliases": ["DOORWAY", "NORTH"],
+					"travelMessage": "You make your way into the Salamander version of Fork-A."
+				}
+			]
+		},
+		{
+			"label": "SALAMANDER_OFFICE_FORK",
+			"name": "the first forking room of salamander caves",
+			"description": "This is the first forking point in the Salamander caves. The ground is covered in dinner forks. Hilarious.\n\nYou can go through a SOUTH doorway back to the foyer, NORTH into a inner hall, or WEST into a side passage leading to the Salamander offices.",
+			"exits": [
+				{
+					"destLabel": "SALAMANDER_FOYER",
+					"description": "doorway back to the foyer",
+					"aliases": ["DOORWAY", "SOUTH"],
+					"travelMessage": "You go back into the foyer."
+				},
+				{
+					"destLabel": "SALAMANDER_OFFICE_FRONT",
+					"description": "The side passage of salamander land.",
+					"aliases": ["PASSAGE", "SIDE PASSAGE", "SIDE", "WEST", "OFFICE", "OFFICES"],
+					"travelMessage": "You enter the side passage."
+				},
+				{
+					"destLabel": "SALAMNDER_HALL",
+					"description": "hall deep within salamander territory. Full of glubs, and... is that a knife on the ground?",
+					"aliases": ["HALL", "INNER HALL", "HALLWAY", "INNER", "NORTH"],
+					"travelMessage": "You enter the hall to the sound of glubs echoing about."
+				}
+			]
+		},
+		{
+			"label": "SALAMANDER_OFFICE_FRONT",
+			"name": "the salamander accountancy room",
+			"description": "You are in the front half of a well-lit office workspace covered in desks and workstations. Various whiteboards are covered in variations of the words 'glub', 'business', and 'profit', along with several pie charts and graphs you can't make sense of. There's a large partition on the north end of the room separating your side from the rest, but there's a gap in it for going from one side to another.\n\nFrom here you can go EAST, though the way is paved in dinner forks, or NORTH into the back of the room.",
+			"exits": [
+				{
+					"destLabel": "SALAMANDER_OFFICE_FORK",
+					"description": "a doorway with dinner forks covering the ground",
+					"aliases": ["FORKS", "FORK", "EAST", "FORK ROOM"],
+					"travelMessage": "The ground clinks as you step into the fork room."
+				},
+				{
+					"destLabel": "SALAMANDER_OFFICE_BACK",
+					"descrption": "the back half of the large office room, separated from where you are with a partition",
+					"aliases": ["BACKROOM", "BACK", "NORTH", "PARTITION"],
+					"travelMessage": "You walk around the partition."
+				}
+			]
+		},
+		{
+			"label": "SALAMANDER_OFFICE_BACK",
+			"name": "the salamander records room",
+			"description": "You are in the back half of the salamander office. This side is covered in drab corporate paintings and lights specifically designed to cast an eerie green glow on everything. File cabinets are vaguely organized against a wall, though the huge pile of papers on the ground shows that this didn't do much. There's an iron partition with an opening in it to the south separating this half of room from the rest.\n\nFrom here you could go SOUTH to the front of the room, or EAST, though the way east is paved in spoons.",
+			"exits": [
+				{
+					"destLabel": "SALAMANDER_OFFICE_SPOON",
+					"description": "a doorway with dinner spoons covering the ground",
+					"aliases": ["SPOONS", "SPOON", "EAST", "SPOON ROOM"],
+					"travelMessage": "You nearly faceplant after tripping on a spoon, but manage to find your balance as you walk into the spoon room."
+				},
+				{
+					"destLabel": "SALAMANDER_OFFICE_FRONT",
+					"description": "the front half of the large office room, spearated from where you are with a partition",
+					"aliases": ["FRONT", "SOUTH", "PARTITION"],
+					"travelMessage": "You step around the partition."
+				}
+			]
+		},
+		{
+			"label": "SALAMANDER_OFFICE_SPOON",
+			"name": "the second forking room of the salamanders",
+			"description": "You are at the end of a series of rooms leading to either the entrance of the salamander caves, dinner, or both. The ground is littered in dinner spoons that someone has been hoarding.\n\nFrom here, you can head SOUTH to a hall that has a knife on the ground, or to the WEST you can see a soft green glow coming from a doorway.",
+			"exits": [
+				{
+					"destLabel": "SALAMANDER_OFFICE_BACK",
+					"description": "a doorway leading to a room with pale green light spilling out, with a label reading 'RECKARDS' above it",
+					"aliases": ["WEST", "RECKARDS", "RECORDS", "RECORD", "RECKARD", "DOORWAY", "GREEN"],
+					"travelMessage": "You step through the doorway and into the sickly light."
+				},
+				{
+					"destLabel": "SALAMANDER_HALL",
+					"description": "a narrow hallway with a few knives on the ground",
+					"aliases": ["SOUTH", "KNIVES", "KNIFE", "HALL", "HALLWAY"],
+					"travelMessage": "You carefully avoid the fallen knives as you step into the hall. Glubs echo about as you do."
+				}
+			]
+		},
+		{
+			"label": "SALAMANDER_HALL",
+			"name": "an inner hall within the Salamander caves",
+			"description": "You are in a hall connecting the fork and spoon rooms of the Salamander caves. True to theme, this one has *KNIVES* in it, although instead of being completely strewn across the floor, these ones are nicely racked on the wall. Well, most of them. There's still the occasional fallen knife on the ground, which you are very careful to avoid as you walk about.\n\nThere's a shelf set into one of the walls, which has a tape recorder and a speaker on it. The recorder keeps playing someone saying 'glub' over and over again.\n\nThere is a door to the side with 'treasure' scrawled on a sign nearby.\n\nFrom here you can go NORTH to a room that has spoons on the gound, SOUTH to a room that has forks on the ground, or you can go EAST through the treasure door.",
+			"exits": [
+				{
+					"destLabel": "SALAMANDER_OFFICE_SPOON",
+					"description": "a room at the north end of the hall, with the ground covered in spoons",
+					"aliases": ["NORTH", "SPOONS", "SPOON"],
+					"travelMessage": "You make your way carefully to the north end of the knife hall, and you step into the spoon room."
+				},
+				{
+					"destLabel": "SALAMANDER_OFFICE_FORK",
+					"description": "a room at the south end of the hall, with the ground covered in forks",
+					"aliases": ["SOUTH", "FORKS", "FORK"],
+					"travelMessage": "You pick your way across the knives on the ground to the south end of the hall and step into the fork room."
+				},
+				{
+					"destLabel": "SALAMANDER_TREASURE",
+					"description": "a heavy metal door with a hand-written sign reading 'TREASURE' next to it",
+					"aliases": ["EAST", "TREASURE", "DOOR", "METAL DOOR"],
+					"travelMessage": "Despite looking like it should be locked, the metal door opens easily and you step into a small vault."
+				}
+			]
+		},
+		{
+			"label": "SALAMANDER_TREASURE",
+			"name": "the salamander's vault",
+			"description": "You are in a small vault. The ceiling is low and there's plenty of light to see that the room has been stripped bare. There are shelves and drawers that look like they once held great riches, but now are completely empty.\n\nKind of a bummer, but then the fact that there was a hole in your yard leading to this place should have been a tip that perhaps you and/or your family and possibly others had completely explored this place already.\n\nThere's only once entrance from here, and that's back to the knife hall you came from via the vault door to the WEST.",
+			"exits": [
+				{
+					"destLabel": "SALAMANDER_HALL",
+					"description": "a heavy open door that once hid the contents of this vault away behind lock and key",
+					"aliases": ["WEST", "DOOR", "VAULT DOOR", "HALL", "HALLWAY", "KNIFE", "KNIVES"],
+					"travelMessage": "You go back into the hall and pull the vault door shut behind you. Best to leave things as you found them."
 				}
 			]
 		}
