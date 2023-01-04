@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 
 	"github.com/dekarrin/rosed"
@@ -15,7 +16,7 @@ import (
 var commandHelp = [][2]string{
 	{"HELP", "show this help"},
 	{"DROP/PUT", "put down an object in the room"},
-	{"DEBUG NPC [label]", "print info on all NPCs with 'DEBUG NPC' or for NPC with label 'NPC_LABEL' with 'DEBUG NPC NPC_LABEL'"},
+	{"DEBUG NPC", "print info on all NPCs, or a single NPC with label LABEL if 'DEBUG NPC LABEL' is typed, or steps all NPCs if 'DEBUG NPC @STEP' is typed."},
 	{"DEBUG ROOM", "print info on the current room"},
 	{"EXITS", "show the names of all exits from the room"},
 	{"GO/MOVE", "go to another room via one of the exits"},
@@ -218,7 +219,18 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 				// info on all NPCs and their locations
 				data := [][]string{{"NPC", "Movement", "Room"}}
 
-				for npcLabel, roomLabel := range gs.npcLocations {
+				// we need to ensure a consistent ordering so need to sort all
+				// keys first
+				orderedNPCLabels := make([]string, len(gs.npcLocations))
+				var orderedIdx int
+				for npcLabel := range gs.npcLocations {
+					orderedNPCLabels[orderedIdx] = npcLabel
+					orderedIdx++
+				}
+				sort.Strings(orderedNPCLabels)
+
+				for _, npcLabel := range orderedNPCLabels {
+					roomLabel := gs.npcLocations[npcLabel]
 					room := gs.World[roomLabel]
 					npc := room.NPCs[npcLabel]
 
@@ -226,12 +238,45 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 					data = append(data, infoRow)
 				}
 
+				footer := "Type \"DEBUG NPC\" followed by the label of an NPC for more info on that NPC.\n"
+				footer += "Type \"DEBUG NPC @STEP\" to move all NPCs forward by one turn."
+
 				tableOpts := rosed.Options{
 					TableHeaders: true,
 				}
-				output = rosed.Edit("\n(Type \"DEBUG NPC\" followed by the label of an NPC for more info on that NPC)").
+
+				output = rosed.Edit("\n"+footer).
 					InsertTableOpts(0, data, 80, tableOpts).
 					String()
+			} else if strings.HasPrefix(cmd.Instrument, "@") {
+				if cmd.Instrument == "@STEP" {
+					// check original locations so we can tell how many moved
+					originalLocs := make(map[string]string)
+					for k, v := range gs.npcLocations {
+						originalLocs[k] = v
+					}
+
+					gs.MoveNPCs()
+
+					// count how many moved and how many stayed
+					var moved, stayed int
+					for k := range gs.npcLocations {
+						if originalLocs[k] != gs.npcLocations[k] {
+							moved++
+						} else {
+							stayed++
+						}
+					}
+
+					pluralNPCs := ""
+					if stayed+moved != 1 {
+						pluralNPCs = "s"
+					}
+
+					output = fmt.Sprintf("Applied movement to %d NPC%s; %d moved, %d stayed", stayed+moved, pluralNPCs, moved, stayed)
+				} else {
+					return tqerrors.Interpreterf("There is no NPC DEBUG action called @%q; you can only use the @STEP action with NPCs")
+				}
 			} else {
 				roomLabel, ok := gs.npcLocations[cmd.Instrument]
 				if !ok {
