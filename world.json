@@ -236,7 +236,7 @@
 					"travelMessage": "You enter the side passage."
 				},
 				{
-					"destLabel": "SALAMNDER_HALL",
+					"destLabel": "SALAMANDER_HALL",
 					"description": "hall deep within salamander territory. Full of glubs, and... is that a knife on the ground?",
 					"aliases": ["HALL", "INNER HALL", "HALLWAY", "INNER", "NORTH"],
 					"travelMessage": "You enter the hall to the sound of glubs echoing about."
@@ -256,7 +256,7 @@
 				},
 				{
 					"destLabel": "SALAMANDER_OFFICE_BACK",
-					"descrption": "the back half of the large office room, separated from where you are with a partition",
+					"description": "the back half of the large office room, separated from where you are with a partition",
 					"aliases": ["BACKROOM", "BACK", "NORTH", "PARTITION"],
 					"travelMessage": "You walk around the partition."
 				}
