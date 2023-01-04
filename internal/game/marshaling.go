@@ -4,16 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 type jsonNPC struct {
-	Label       string           `json:"label"`
-	Name        string           `json:"name"`
-	Pronouns    jsonPronounSet   `json:"pronouns"`
-	Description string           `json:"description"`
-	Start       string           `json:"start"`
-	Movement    jsonRoute        `json:"movement"`
-	Dialog      []jsonDialogStep `json:"dialog"`
+	Label       string           `json:"label" toml:"label"`
+	Name        string           `json:"name" toml:"name"`
+	Pronouns    jsonPronounSet   `json:"pronouns" toml:"pronouns"`
+	Description string           `json:"description" toml:"description"`
+	Start       string           `json:"start" toml:"start"`
+	Movement    jsonRoute        `json:"movement" toml:"movement"`
+	Dialog      []jsonDialogStep `json:"dialog" toml:"dialog"`
 }
 
 func (jn jsonNPC) toNPC() NPC {
@@ -35,10 +37,10 @@ func (jn jsonNPC) toNPC() NPC {
 }
 
 type jsonRoute struct {
-	Action         string   `json:"action"`
-	Path           []string `json:"path"`
-	ForbiddenRooms []string `json:"forbiddenRooms"`
-	AllowedRooms   []string `json:"allowedRooms"`
+	Action         string   `json:"action" toml:"action"`
+	Path           []string `json:"path" toml:"path"`
+	ForbiddenRooms []string `json:"forbiddenRooms" toml:"forbiddenRooms"`
+	AllowedRooms   []string `json:"allowedRooms" toml:"allowedRooms"`
 }
 
 func (jr jsonRoute) toRoute() Route {
@@ -62,11 +64,11 @@ func (jr jsonRoute) toRoute() Route {
 }
 
 type jsonDialogStep struct {
-	Action   string     `json:"action"`
-	Label    string     `json:"label"`
-	Content  string     `json:"content"`
-	Response string     `json:"response"`
-	Choices  [][]string `json:"choices"`
+	Action   string     `json:"action" toml:"action"`
+	Label    string     `json:"label" toml:"label"`
+	Content  string     `json:"content" toml:"content"`
+	Response string     `json:"response" toml:"response"`
+	Choices  [][]string `json:"choices" toml:"choices"`
 }
 
 func (jds *jsonDialogStep) UnmarshalJSON(b []byte) error {
@@ -130,11 +132,11 @@ func (jds jsonDialogStep) toDialogStep() DialogStep {
 }
 
 type jsonPronounSet struct {
-	Nominative string `json:"nominative"`
-	Objective  string `json:"objective"`
-	Possessive string `json:"possessive"`
-	Determiner string `json:"determiner"`
-	Reflexive  string `json:"reflexive"`
+	Nominative string `json:"nominative" toml:"nominative"`
+	Objective  string `json:"objective" toml:"objective"`
+	Possessive string `json:"possessive" toml:"possessive"`
+	Determiner string `json:"determiner" toml:"determiner"`
+	Reflexive  string `json:"reflexive" toml:"reflexive"`
 
 	// Label is only filled when the JSON object was only a string.
 	Label string
@@ -214,10 +216,10 @@ func (jp jsonPronounSet) toPronounSet() PronounSet {
 }
 
 type jsonItem struct {
-	Label       string   `json:"label"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Aliases     []string `json:"aliases"`
+	Label       string   `json:"label" toml:"label"`
+	Name        string   `json:"name" toml:"name"`
+	Description string   `json:"description" toml:"description"`
+	Aliases     []string `json:"aliases" toml:"aliases"`
 }
 
 func (ji jsonItem) toItem() Item {
@@ -234,10 +236,10 @@ func (ji jsonItem) toItem() Item {
 }
 
 type jsonEgress struct {
-	DestLabel     string   `json:"destLabel"`
-	Description   string   `json:"description"`
-	TravelMessage string   `json:"travelMessage"`
-	Aliases       []string `json:"aliases"`
+	DestLabel     string   `json:"destLabel" toml:"destLabel"`
+	Description   string   `json:"description" toml:"description"`
+	TravelMessage string   `json:"travelMessage" toml:"travelMessage"`
+	Aliases       []string `json:"aliases" toml:"aliases"`
 }
 
 func (je jsonEgress) toEgress() Egress {
@@ -254,11 +256,11 @@ func (je jsonEgress) toEgress() Egress {
 }
 
 type jsonRoom struct {
-	Label       string       `json:"label"`
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Exits       []jsonEgress `json:"exits"`
-	Items       []jsonItem   `json:"items"`
+	Label       string       `json:"label" toml:"label"`
+	Name        string       `json:"name" toml:"name"`
+	Description string       `json:"description" toml:"description"`
+	Exits       []jsonEgress `json:"exits" toml:"exits"`
+	Items       []jsonItem   `json:"items" toml:"items"`
 }
 
 func (jr jsonRoom) toRoom() Room {
@@ -281,6 +283,23 @@ func (jr jsonRoom) toRoom() Room {
 	return r
 }
 
+type tqiFileInfo struct {
+	Format string `toml:"format"`
+	Type   string `toml:"type"`
+}
+
+type tmpTqwWorld struct {
+	Start string `toml:"start"`
+}
+type tmpTqwTop struct {
+	Format   string                    `toml:"format"`
+	Type     string                    `toml:"type"`
+	Rooms    []jsonRoom                `toml:"rooms"`
+	World    tmpTqwWorld               `toml:"world"`
+	NPCs     []jsonNPC                 `toml:"npcs"`
+	Pronouns map[string]jsonPronounSet `json:"pronouns"`
+}
+
 type jsonWorld struct {
 	Rooms    []jsonRoom                `json:"rooms"`
 	Start    string                    `json:"start"`
@@ -301,6 +320,80 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 		return nil, "", fmt.Errorf("decoding JSON data: %w", jsonErr)
 	}
 
+	return parseUnmarshaledData(loadedWorld)
+}
+
+// ParseWorldFromTOML takes in raw TOML bytes, reads it for a world definition,
+// and returns the rooms as well as the label of the starting room.
+//
+// Note: Uses module-global variables as part of operation. Absolutely not
+// thread-safe and calling more than once concurrently will lead to unexpected
+// results.
+func ParseWorldFromTOML(tomlData []byte) (world map[string]*Room, startRoom string, err error) {
+	fileInfo, tomlErr := scanFileInfo(tomlData)
+	if err != nil {
+		return nil, "", fmt.Errorf("decoding file header: %w", tomlErr)
+	}
+
+	if strings.ToUpper(fileInfo.Format) != "TUNA" {
+		return nil, "", fmt.Errorf("in header: 'format' key must exist and be set to 'TUNA'")
+	}
+	switch strings.ToUpper(fileInfo.Type) {
+	case "DATA":
+		// nothing to do until we add the MANIFEST type
+	case "MANIFEST":
+		return nil, "", fmt.Errorf("in header: 'type' is set to 'MANIFEST', but that's not yet available for use")
+	default:
+		return nil, "", fmt.Errorf("in header: 'type' must exist and be set to one of 'DATA' or 'MANIFEST' depending on the type of the file")
+	}
+
+	var loadedData tmpTqwTop
+	if tomlErr := toml.Unmarshal(tomlData, &loadedData); tomlErr != nil {
+		return nil, "", fmt.Errorf("decoding tunaquest game data: %w", tomlErr)
+	}
+
+	translatedData := jsonWorld{
+		Rooms:    loadedData.Rooms,
+		Start:    loadedData.World.Start,
+		NPCs:     loadedData.NPCs,
+		Pronouns: loadedData.Pronouns,
+	}
+
+	return parseUnmarshaledData(translatedData)
+}
+
+// scan the first lines for format info before doing anything else
+func scanFileInfo(data []byte) (tqiFileInfo, error) {
+	// only run the toml parser up to the end of the top-lev table
+
+	var topLevelEnd int = -1
+	var onNewLine bool
+	for b := range data {
+		if onNewLine {
+			if data[b] == '[' {
+				topLevelEnd = b
+				break
+			}
+		}
+
+		if data[b] == '\n' {
+			onNewLine = true
+		} else {
+			onNewLine = false
+		}
+	}
+
+	scanData := data
+	if topLevelEnd != -1 {
+		scanData = data[:topLevelEnd]
+	}
+
+	var info tqiFileInfo
+	err := toml.Unmarshal(scanData, &info)
+	return info, err
+}
+
+func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startRoom string, err error) {
 	startRoom = loadedWorld.Start
 	world = make(map[string]*Room)
 
