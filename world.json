@@ -350,13 +350,31 @@
 	},
 	"npcs": [
 		{
+			"label": "CASEY",
+			"aliases": [
+				"CASEY",
+				"VICEROY",
+				"SALAMANDER",
+				"WANDERER"
+			],
+			"name": "Casey the salamander",
+			"description": "A small yellow salamander who likes to go glub. Also known as 'VICEROY' after the Viceroy Bubbles Von Salamancer.",
+			"pronouns": "he/him",
+			"start": "SALAMANDER_HALL",
+			"movement": {
+				"action": "wander",
+				"forbiddenRooms": ["SALAMANDER_FOYER"]
+			},
+			"dialog": ["Glub!"]
+		},
+		{
 			"label": "IMP",
 			"aliases": [
 				"IMP",
-				"WANDERING IMP",
-				"WANDERER"
+				"PATROLING IMP",
+				"PATROLLER"
 			],
-			"name": "Wanderer, the wandering imp",
+			"name": "Patroller, the patroling imp",
 			"description": "A weird imp covered in strange ink. It's wearing a jester's hat and has a surprisingly cat-like face.",
 			"pronouns": "they/them",
 			"start": "BACKYARD",
