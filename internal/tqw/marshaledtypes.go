@@ -6,49 +6,60 @@ import (
 	"github.com/dekarrin/tunaq/internal/game"
 )
 
-type tqwManifest struct {
+type topLevelManifest struct {
 	Format string   `toml:"format"`
 	Type   string   `toml:"type"`
 	Files  []string `toml:"files"`
 }
 
-type twqNPC struct {
-	Label       string          `toml:"label"`
-	Name        string          `toml:"name"`
-	Pronouns    string          `toml:"pronouns"`
-	PronounSet  tqwPronounSet   `toml:"customPronounSet"`
-	Description string          `toml:"description"`
-	Start       string          `toml:"start"`
-	Movement    tqwRoute        `toml:"movement"`
-	Dialog      []tqwDialogStep `toml:"dialog"`
+// topLevelWorldData is the top-level structure containing all keys in a complete TQW
+// 'DATA' type file.
+type topLevelWorldData struct {
+	Format   string                `toml:"format"`
+	Type     string                `toml:"type"`
+	Rooms    []room                `toml:"rooms"`
+	World    world                 `toml:"world"`
+	NPCs     []npc                 `toml:"npcs"`
+	Pronouns map[string]pronounSet `toml:"pronouns"`
 }
 
-func (tn twqNPC) toNPC() game.NPC {
+type npc struct {
+	Label       string       `toml:"label"`
+	Name        string       `toml:"name"`
+	Pronouns    string       `toml:"pronouns"`
+	PronounSet  pronounSet   `toml:"customPronounSet"`
+	Description string       `toml:"description"`
+	Start       string       `toml:"start"`
+	Movement    route        `toml:"movement"`
+	Dialog      []dialogStep `toml:"dialog"`
+}
+
+func (tn npc) toGameNPC() game.NPC {
 	npc := game.NPC{
 		Label:       strings.ToUpper(tn.Label),
 		Name:        tn.Name,
-		Pronouns:    tn.PronounSet.toPronounSet(),
+		Pronouns:    tn.PronounSet.toGamePronounSet(),
 		Description: tn.Description,
 		Start:       tn.Start,
-		Movement:    tn.Movement.toRoute(),
+		Movement:    tn.Movement.toGameRoute(),
 		Dialog:      make([]game.DialogStep, len(tn.Dialog)),
 	}
 
 	for i := range tn.Dialog {
-		npc.Dialog[i] = tn.Dialog[i].toDialogStep()
+		npc.Dialog[i] = tn.Dialog[i].toGameDialogStep()
 	}
 
 	return npc
 }
 
-type tqwRoute struct {
+type route struct {
 	Action         string   `toml:"action"`
 	Path           []string `toml:"path"`
 	ForbiddenRooms []string `toml:"forbiddenRooms"`
 	AllowedRooms   []string `toml:"allowedRooms"`
 }
 
-func (tr tqwRoute) toRoute() game.Route {
+func (tr route) toGameRoute() game.Route {
 	act, ok := game.RouteActionsByString[strings.ToUpper(tr.Action)]
 	if !ok {
 		act = game.RouteStatic
@@ -68,7 +79,7 @@ func (tr tqwRoute) toRoute() game.Route {
 	return r
 }
 
-type tqwDialogStep struct {
+type dialogStep struct {
 	Action   string     `toml:"action"`
 	Label    string     `toml:"label"`
 	Content  string     `toml:"content"`
@@ -76,7 +87,7 @@ type tqwDialogStep struct {
 	Choices  [][]string `toml:"choices"`
 }
 
-func (tds tqwDialogStep) toDialogStep() game.DialogStep {
+func (tds dialogStep) toGameDialogStep() game.DialogStep {
 	act, ok := game.DialogActionsByString[strings.ToUpper(tds.Action)]
 	if !ok {
 		act = game.DialogLine
@@ -103,7 +114,7 @@ func (tds tqwDialogStep) toDialogStep() game.DialogStep {
 	return ds
 }
 
-type tqwPronounSet struct {
+type pronounSet struct {
 	Nominative string `toml:"nominative"`
 	Objective  string `toml:"objective"`
 	Possessive string `toml:"possessive"`
@@ -111,13 +122,7 @@ type tqwPronounSet struct {
 	Reflexive  string `toml:"reflexive"`
 }
 
-func pronounSetToTWQ(ps game.PronounSet) tqwPronounSet {
-	tp := tqwPronounSet(ps)
-
-	return tp
-}
-
-func (tp tqwPronounSet) toPronounSet() game.PronounSet {
+func (tp pronounSet) toGamePronounSet() game.PronounSet {
 	ps := game.PronounSet{
 		Nominative: strings.ToUpper(tp.Nominative),
 		Objective:  strings.ToUpper(tp.Objective),
@@ -146,34 +151,34 @@ func (tp tqwPronounSet) toPronounSet() game.PronounSet {
 	return ps
 }
 
-type tqwItem struct {
+type item struct {
 	Label       string   `toml:"label"`
 	Name        string   `toml:"name"`
 	Description string   `toml:"description"`
 	Aliases     []string `toml:"aliases"`
 }
 
-func (ti tqwItem) toItem() game.Item {
-	item := game.Item{
+func (ti item) toGameItem() game.Item {
+	gameItem := game.Item{
 		Label:       ti.Label,
 		Name:        ti.Name,
 		Description: ti.Description,
 		Aliases:     make([]string, len(ti.Aliases)),
 	}
 
-	copy(item.Aliases, ti.Aliases)
+	copy(gameItem.Aliases, ti.Aliases)
 
-	return item
+	return gameItem
 }
 
-type tqwEgress struct {
+type egress struct {
 	DestLabel     string   `toml:"destLabel"`
 	Description   string   `toml:"description"`
 	TravelMessage string   `toml:"travelMessage"`
 	Aliases       []string `toml:"aliases"`
 }
 
-func (te tqwEgress) toEgress() game.Egress {
+func (te egress) toGameEgress() game.Egress {
 	eg := game.Egress{
 		DestLabel:     te.DestLabel,
 		Description:   te.Description,
@@ -186,15 +191,15 @@ func (te tqwEgress) toEgress() game.Egress {
 	return eg
 }
 
-type tqwRoom struct {
-	Label       string      `toml:"label"`
-	Name        string      `toml:"name"`
-	Description string      `toml:"description"`
-	Exits       []tqwEgress `toml:"exits"`
-	Items       []tqwItem   `toml:"items"`
+type room struct {
+	Label       string   `toml:"label"`
+	Name        string   `toml:"name"`
+	Description string   `toml:"description"`
+	Exits       []egress `toml:"exits"`
+	Items       []item   `toml:"items"`
 }
 
-func (tr tqwRoom) toRoom() game.Room {
+func (tr room) toGameRoom() game.Room {
 	r := game.Room{
 		Label:       tr.Label,
 		Name:        tr.Name,
@@ -205,26 +210,15 @@ func (tr tqwRoom) toRoom() game.Room {
 	}
 
 	for i := range tr.Exits {
-		r.Exits[i] = tr.Exits[i].toEgress()
+		r.Exits[i] = tr.Exits[i].toGameEgress()
 	}
 	for i := range tr.Items {
-		r.Items[i] = tr.Items[i].toItem()
+		r.Items[i] = tr.Items[i].toGameItem()
 	}
 
 	return r
 }
 
-type tqwWorld struct {
+type world struct {
 	Start string `toml:"start"`
-}
-
-// tqwWorldData is the top-level structure containing all keys in a complete TQW
-// 'DATA' type file.
-type tqwWorldData struct {
-	Format   string                   `toml:"format"`
-	Type     string                   `toml:"type"`
-	Rooms    []tqwRoom                `toml:"rooms"`
-	World    tqwWorld                 `toml:"world"`
-	NPCs     []twqNPC                 `toml:"npcs"`
-	Pronouns map[string]tqwPronounSet `toml:"pronouns"`
 }

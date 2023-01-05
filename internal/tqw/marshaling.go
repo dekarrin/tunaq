@@ -16,21 +16,21 @@ import (
 //
 // Returnes ErrManifestEmpty if and only if the first manifest in the stack is
 // empty, otherwise it is not an error.
-func recursiveUnmarshalResource(path string, manifStack []string) (data tqwWorldData, err error) {
+func recursiveUnmarshalResource(path string, manifStack []string) (data topLevelWorldData, err error) {
 	path = filepath.Clean(path)
 
 	fileData, loadErr := os.ReadFile(path)
 	if loadErr != nil {
-		return tqwWorldData{}, fmt.Errorf("%q: reading from disk: %w", path, loadErr)
+		return topLevelWorldData{}, fmt.Errorf("%q: reading from disk: %w", path, loadErr)
 	}
 
 	fileInfo, err := ScanFileInfo(fileData)
 	if err != nil {
-		return tqwWorldData{}, fmt.Errorf("%q: detecting file type: %w", path, err)
+		return topLevelWorldData{}, fmt.Errorf("%q: detecting file type: %w", path, err)
 	}
 
 	if strings.ToUpper(fileInfo.Format) != "TUNA" {
-		return tqwWorldData{}, fmt.Errorf("%q: file does not have a 'format = \"TUNA\" entry", path)
+		return topLevelWorldData{}, fmt.Errorf("%q: file does not have a 'format = \"TUNA\" entry", path)
 	}
 
 	fileType := strings.ToUpper(fileInfo.Type)
@@ -46,33 +46,33 @@ func recursiveUnmarshalResource(path string, manifStack []string) (data tqwWorld
 		// we aren't about to re-scan a circular-ref'd manifest file we've
 		// already brought in.
 		if len(manifStack) >= MaxManifestRecursionDepth {
-			return tqwWorldData{}, fmt.Errorf("manifest file %q: %w", path, ErrManifestStackOverflow)
+			return topLevelWorldData{}, fmt.Errorf("manifest file %q: %w", path, ErrManifestStackOverflow)
 		}
 		for i := range manifStack {
 			if manifStack[i] == path {
-				return tqwWorldData{}, fmt.Errorf("manifest file %q: %w", path, ErrManifestCircularRef)
+				return topLevelWorldData{}, fmt.Errorf("manifest file %q: %w", path, ErrManifestCircularRef)
 			}
 		}
 
 		unmarshaledManif, err := unmarshalManifest(fileData)
 		if err != nil {
-			return tqwWorldData{}, fmt.Errorf("manifest file %q: %w", path, err)
+			return topLevelWorldData{}, fmt.Errorf("manifest file %q: %w", path, err)
 		}
 		manif, err := parseManifest(unmarshaledManif)
 		if err != nil {
-			return tqwWorldData{}, fmt.Errorf("manifest file %q: %w", path, err)
+			return topLevelWorldData{}, fmt.Errorf("manifest file %q: %w", path, err)
 		}
 
 		// the len of manifStack is included in the check because an empty
 		// manifest error is really only a problem for the very first manifest.
 		if len(manif.Files) < 1 && len(manifStack) == 0 {
-			return tqwWorldData{}, fmt.Errorf("manifest file %q: %w", path, ErrManifestEmpty)
+			return topLevelWorldData{}, fmt.Errorf("manifest file %q: %w", path, ErrManifestEmpty)
 		}
 
 		// combine all referred to files in one single unmarshaled data struct
 
-		unmarshaled := tqwWorldData{
-			Pronouns: make(map[string]tqwPronounSet),
+		unmarshaled := topLevelWorldData{
+			Pronouns: make(map[string]pronounSet),
 		}
 
 		// copy the manif stack into a new value and add self to it for recursive calls
@@ -98,7 +98,7 @@ func recursiveUnmarshalResource(path string, manifStack []string) (data tqwWorld
 					continue
 				}
 
-				return tqwWorldData{}, fmt.Errorf("in file referred to by manifest file:\n    %q\n%w", path, err)
+				return topLevelWorldData{}, fmt.Errorf("in file referred to by manifest file:\n    %q\n%w", path, err)
 			}
 
 			// combine the loaded data
@@ -130,14 +130,14 @@ func recursiveUnmarshalResource(path string, manifStack []string) (data tqwWorld
 		return unmarshaled, nil
 
 	default:
-		return tqwWorldData{}, fmt.Errorf("%q: file does not have 'type = ' entry set to either \"DATA\" or \"MANIFEST\"", path)
+		return topLevelWorldData{}, fmt.Errorf("%q: file does not have 'type = ' entry set to either \"DATA\" or \"MANIFEST\"", path)
 	}
 }
 
 // unmarshalWorldData unmarshals world data from the given bytes. It does not
 // parse or check world data.
-func unmarshalWorldData(tomlData []byte) (tqwWorldData, error) {
-	var tqw tqwWorldData
+func unmarshalWorldData(tomlData []byte) (topLevelWorldData, error) {
+	var tqw topLevelWorldData
 	if tomlErr := toml.Unmarshal(tomlData, &tqw); tomlErr != nil {
 		return tqw, tomlErr
 	}
@@ -154,8 +154,8 @@ func unmarshalWorldData(tomlData []byte) (tqwWorldData, error) {
 
 // unmarshalManifest unmarshals a TQW manifest from the given bytes. It does not
 // parse or check world data.
-func unmarshalManifest(tomlData []byte) (tqwManifest, error) {
-	var tqw tqwManifest
+func unmarshalManifest(tomlData []byte) (topLevelManifest, error) {
+	var tqw topLevelManifest
 	if tomlErr := toml.Unmarshal(tomlData, &tqw); tomlErr != nil {
 		return tqw, tomlErr
 	}

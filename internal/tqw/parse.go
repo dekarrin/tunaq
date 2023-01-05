@@ -7,7 +7,7 @@ import (
 	"github.com/dekarrin/tunaq/internal/game"
 )
 
-func parseManifest(tqw tqwManifest) (Manifest, error) {
+func parseManifest(tqw topLevelManifest) (Manifest, error) {
 	manif := Manifest{
 		Files: tqw.Files,
 	}
@@ -15,7 +15,7 @@ func parseManifest(tqw tqwManifest) (Manifest, error) {
 	return manif, nil
 }
 
-func parseWorldData(tqw tqwWorldData) (WorldData, error) {
+func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 	var err error
 
 	var world WorldData
@@ -31,15 +31,15 @@ func parseWorldData(tqw tqwWorldData) (WorldData, error) {
 			return world, fmt.Errorf("parsing: rooms[%d (%q)]: room label %q has already been used", idx, r.Label, r.Label)
 		}
 
-		room := r.toRoom()
+		room := r.toGameRoom()
 		world.Rooms[r.Label] = &room
 	}
 
-	pronouns := map[string]tqwPronounSet{
-		"SHE/HER":   pronounSetToTWQ(game.PronounsFeminine),
-		"HE/HIM":    pronounSetToTWQ(game.PronounsMasculine),
-		"THEY/THEM": pronounSetToTWQ(game.PronounsNonBinary),
-		"IT/ITS":    pronounSetToTWQ(game.PronounsItIts),
+	pronouns := map[string]pronounSet{
+		"SHE/HER":   pronounSet(game.PronounsFeminine),
+		"HE/HIM":    pronounSet(game.PronounsMasculine),
+		"THEY/THEM": pronounSet(game.PronounsNonBinary),
+		"IT/ITS":    pronounSet(game.PronounsItIts),
 	}
 
 	// check loaded pronouns
@@ -76,14 +76,14 @@ func parseWorldData(tqw tqwWorldData) (WorldData, error) {
 
 		// set pronouns to actual
 		if npc.Pronouns != "" {
-			empty := tqwPronounSet{}
+			empty := pronounSet{}
 			if npc.PronounSet != empty {
 				return world, fmt.Errorf("parsing: npcs[%d (%q)]: can't define custom pronoun set because pronouns is set to %q", idx, npc.Label, npc.Pronouns)
 			}
 			npc.PronounSet = pronouns[strings.ToUpper(npc.Pronouns)]
 		}
 
-		npcs = append(npcs, npc.toNPC())
+		npcs = append(npcs, npc.toGameNPC())
 	}
 
 	// now that they are all loaded and individually checked for validity,
@@ -224,7 +224,7 @@ func parseWorldData(tqw tqwWorldData) (WorldData, error) {
 	return world, nil
 }
 
-func validateNPCDef(npc twqNPC, topLevelPronouns map[string]tqwPronounSet) error {
+func validateNPCDef(npc npc, topLevelPronouns map[string]pronounSet) error {
 	if npc.Label == "" {
 		return fmt.Errorf("must have non-blank 'label' field")
 	}
@@ -253,7 +253,7 @@ func validateNPCDef(npc twqNPC, topLevelPronouns map[string]tqwPronounSet) error
 	return nil
 }
 
-func validateDialogStepDef(ds tqwDialogStep) error {
+func validateDialogStepDef(ds dialogStep) error {
 	diaUpper := strings.ToUpper(ds.Action)
 	dia, ok := game.DialogActionsByString[diaUpper]
 
@@ -297,7 +297,7 @@ func validateDialogStepDef(ds tqwDialogStep) error {
 	return nil
 }
 
-func validateRouteDef(ps tqwRoute) error {
+func validateRouteDef(ps route) error {
 	actUpper := strings.ToUpper(ps.Action)
 	act, ok := game.RouteActionsByString[actUpper]
 
@@ -338,7 +338,7 @@ func validateRouteDef(ps tqwRoute) error {
 }
 
 // if topLevel is nil, then the top level is being validated.
-func validatePronounSetDef(ps tqwPronounSet, label string, topLevel map[string]tqwPronounSet) error {
+func validatePronounSetDef(ps pronounSet, label string, topLevel map[string]pronounSet) error {
 	if label != "" {
 		if topLevel == nil {
 			return fmt.Errorf("top-level pronoun must be full pronoun definition, not a label (%q)", label)
@@ -350,7 +350,7 @@ func validatePronounSetDef(ps tqwPronounSet, label string, topLevel map[string]t
 	return nil
 }
 
-func validateRoomDef(r tqwRoom) error {
+func validateRoomDef(r room) error {
 	if r.Label == "" {
 		return fmt.Errorf("must have non-blank 'label' field")
 	}
@@ -387,7 +387,7 @@ func validateRoomDef(r tqwRoom) error {
 	return nil
 }
 
-func validateEgressDef(eg tqwEgress) error {
+func validateEgressDef(eg egress) error {
 	if eg.DestLabel == "" {
 		return fmt.Errorf("must have non-blank 'destLabel' field")
 	}
@@ -407,7 +407,7 @@ func validateEgressDef(eg tqwEgress) error {
 	return nil
 }
 
-func validateItemDef(item tqwItem) error {
+func validateItemDef(item item) error {
 	if item.Label == "" {
 		return fmt.Errorf("must have non-blank 'label' field")
 	}
