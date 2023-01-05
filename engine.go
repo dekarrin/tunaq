@@ -13,15 +13,17 @@ import (
 	"github.com/dekarrin/tunaq/internal/game"
 	"github.com/dekarrin/tunaq/internal/input"
 	"github.com/dekarrin/tunaq/internal/tqerrors"
+	"github.com/dekarrin/tunaq/internal/tqw"
 )
 
 // Engine contains the things needed to run a game from an interactive shell
 // attached to an input stream and an output stream.
 type Engine struct {
-	state   game.State
-	in      command.Reader
-	out     *bufio.Writer
-	running bool
+	state       game.State
+	in          command.Reader
+	out         *bufio.Writer
+	forceDirect bool
+	running     bool
 }
 
 const consoleOutputWidth = 80
@@ -41,7 +43,7 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string, fo
 	}
 
 	// load world file
-	worldData, err := game.LoadTQWResourceBundle(worldFilePath)
+	worldData, err := tqw.LoadResourceBundle(worldFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -52,9 +54,10 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string, fo
 	}
 
 	eng := &Engine{
-		out:     bufio.NewWriter(outputStream),
-		state:   state,
-		running: false,
+		out:         bufio.NewWriter(outputStream),
+		state:       state,
+		running:     false,
+		forceDirect: forceDirectInput,
 	}
 
 	if !forceDirectInput && inputStream == os.Stdin && outputStream == os.Stdout {
@@ -91,6 +94,9 @@ func (eng *Engine) Close() error {
 // the game until the QUIT command is received.
 func (eng *Engine) RunUntilQuit() error {
 	introMsg := "Welcome to TunaQuest Engine\n"
+	if eng.forceDirect {
+		introMsg += "(direct input mode)\n"
+	}
 	introMsg += "===========================\n"
 	introMsg += "\n"
 	introMsg += "You are in " + eng.state.CurrentRoom.Name + "\n"

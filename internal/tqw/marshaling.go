@@ -1,4 +1,4 @@
-package game
+package tqw
 
 import (
 	"errors"
@@ -6,92 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
-
-const MaxManifestRecursionDepth = 32
-
-// Manifest contains data loaded from one or more TQW Manifest files.
-type Manifest struct {
-	Files []string
-}
-
-// WorldData contains data loaded from one or more TQW World Data files.
-type WorldData struct {
-	// Rooms has every room in the World, pre-loaded with NPCs and Items and
-	// ready for immediate use.
-	Rooms map[string]*Room
-
-	// Start is the room the character starts in.
-	Start string
-}
-
-// ErrManifestEmpty is the error returned when a manifest file is read
-// successfully but specifies no additional files to load.
-var ErrManifestEmpty = errors.New("does not list any valid files to include")
-
-// ErrManifestStackOverflow is the error returned when the recusion level of
-// MaxManifestRecrusionDepth is reached and an additional Manifest is then
-// specified, which would cause recursion to go deeper.
-var ErrManifestStackOverflow = errors.New("too many manifests deep")
-
-// ErrManifestCircularRef is the error returned when a manifest specifies any
-// series of files that with their own manifests refer back to the original
-// manifest, and therefore cannot be followed.
-var ErrManifestCircularRef = errors.New("manifest inclusion chain refers back to itself")
-
-// LoadTQWResourceBundle loads a world up from the given TQW file. The file's
-// type is auto-detected and decoding is handled appropriately; the type can
-// either be "DATA" type or "MANIFEST" type; if it's manifest type, the files
-// listed in it relative to it will also be loaded. All files included will be
-// combined into one single set of data before being checked, and if a manifest
-// is encountered, all files in it are recursively included.
-//
-// In the future, once 'resource packs' are available (honestly just tarball or
-// zip files containing at least one manifest file at the root), setting path to
-// it will result in reading the entire archive starting with the root manifest.
-func LoadTQWResourceBundle(path string) (WorldData, error) {
-	unmarshaled, err := recursiveUnmarshalTQWResource(path, nil)
-	if err != nil {
-		return WorldData{}, err
-	}
-
-	world, err := parseUnmarshaledData(unmarshaled)
-	if err != nil {
-		return world, err
-	}
-
-	return world, nil
-}
-
-// LoadManifestFile loads manifest data from a TQW file.
-func LoadManifestFile(path string) (manif Manifest, err error) {
-	manifestData, loadErr := os.ReadFile(path)
-	if loadErr != nil {
-		return manif, fmt.Errorf("reading manifest file: %w", loadErr)
-	}
-
-	manif, err = ParseManifestFromTOML(manifestData)
-	if err != nil {
-		return manif, fmt.Errorf("loading manifest file: %w", err)
-	}
-
-	return manif, nil
-}
-
-// LoadWorldDataFile loads a world from a world definition
-func LoadWorldDataFile(path string) (world WorldData, err error) {
-	worldBinaryData, loadErr := os.ReadFile(path)
-	if loadErr != nil {
-		return world, fmt.Errorf("reading world file: %w", loadErr)
-	}
-
-	world, err = ParseWorldDataFromTOML(worldBinaryData)
-	if err != nil {
-		return world, fmt.Errorf("loading world file: %w", err)
-	}
-
-	return world, nil
-}
 
 // manifStack is for two reasons ->
 // * detect circular deps (not an error, but we need to know to avoid them)
@@ -99,7 +16,7 @@ func LoadWorldDataFile(path string) (world WorldData, err error) {
 //
 // Returnes ErrManifestEmpty if and only if the first manifest in the stack is
 // empty, otherwise it is not an error.
-func recursiveUnmarshalTQWResource(path string, manifStack []string) (data tqwWorldData, err error) {
+func recursiveUnmarshalResource(path string, manifStack []string) (data tqwWorldData, err error) {
 	path = filepath.Clean(path)
 
 	fileData, loadErr := os.ReadFile(path)
@@ -107,19 +24,19 @@ func recursiveUnmarshalTQWResource(path string, manifStack []string) (data tqwWo
 		return tqwWorldData{}, fmt.Errorf("%q: reading from disk: %w", path, loadErr)
 	}
 
-	tqwFileInfo, err := scanFileInfo(fileData)
+	fileInfo, err := ScanFileInfo(fileData)
 	if err != nil {
 		return tqwWorldData{}, fmt.Errorf("%q: detecting file type: %w", path, err)
 	}
 
-	if strings.ToUpper(tqwFileInfo.Format) != "TUNA" {
+	if strings.ToUpper(fileInfo.Format) != "TUNA" {
 		return tqwWorldData{}, fmt.Errorf("%q: file does not have a 'format = \"TUNA\" entry", path)
 	}
 
-	fileType := strings.ToUpper(tqwFileInfo.Type)
+	fileType := strings.ToUpper(fileInfo.Type)
 	switch fileType {
 	case "DATA":
-		unmarshaled, err := UnmarshalTOMLWorldData(fileData)
+		unmarshaled, err := unmarshalWorldData(fileData)
 		if err != nil {
 			return unmarshaled, fmt.Errorf("world data file %q: %w", path, err)
 		}
@@ -137,7 +54,11 @@ func recursiveUnmarshalTQWResource(path string, manifStack []string) (data tqwWo
 			}
 		}
 
-		manif, err := ParseManifestFromTOML(fileData)
+		unmarshaledManif, err := unmarshalManifest(fileData)
+		if err != nil {
+			return tqwWorldData{}, fmt.Errorf("manifest file %q: %w", path, err)
+		}
+		manif, err := parseManifest(unmarshaledManif)
 		if err != nil {
 			return tqwWorldData{}, fmt.Errorf("manifest file %q: %w", path, err)
 		}
@@ -169,7 +90,7 @@ func recursiveUnmarshalTQWResource(path string, manifStack []string) (data tqwWo
 		for _, manifRelPath := range manif.Files {
 			includedFilePath := filepath.Join(manifDir, manifRelPath)
 
-			unmarshaledFileData, err := recursiveUnmarshalTQWResource(includedFilePath, manifSubStack)
+			unmarshaledFileData, err := recursiveUnmarshalResource(includedFilePath, manifSubStack)
 			if err != nil {
 				// if it's a circular reference, that's actually okay. we will
 				// just skip reading it and move on to the next entry.
@@ -211,4 +132,40 @@ func recursiveUnmarshalTQWResource(path string, manifStack []string) (data tqwWo
 	default:
 		return tqwWorldData{}, fmt.Errorf("%q: file does not have 'type = ' entry set to either \"DATA\" or \"MANIFEST\"", path)
 	}
+}
+
+// unmarshalWorldData unmarshals world data from the given bytes. It does not
+// parse or check world data.
+func unmarshalWorldData(tomlData []byte) (tqwWorldData, error) {
+	var tqw tqwWorldData
+	if tomlErr := toml.Unmarshal(tomlData, &tqw); tomlErr != nil {
+		return tqw, tomlErr
+	}
+
+	if strings.ToUpper(tqw.Format) != "TUNA" {
+		return tqw, fmt.Errorf("in header: 'format' key must exist and be set to 'TUNA'")
+	}
+	if strings.ToUpper(tqw.Type) != "DATA" {
+		return tqw, fmt.Errorf("in header: 'type' must exist and be set to 'DATA'")
+	}
+
+	return tqw, nil
+}
+
+// unmarshalManifest unmarshals a TQW manifest from the given bytes. It does not
+// parse or check world data.
+func unmarshalManifest(tomlData []byte) (tqwManifest, error) {
+	var tqw tqwManifest
+	if tomlErr := toml.Unmarshal(tomlData, &tqw); tomlErr != nil {
+		return tqw, tomlErr
+	}
+
+	if strings.ToUpper(tqw.Format) != "TUNA" {
+		return tqw, fmt.Errorf("in header: 'format' key must exist and be set to 'TUNA'")
+	}
+	if strings.ToUpper(tqw.Type) != "MANIFEST" {
+		return tqw, fmt.Errorf("in header: 'type' must exist and be set to 'MANIFEST'")
+	}
+
+	return tqw, nil
 }
