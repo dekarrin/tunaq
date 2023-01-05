@@ -1,5 +1,9 @@
 format = "tuna"
 type = "manifest"
+
+# This file pretty much only exists to point to our sample world's manifest so
+# we don't have to do -w 'world/manifest.tqw' every time when testing tqi.
+
 files = [
-    "indirection.tqw"
+    "world/manifest.tqw",
 ]

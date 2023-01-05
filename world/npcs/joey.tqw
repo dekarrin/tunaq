@@ -1,0 +1,57 @@
+format = "tuna"
+type = "data"
+
+
+[[npcs]]
+label = "JOEYC"
+aliases = [
+	"JOEY",
+	"JOEY CLAIRE",
+	"GIRL",
+]
+name = "Joey Claire, gumshoe extraordinaire"
+start = "HALLWAY"
+description = '''
+A girl dressed in typical 90's gear, complete with a kaleidoscope of colors. She's carrying around a magnifying glass
+and looking over the wall, stopping every few moments to examine a spot under her magnifying glass.
+'''
+
+[npcs.customPronounSet]
+nominative = "she"
+objective = "her"
+possessive = ""
+determiner = ""
+reflexive = ""
+
+[[npcs.dialog]]
+label = ""
+action = "line"
+content = "Hi there, I'm Joey!"
+response = "Hello, Joey."
+
+[[npcs.dialog]]
+content = "alternate syntax: \" just having a string implies type=line, content of string, response of null"
+
+[[npcs.dialog]]
+action = "choice"
+content = "Who are you?"
+choices = [
+	["Just a wanderer", "IM_WANDERER"],
+	["I'm PLAYER!", "IM_PLAYER"],
+]
+
+[[npcs.dialog]]
+label = "IM_WANDERER"
+action = "line"
+content = "Oh, wow! It's nice to meet you, I haven't seen other people here in a long, long time!"
+
+[[npcs.dialog]]
+action = "end"
+
+[[npcs.dialog]]
+label = "IM_PLAYER"
+content = "Your name is PLAYER? That's a weird name!"
+
+[[npcs.dialog]]
+action = "end"
+
