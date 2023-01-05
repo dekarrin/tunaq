@@ -23,16 +23,16 @@ possessive = ""
 determiner = ""
 reflexive = ""
 
-[[npcs.dialog]]
+[[npcs.dialogs]]
 label = ""
 action = "line"
 content = "Hi there, I'm Joey!"
 response = "Hello, Joey."
 
-[[npcs.dialog]]
+[[npcs.dialogs]]
 content = "alternate syntax: \" just having a string implies type=line, content of string, response of null"
 
-[[npcs.dialog]]
+[[npcs.dialogs]]
 action = "choice"
 content = "Who are you?"
 choices = [
@@ -40,18 +40,18 @@ choices = [
 	["I'm PLAYER!", "IM_PLAYER"],
 ]
 
-[[npcs.dialog]]
+[[npcs.dialogs]]
 label = "IM_WANDERER"
 action = "line"
 content = "Oh, wow! It's nice to meet you, I haven't seen other people here in a long, long time!"
 
-[[npcs.dialog]]
+[[npcs.dialogs]]
 action = "end"
 
-[[npcs.dialog]]
+[[npcs.dialogs]]
 label = "IM_PLAYER"
 content = "Your name is PLAYER? That's a weird name!"
 
-[[npcs.dialog]]
+[[npcs.dialogs]]
 action = "end"
 

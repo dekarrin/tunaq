@@ -23,5 +23,5 @@ forbidden = [
 	"SALAMANDER_FOYER",
 ]
 
-[[npcs.dialog]]
+[[npcs.dialogs]]
 content = "Glub!"

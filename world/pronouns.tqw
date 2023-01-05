@@ -2,7 +2,8 @@ format = "tuna"
 type = "data"
 
 
-[pronouns."joey"]
+[[pronouns]]
+label = "joey"
 nominative = "JOEY"
 objective = "JOEY"
 possessive = ""

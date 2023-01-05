@@ -63,10 +63,10 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 		}
 
 		// set any blank dialog types to line
-		for idx, ds := range npc.Dialog {
+		for idx, ds := range npc.Dialogs {
 			if ds.Action == "" {
 				ds.Action = "LINE"
-				npc.Dialog[idx] = ds
+				npc.Dialogs[idx] = ds
 			}
 		}
 
@@ -238,7 +238,7 @@ func validateNPCDef(npc npc, topLevelPronouns map[string]pronounSet) error {
 		if npc.PronounSet != empty {
 			return fmt.Errorf("cannot have both 'pronouns' key and custom_pronoun_set defined for the npc")
 		}
-		if _, ok := topLevelPronouns[npc.Pronouns]; !ok {
+		if _, ok := topLevelPronouns[strings.ToUpper(npc.Pronouns)]; !ok {
 			return fmt.Errorf("no pronoun set called %q is defined", npc.Pronouns)
 		}
 	} else if npc.PronounSet == empty {
@@ -255,8 +255,8 @@ func validateNPCDef(npc npc, topLevelPronouns map[string]pronounSet) error {
 		return fmt.Errorf("movement: %w", err)
 	}
 
-	for i := range npc.Dialog {
-		err := validateDialogStepDef(npc.Dialog[i])
+	for i := range npc.Dialogs {
+		err := validateDialogStepDef(npc.Dialogs[i])
 		if err != nil {
 			return fmt.Errorf("dialog[%d]: %w", i, err)
 		}

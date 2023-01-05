@@ -31,7 +31,7 @@ type npc struct {
 	Description string       `toml:"description"`
 	Start       string       `toml:"start"`
 	Movement    route        `toml:"movement"`
-	Dialog      []dialogStep `toml:"dialog"`
+	Dialogs     []dialogStep `toml:"dialogs"`
 }
 
 func (tn npc) toGameNPC() game.NPC {
@@ -42,11 +42,11 @@ func (tn npc) toGameNPC() game.NPC {
 		Description: tn.Description,
 		Start:       tn.Start,
 		Movement:    tn.Movement.toGameRoute(),
-		Dialog:      make([]game.DialogStep, len(tn.Dialog)),
+		Dialog:      make([]game.DialogStep, len(tn.Dialogs)),
 	}
 
-	for i := range tn.Dialog {
-		npc.Dialog[i] = tn.Dialog[i].toGameDialogStep()
+	for i := range tn.Dialogs {
+		npc.Dialog[i] = tn.Dialogs[i].toGameDialogStep()
 	}
 
 	return npc
