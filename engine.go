@@ -41,12 +41,12 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string, fo
 	}
 
 	// load world file
-	world, start, err := game.LoadWorldDefFile(worldFilePath)
+	worldData, err := game.LoadWorldDataFile(worldFilePath)
 	if err != nil {
 		return nil, err
 	}
 
-	state, err := game.New(world, start, consoleOutputWidth)
+	state, err := game.New(worldData.Rooms, worldData.Start, consoleOutputWidth)
 	if err != nil {
 		return nil, fmt.Errorf("initializing game engine: %w", err)
 	}

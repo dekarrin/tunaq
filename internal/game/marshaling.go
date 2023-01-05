@@ -8,10 +8,17 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+type tqwManifest struct {
+	Format string   `toml:"format"`
+	Type   string   `toml:"type"`
+	Files  []string `toml:"files"`
+}
+
 type jsonNPC struct {
 	Label       string           `json:"label" toml:"label"`
 	Name        string           `json:"name" toml:"name"`
-	Pronouns    jsonPronounSet   `json:"pronouns" toml:"pronouns"`
+	Pronouns    string           `json:"pronouns" toml:"pronouns"`
+	PronounSet  jsonPronounSet   `json:"customPronounSet" toml:"customPronounSet"`
 	Description string           `json:"description" toml:"description"`
 	Start       string           `json:"start" toml:"start"`
 	Movement    jsonRoute        `json:"movement" toml:"movement"`
@@ -22,7 +29,7 @@ func (jn jsonNPC) toNPC() NPC {
 	npc := NPC{
 		Label:       strings.ToUpper(jn.Label),
 		Name:        jn.Name,
-		Pronouns:    jn.Pronouns.toPronounSet(),
+		Pronouns:    jn.PronounSet.toPronounSet(),
 		Description: jn.Description,
 		Start:       jn.Start,
 		Movement:    jn.Movement.toRoute(),
@@ -138,8 +145,7 @@ type jsonPronounSet struct {
 	Determiner string `json:"determiner" toml:"determiner"`
 	Reflexive  string `json:"reflexive" toml:"reflexive"`
 
-	// Label is only filled when the JSON object was only a string.
-	Label string
+	Label string `json:"label"`
 }
 
 func (jp *jsonPronounSet) UnmarshalJSON(b []byte) error {
@@ -283,7 +289,7 @@ func (jr jsonRoom) toRoom() Room {
 	return r
 }
 
-type tqiFileInfo struct {
+type tqwFileInfo struct {
 	Format string `toml:"format"`
 	Type   string `toml:"type"`
 }
@@ -307,17 +313,37 @@ type jsonWorld struct {
 	Pronouns map[string]jsonPronounSet `json:"pronouns"`
 }
 
+// ParseManifestFromTOML takes in raw TOML bytes, reads it for manifest data,
+// and returns the files in the manifest.
+func ParseManifestFromTOML(manifestData []byte) (Manifest, error) {
+	var loaded tqwManifest
+
+	if strings.ToUpper(loaded.Format) != "TUNA" {
+		return Manifest{}, fmt.Errorf("in header: 'format' key must exist and be set to 'TUNA'")
+	}
+
+	if strings.ToUpper(loaded.Type) != "MANIFEST" {
+		return Manifest{}, fmt.Errorf("in header: type set to %q, not \"MANIFEST\"", loaded.Type)
+	}
+
+	manif := Manifest{
+		Files: loaded.Files,
+	}
+
+	return manif, nil
+}
+
 // ParseWorldFromJSON takes in raw json bytes, reads it for a world definition,
 // and returns the rooms as well as the label of the starting room.
 //
 // Note: Uses module-global variables as part of operation. Absolutely not
 // thread-safe and calling more than once concurrently will lead to unexpected
 // results.
-func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom string, err error) {
+func ParseWorldDataFromJSON(jsonData []byte) (WorldData, error) {
 	var loadedWorld jsonWorld
 
 	if jsonErr := json.Unmarshal(jsonData, &loadedWorld); jsonErr != nil {
-		return nil, "", fmt.Errorf("decoding JSON data: %w", jsonErr)
+		return WorldData{}, fmt.Errorf("decoding JSON data: %w", jsonErr)
 	}
 
 	return parseUnmarshaledData(loadedWorld)
@@ -329,41 +355,42 @@ func ParseWorldFromJSON(jsonData []byte) (world map[string]*Room, startRoom stri
 // Note: Uses module-global variables as part of operation. Absolutely not
 // thread-safe and calling more than once concurrently will lead to unexpected
 // results.
-func ParseWorldFromTOML(tomlData []byte) (world map[string]*Room, startRoom string, err error) {
-	fileInfo, tomlErr := scanFileInfo(tomlData)
+func ParseWorldDataFromTOML(tomlData []byte) (WorldData, error) {
+	translatedData, err := UnmarshalTOMLWorldData(tomlData)
 	if err != nil {
-		return nil, "", fmt.Errorf("decoding file header: %w", tomlErr)
+		return WorldData{}, err
 	}
+	return parseUnmarshaledData(translatedData)
+}
 
-	if strings.ToUpper(fileInfo.Format) != "TUNA" {
-		return nil, "", fmt.Errorf("in header: 'format' key must exist and be set to 'TUNA'")
-	}
-	switch strings.ToUpper(fileInfo.Type) {
-	case "DATA":
-		// nothing to do until we add the MANIFEST type
-	case "MANIFEST":
-		return nil, "", fmt.Errorf("in header: 'type' is set to 'MANIFEST', but that's not yet available for use")
-	default:
-		return nil, "", fmt.Errorf("in header: 'type' must exist and be set to one of 'DATA' or 'MANIFEST' depending on the type of the file")
-	}
-
+// UnmarshalTOMLWorldData unmarshals but does not parse or check the loaded
+// world data.
+func UnmarshalTOMLWorldData(tomlData []byte) (jsonWorld, error) {
+	var jw jsonWorld
 	var loadedData tmpTqwTop
 	if tomlErr := toml.Unmarshal(tomlData, &loadedData); tomlErr != nil {
-		return nil, "", fmt.Errorf("decoding tunaquest game data: %w", tomlErr)
+		return jw, fmt.Errorf("decoding tunaquest game data: %w", tomlErr)
 	}
 
-	translatedData := jsonWorld{
+	if strings.ToUpper(loadedData.Format) != "TUNA" {
+		return jw, fmt.Errorf("in header: 'format' key must exist and be set to 'TUNA'")
+	}
+	if strings.ToUpper(loadedData.Type) != "DATA" {
+		return jw, fmt.Errorf("in header: 'type' must exist and be set to 'DATA'")
+	}
+
+	jw = jsonWorld{
 		Rooms:    loadedData.Rooms,
 		Start:    loadedData.World.Start,
 		NPCs:     loadedData.NPCs,
 		Pronouns: loadedData.Pronouns,
 	}
 
-	return parseUnmarshaledData(translatedData)
+	return jw, nil
 }
 
 // scan the first lines for format info before doing anything else
-func scanFileInfo(data []byte) (tqiFileInfo, error) {
+func scanFileInfo(data []byte) (tqwFileInfo, error) {
 	// only run the toml parser up to the end of the top-lev table
 
 	var topLevelEnd int = -1
@@ -388,26 +415,29 @@ func scanFileInfo(data []byte) (tqiFileInfo, error) {
 		scanData = data[:topLevelEnd]
 	}
 
-	var info tqiFileInfo
+	var info tqwFileInfo
 	err := toml.Unmarshal(scanData, &info)
 	return info, err
 }
 
-func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startRoom string, err error) {
-	startRoom = loadedWorld.Start
-	world = make(map[string]*Room)
+func parseUnmarshaledData(loadedWorld jsonWorld) (WorldData, error) {
+	var err error
+
+	var world WorldData
+	world.Start = loadedWorld.Start
+	world.Rooms = make(map[string]*Room)
 
 	for idx, r := range loadedWorld.Rooms {
 		if roomErr := validateRoomDef(r); roomErr != nil {
-			return nil, "", fmt.Errorf("parsing: rooms[%d (%q)]: %w", idx, r.Label, roomErr)
+			return world, fmt.Errorf("parsing: rooms[%d (%q)]: %w", idx, r.Label, roomErr)
 		}
 
-		if _, ok := world[r.Label]; ok {
-			return nil, "", fmt.Errorf("parsing: rooms[%d (%q)]: room label %q has already been used", idx, r.Label, r.Label)
+		if _, ok := world.Rooms[r.Label]; ok {
+			return world, fmt.Errorf("parsing: rooms[%d (%q)]: room label %q has already been used", idx, r.Label, r.Label)
 		}
 
 		room := r.toRoom()
-		world[r.Label] = &room
+		world.Rooms[r.Label] = &room
 	}
 
 	pronouns := map[string]jsonPronounSet{
@@ -419,12 +449,12 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startR
 
 	// check loaded pronouns
 	for name, ps := range loadedWorld.Pronouns {
-		if err := validatePronounSetDef(ps, nil); err != nil {
-			return nil, "", fmt.Errorf("parsing: pronouns[%s]: %w", name, err)
+		if err := validatePronounSetDef(ps, "", nil); err != nil {
+			return world, fmt.Errorf("parsing: pronouns[%s]: %w", name, err)
 		}
 
 		if _, ok := pronouns[name]; ok {
-			return nil, "", fmt.Errorf("parsing: pronouns[%s]: duplicate pronoun name %q", name, name)
+			return world, fmt.Errorf("parsing: pronouns[%s]: duplicate pronoun name %q", name, name)
 		}
 
 		pronouns[name] = ps
@@ -446,12 +476,16 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startR
 		}
 
 		if err := validateNPCDef(npc, pronouns); err != nil {
-			return nil, "", fmt.Errorf("parsing: npcs[%d (%q)]: %w", idx, npc.Label, err)
+			return world, fmt.Errorf("parsing: npcs[%d (%q)]: %w", idx, npc.Label, err)
 		}
 
 		// set pronouns to actual
-		if npc.Pronouns.Label != "" {
-			npc.Pronouns = pronouns[strings.ToUpper(npc.Pronouns.Label)]
+		if npc.Pronouns != "" {
+			empty := jsonPronounSet{}
+			if npc.PronounSet != empty {
+				return world, fmt.Errorf("parsing: npcs[%d (%q)]: can't define custom pronoun set because pronouns is set to %q", idx, npc.Label, npc.Pronouns)
+			}
+			npc.PronounSet = pronouns[strings.ToUpper(npc.Pronouns)]
 		}
 
 		npcs = append(npcs, npc.toNPC())
@@ -461,33 +495,33 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startR
 	// ensure that all room egresses are valid existing labels
 	for roomIdx, r := range loadedWorld.Rooms {
 		for egressIdx, eg := range r.Exits {
-			if _, ok := world[eg.DestLabel]; !ok {
+			if _, ok := world.Rooms[eg.DestLabel]; !ok {
 				errMsg := "validating: rooms[%d (%q)]: exits[%d]: no room with label %q exists"
-				return nil, "", fmt.Errorf(errMsg, roomIdx, r.Label, egressIdx, eg.DestLabel)
+				return world, fmt.Errorf(errMsg, roomIdx, r.Label, egressIdx, eg.DestLabel)
 			}
 		}
 	}
 
 	// check that the start actually points to a real location
-	if _, ok := world[loadedWorld.Start]; !ok {
-		return nil, "", fmt.Errorf("validating: start: no room with label %q exists", startRoom)
+	if _, ok := world.Rooms[loadedWorld.Start]; !ok {
+		return world, fmt.Errorf("validating: start: no room with label %q exists", loadedWorld.Start)
 	}
 
 	// ensure that all npc routes are valid, that convo trees make sense, then place NPCs in their start rooms
 	// also ensure that all labels are unique among NPCs.
 	seenNPCLabels := map[string]int{}
-	pf := Pathfinder{World: world}
+	pf := Pathfinder{World: world.Rooms}
 	for idx, npc := range npcs {
 		// check labels
 		if seenInIndex, ok := seenNPCLabels[npc.Label]; ok {
-			return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: duplicate label %q; already used by npc %d", idx, npc.Label, npc.Label, seenInIndex)
+			return world, fmt.Errorf("validating: npcs[%d (%q)]: duplicate label %q; already used by npc %d", idx, npc.Label, npc.Label, seenInIndex)
 		}
 		seenNPCLabels[npc.Label] = idx
 
 		// check start label
-		_, ok := world[npc.Start]
+		_, ok := world.Rooms[npc.Start]
 		if !ok {
-			return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: start: no room with label %q exists", idx, npc.Label, npc.Start)
+			return world, fmt.Errorf("validating: npcs[%d (%q)]: start: no room with label %q exists", idx, npc.Label, npc.Start)
 		}
 
 		// then check route based on movement type
@@ -496,28 +530,28 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startR
 			// can npc get to initial position?
 			err = pf.ValidatePath(append([]string{npc.Start}, npc.Movement.Path[0]), false)
 			if err != nil {
-				return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: %w", idx, npc.Label, err)
+				return world, fmt.Errorf("validating: npcs[%d (%q)]: %w", idx, npc.Label, err)
 			}
 
 			// once at initial, can npc loop through patrol?
 			err = pf.ValidatePath(npc.Movement.Path, true)
 			if err != nil {
-				return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: %w", idx, npc.Label, err)
+				return world, fmt.Errorf("validating: npcs[%d (%q)]: %w", idx, npc.Label, err)
 			}
 		case RouteWander:
 			for roomIdx, roomLabel := range npc.Movement.AllowedRooms {
-				_, ok := world[roomLabel]
+				_, ok := world.Rooms[roomLabel]
 				if !ok {
 					errMsg := "validating: npcs[%d (%q)]: movement: allowedRooms[%d]: no room with label %q exists"
-					return nil, "", fmt.Errorf(errMsg, idx, npc.Label, roomIdx, roomLabel)
+					return world, fmt.Errorf(errMsg, idx, npc.Label, roomIdx, roomLabel)
 				}
 			}
 
 			for roomIdx, roomLabel := range npc.Movement.ForbiddenRooms {
-				_, ok := world[roomLabel]
+				_, ok := world.Rooms[roomLabel]
 				if !ok {
 					errMsg := "validating: npcs[%d (%q)]: movement: forbiddenRooms[%d]: no room with label %q exists"
-					return nil, "", fmt.Errorf(errMsg, idx, npc.Label, roomIdx, roomLabel)
+					return world, fmt.Errorf(errMsg, idx, npc.Label, roomIdx, roomLabel)
 				}
 			}
 
@@ -530,7 +564,7 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startR
 					path := pf.Dijkstra(source, aRoom)
 					if len(path) < 1 {
 						errMsg := "validating: npcs[%d (%q)]: movement: allowedRooms[%d]: %q is not reachable from start"
-						return nil, "", fmt.Errorf(errMsg, idx, npc.Label, aRoomIdx, aRoom)
+						return world, fmt.Errorf(errMsg, idx, npc.Label, aRoomIdx, aRoom)
 					}
 				}
 
@@ -544,7 +578,7 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startR
 						path := pf.Dijkstra(source, fRoom)
 						if len(path) < 1 {
 							errMsg := "validating: npcs[%d (%q)]: movement: forbiddenRooms[%d]: %q is not reachable from start"
-							return nil, "", fmt.Errorf(errMsg, idx, npc.Label, fRoomIdx, fRoom)
+							return world, fmt.Errorf(errMsg, idx, npc.Label, fRoomIdx, fRoom)
 						}
 					}
 				}
@@ -552,7 +586,7 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startR
 		case RouteStatic:
 			// nothing more to validate, they don't move
 		default:
-			return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: movement: action: unknown action type '%v'", idx, npc.Label, npc.Movement.Action)
+			return world, fmt.Errorf("validating: npcs[%d (%q)]: movement: action: unknown action type '%v'", idx, npc.Label, npc.Movement.Action)
 		}
 
 		// check convo tree for duplicate labels
@@ -566,7 +600,7 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startR
 			}
 
 			if seenInIndex, ok := seenConvoLabels[label]; ok {
-				return nil, "", fmt.Errorf("validating: npcs[%d (%q)]: dialog[%d]: duplicate label %q; already used by dialog[%d]", idx, npc.Label, diaIdx, label, seenInIndex)
+				return world, fmt.Errorf("validating: npcs[%d (%q)]: dialog[%d]: duplicate label %q; already used by dialog[%d]", idx, npc.Label, diaIdx, label, seenInIndex)
 			}
 			seenConvoLabels[label] = diaIdx
 		}
@@ -579,7 +613,7 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startR
 					choiceNum++
 					if _, ok := seenConvoLabels[dest]; !ok {
 						msg := "validating: npcs[%d (%q)]: dialog[%d]: choices[%d]: %q is not a label or index that exists in this NPC's dialog set"
-						return nil, "", fmt.Errorf(msg, idx, npc.Label, diaIdx, choiceNum, dest)
+						return world, fmt.Errorf(msg, idx, npc.Label, diaIdx, choiceNum, dest)
 					}
 				}
 			}
@@ -587,12 +621,12 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (world map[string]*Room, startR
 
 		// should be good to go, add the NPC to the world
 		npcRef := npc
-		world[npc.Start].NPCs[npc.Label] = &npcRef
+		world.Rooms[npc.Start].NPCs[npc.Label] = &npcRef
 	}
 
 	// TODO: check that no item overwrites another
 
-	return world, startRoom, nil
+	return world, nil
 }
 
 func validateNPCDef(npc jsonNPC, topLevelPronouns map[string]jsonPronounSet) error {
@@ -604,7 +638,7 @@ func validateNPCDef(npc jsonNPC, topLevelPronouns map[string]jsonPronounSet) err
 	}
 
 	// check pronouns are set or refer to one
-	err := validatePronounSetDef(npc.Pronouns, topLevelPronouns)
+	err := validatePronounSetDef(npc.PronounSet, npc.Pronouns, topLevelPronouns)
 	if err != nil {
 		return fmt.Errorf("pronouns: %w", err)
 	}
@@ -709,13 +743,13 @@ func validateRouteDef(ps jsonRoute) error {
 }
 
 // if topLevel is nil, then the top level is being validated.
-func validatePronounSetDef(ps jsonPronounSet, topLevel map[string]jsonPronounSet) error {
-	if ps.Label != "" {
+func validatePronounSetDef(ps jsonPronounSet, label string, topLevel map[string]jsonPronounSet) error {
+	if label != "" {
 		if topLevel == nil {
-			return fmt.Errorf("top-level pronoun must be full pronoun definition, not a label (%q)", ps.Label)
+			return fmt.Errorf("top-level pronoun must be full pronoun definition, not a label (%q)", label)
 		}
-		if _, ok := topLevel[strings.ToUpper(ps.Label)]; !ok {
-			return fmt.Errorf("no pronoun set called %q exists", ps.Label)
+		if _, ok := topLevel[strings.ToUpper(label)]; !ok {
+			return fmt.Errorf("no pronoun set called %q exists", label)
 		}
 	}
 	return nil

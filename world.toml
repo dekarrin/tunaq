@@ -577,7 +577,7 @@ A girl dressed in typical 90's gear, complete with a kaleidoscope of colors. She
 and looking over the wall, stopping every few moments to examine a spot under her magnifying glass.
 '''
 
-[npcs.pronouns]
+[npcs.customPronounSet]
 nominative = "she"
 objective = "her"
 possessive = ""

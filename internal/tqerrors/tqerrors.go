@@ -1,6 +1,8 @@
 package tqerrors
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // InterpreterError is an error caused by attempting to interpret input. Either
 // the input could not be understood or it specifies doing something that is
