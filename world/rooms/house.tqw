@@ -1,7 +1,6 @@
 format = "tuna"
 type = "data"
 
-
 # your_room
 [[rooms]]
 label = "YOUR_ROOM"
@@ -14,17 +13,17 @@ the east, and a door leading to the hall to the south.
 
 [[rooms.exits]]
 aliases = ["BATHROOM", "TOILET", "DOOR", "EAST"]
-destLabel = "BATHROOM"
+dest = "BATHROOM"
 description = "your bathroom door"
-travelMessage = '''
+message = '''
 You go through the door and enter the bathroom.
 '''
 
 [[rooms.exits]]
 aliases = ["HALLWAY", "HALL", "OUT", "SOUTH"]
-destLabel = "HALLWAY"
+dest = "HALLWAY"
 description = "the door to the hall"
-travelMessage = '''
+message = '''
 You shut the door behind you as you go into the hall.
 '''
 
@@ -49,9 +48,9 @@ the west leads back to your bedroom.
 
 [[rooms.exits]]
 aliases = ["BEDROOM", "ROOM", "DOOR", "WEST"]
-destLabel = "YOUR_ROOM"
+dest = "YOUR_ROOM"
 description = "the door"
-travelMessage = '''
+message = '''
 You head back into the bedroom.
 '''
 
@@ -68,17 +67,17 @@ I guess you're stuck here. In your home. Housetrapped.  Anyways, there's also yo
 
 [[rooms.exits]]
 aliases = ["BEDROOM", "ROOM", "NORTH"]
-destLabel = "YOUR_ROOM"
+dest = "YOUR_ROOM"
 description = "the door to your bedroom"
-travelMessage = '''
+message = '''
 You step into your bedroom, closing the door behind you for privacy.
 '''
 
 [[rooms.exits]]
 aliases = ["LIVING_ROOM", "LIVINGROOM", "LIVING ROOM", "DOORWAY", "END"]
-destLabel = "LIVING_ROOM"
+dest = "LIVING_ROOM"
 description = "The end of the hall, leading to the living room"
-travelMessage = '''
+message = '''
 Your feelings were wrong, turns out you can pass right through the boards! You go into the living room.
 '''
 
@@ -96,25 +95,25 @@ to the kitchen, through the front door to the yard outside, or back to the hallw
 
 [[rooms.exits]]
 aliases = ["HALL", "HALLWAY", "BEDROOMS", "DOORWAY"]
-destLabel = "HALLWAY"
+dest = "HALLWAY"
 description = "the hall leading to the bedrooms"
-travelMessage = '''
+message = '''
 You walk into the hallway towards the bedrooms.
 '''
 
 [[rooms.exits]]
 aliases = ["KITCHEN", "MEALBLOCK", "MEAL BLOCK"]
-destLabel = "KITCHEN"
+dest = "KITCHEN"
 description = "the kitchen of the house"
-travelMessage = '''
+message = '''
 You walk into the kitchen.
 '''
 
 [[rooms.exits]]
 aliases = ["OUTSIDE", "OUT", "YARD", "DOOR", "FRONT DOOR"]
-destLabel = "FRONT_YARD"
+dest = "FRONT_YARD"
 description = "the front door of the house. There's a neat little window to see people outside, but you don't usually get visitors."
-travelMessage = '''
+message = '''
 You pull open the front door, letting in a whoosh of wind. It blows your hair into a mess as you step outside, and you
 brush it out of your eyes.
 '''
@@ -131,9 +130,9 @@ windows let in plenty of light and let you see that there is an exit back to the
 
 [[rooms.exits]]
 aliases = ["LIVINGROOM", "LIVING_ROOM", "LIVING ROOM", "OUT"]
-destLabel = "LIVING_ROOM"
+dest = "LIVING_ROOM"
 description = "the entryway back into the living room"
-travelMessage = '''
+message = '''
 You walk back into the living room.
 '''
 
@@ -149,18 +148,18 @@ the house, the backyard, and that's pretty much it.
 
 [[rooms.exits]]
 aliases = ["LIVINGROOM", "LIVING_ROOM", "LIVING ROOM", "INSIDE", "HOUSE", "FRONT DOOR", "DOOR"]
-destLabel = "LIVING_ROOM"
+dest = "LIVING_ROOM"
 description = "the front door of your house, leading directly to the living room"
-travelMessage = '''
+message = '''
 You pull open the heavy door and are comforted by the familiar sight of your living room. You step in and shut the door
 behind you.
 '''
 
 [[rooms.exits]]
 aliases = ["BACKYARD", "BACK YARD", "BACK", "YARD"]
-destLabel = "BACKYARD"
+dest = "BACKYARD"
 description = "the lawn and yard in the back of your house"
-travelMessage = '''
+message = '''
 Grass and twigs crunch under your feet as you walk around to the back yard.
 '''
 
@@ -178,16 +177,16 @@ could go in there.
 
 [[rooms.exits]]
 aliases = ["YARD", "FRONT", "FRONT YARD", "FRONTYARD", "FRONT_YARD", "FRONT LAWN"]
-destLabel = "FRONT_YARD"
+dest = "FRONT_YARD"
 description = "the yard outside of your house's front door"
-travelMessage = '''
+message = '''
 You decide you've had enough of the backyard and decide to go to the front.
 '''
 
 [[rooms.exits]]
 aliases = ["CAVE", "TUNNEL", "POGO", "HOLE", "OPENING", "GROUND"]
-destLabel = "NPC_HALL"
+dest = "NPC_HALL"
 description = "a dank tunnel leading down into the depths of the earth under your house"
-travelMessage = '''
+message = '''
 You take a deep breath and follow the tunnel underground, past a couple of turns and into the depths.
 '''

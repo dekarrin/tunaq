@@ -19,7 +19,7 @@ A small yellow salamander who likes to go glub. Also known as 'VICEROY' after th
 
 [npcs.movement]
 action = "wander"
-forbiddenRooms = [
+forbidden = [
 	"SALAMANDER_FOYER",
 ]
 

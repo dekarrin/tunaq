@@ -27,7 +27,7 @@ type npc struct {
 	Label       string       `toml:"label"`
 	Name        string       `toml:"name"`
 	Pronouns    string       `toml:"pronouns"`
-	PronounSet  pronounSet   `toml:"customPronounSet"`
+	PronounSet  pronounSet   `toml:"custom_pronoun_set"`
 	Description string       `toml:"description"`
 	Start       string       `toml:"start"`
 	Movement    route        `toml:"movement"`
@@ -53,10 +53,10 @@ func (tn npc) toGameNPC() game.NPC {
 }
 
 type route struct {
-	Action         string   `toml:"action"`
-	Path           []string `toml:"path"`
-	ForbiddenRooms []string `toml:"forbiddenRooms"`
-	AllowedRooms   []string `toml:"allowedRooms"`
+	Action    string   `toml:"action"`
+	Path      []string `toml:"path"`
+	Forbidden []string `toml:"forbidden"`
+	Allowed   []string `toml:"allowed"`
 }
 
 func (tr route) toGameRoute() game.Route {
@@ -68,13 +68,13 @@ func (tr route) toGameRoute() game.Route {
 	r := game.Route{
 		Action:         act,
 		Path:           make([]string, len(tr.Path)),
-		ForbiddenRooms: make([]string, len(tr.ForbiddenRooms)),
-		AllowedRooms:   make([]string, len(tr.AllowedRooms)),
+		ForbiddenRooms: make([]string, len(tr.Forbidden)),
+		AllowedRooms:   make([]string, len(tr.Allowed)),
 	}
 
 	copy(r.Path, tr.Path)
-	copy(r.ForbiddenRooms, tr.ForbiddenRooms)
-	copy(r.AllowedRooms, tr.AllowedRooms)
+	copy(r.ForbiddenRooms, tr.Forbidden)
+	copy(r.AllowedRooms, tr.Allowed)
 
 	return r
 }
@@ -172,17 +172,17 @@ func (ti item) toGameItem() game.Item {
 }
 
 type egress struct {
-	DestLabel     string   `toml:"destLabel"`
-	Description   string   `toml:"description"`
-	TravelMessage string   `toml:"travelMessage"`
-	Aliases       []string `toml:"aliases"`
+	Dest        string   `toml:"dest"`
+	Description string   `toml:"description"`
+	Message     string   `toml:"message"`
+	Aliases     []string `toml:"aliases"`
 }
 
 func (te egress) toGameEgress() game.Egress {
 	eg := game.Egress{
-		DestLabel:     te.DestLabel,
+		DestLabel:     te.Dest,
 		Description:   te.Description,
-		TravelMessage: te.TravelMessage,
+		TravelMessage: te.Message,
 		Aliases:       make([]string, len(te.Aliases)),
 	}
 

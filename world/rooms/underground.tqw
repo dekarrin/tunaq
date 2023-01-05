@@ -16,18 +16,18 @@ you, or you could head back through the tunnel to the backyard.
 
 [[rooms.exits]]
 aliases = ["BACKYARD", "OUTSIDE", "TUNNEL"]
-destLabel = "BACKYARD"
+dest = "BACKYARD"
 description = "the other end of the tunnel, leading to the backyard"
-travelMessage = '''
+message = '''
 You pass around several corners and are delighted to see the tunnel end in a patch of light. You climb out and see your
 familiar pogo ride next to you. You've made it into your backyard.
 '''
 
 [[rooms.exits]]
 aliases = ["LADDER", "UP", "CLIMB", "HATCH"]
-destLabel = "KITCHEN"
+dest = "KITCHEN"
 description = "a ladder leading up to a hatch in the ceiling of the tunnel"
-travelMessage = '''
+message = '''
 You climb up the ladder and throw open the hatch. You go through and find yourself in complete darkness, and you trip
 and accidentally slam the hatch shut behind you! Looks like you won't be going back that way. After fumbling about a bit
 more, you find a door and walk out of your pantry into your kitchen.
@@ -35,26 +35,26 @@ more, you find a door and walk out of your pantry into your kitchen.
 
 [[rooms.exits]]
 aliases = ["GLUB", "OAK", "GLUB DOOR", "DOOR GLUB"]
-destLabel = "SALAMANDER_FOYER"
+dest = "SALAMANDER_FOYER"
 description = "an old oak door, with a placard reading 'GLUB' next to it"
-travelMessage = '''
+message = '''
 You heave open the heavy oak door and walk into a well-lit sitting room. The door closes behind you.
 '''
 
 [[rooms.exits]]
 aliases = ["NAK", "MAPLE", "MAPLEWOOD", "NAK DOOR", "DOOR NAK"]
-destLabel = "CROC_FOYER"
+dest = "CROC_FOYER"
 description = "an old... maple door?! Who makes a door out of maple?! Anyways, this one is. And there's a sign next to it that says 'NAK'."
-travelMessage = '''
+message = '''
 You manage to pull open the maple door, which looks suspiciously like flooring. As you walk through, a soft blue glow
 hits your skin.
 '''
 
 [[rooms.exits]]
 aliases = ["THIP", "ROSEWOOD", "THIP DOOR", "DOOR THIP"]
-destLabel = "IGUANA_FOYER"
+dest = "IGUANA_FOYER"
 description = "a gorgeous rosewood door with intricate designs carved into it, under a well-crafted sign-board with 'THIP' eloquently carved into it"
-travelMessage = '''
+message = '''
 The rosewood door opens easily without a hitch or a single creak, and you go on through.
 '''
 
@@ -74,9 +74,9 @@ done here.
 
 [[rooms.exits]]
 aliases = ["MAPLE", "MAPLEWOOD", "DOOR", "TUNNEL", "NORTH"]
-destLabel = "NPC_HALL"
+dest = "NPC_HALL"
 description = "a maplewood door leading back to the underground tunnel"
-travelMessage = '''
+message = '''
 You decide to leave the excitment of Wall Street to the bankers and head back through the maplewood door into the
 tunnel.
 '''
@@ -96,9 +96,9 @@ NORTH through the rosewood door to the tunnel.
 
 [[rooms.exits]]
 aliases = ["ROSEWOOD", "DOOR", "TUNNEL", "NORTH"]
-destLabel = "NPC_HALL"
+dest = "NPC_HALL"
 description = "a rosewood door leading back to the underground tunnel"
-travelMessage = '''
+message = '''
 You go back to the tunnel, glad to be away from the humidity of the pool room.
 '''
 
@@ -114,17 +114,17 @@ now and then.  You can go NORTH through a doorway or SOUTH back into the tunnel 
 
 [[rooms.exits]]
 aliases = ["OAK", "DOOR", "TUNNEL", "SOUTH"]
-destLabel = "NPC_HALL"
+dest = "NPC_HALL"
 description = "an oak door leading back to the underground tunnel."
-travelMessage = '''
+message = '''
 You go back through the oak door into the tunnel.
 '''
 
 [[rooms.exits]]
 aliases = ["DOORWAY", "NORTH"]
-destLabel = "SALAMANDER_OFFICE_FORK"
+dest = "SALAMANDER_OFFICE_FORK"
 description = "Just a normal opening into FORK-A."
-travelMessage = '''
+message = '''
 You make your way into the Salamander version of Fork-A.
 '''
 
@@ -141,25 +141,25 @@ Salamander offices.
 
 [[rooms.exits]]
 aliases = ["DOORWAY", "SOUTH"]
-destLabel = "SALAMANDER_FOYER"
+dest = "SALAMANDER_FOYER"
 description = "doorway back to the foyer"
-travelMessage = '''
+message = '''
 You go back into the foyer.
 '''
 
 [[rooms.exits]]
 aliases = ["PASSAGE", "SIDE PASSAGE", "SIDE", "WEST", "OFFICE", "OFFICES"]
-destLabel = "SALAMANDER_OFFICE_FRONT"
+dest = "SALAMANDER_OFFICE_FRONT"
 description = "The side passage of salamander land."
-travelMessage = '''
+message = '''
 You enter the side passage.
 '''
 
 [[rooms.exits]]
 aliases = ["HALL", "INNER HALL", "HALLWAY", "INNER", "NORTH"]
-destLabel = "SALAMANDER_HALL"
+dest = "SALAMANDER_HALL"
 description = "hall deep within salamander territory. Full of glubs, and... is that a knife on the ground?"
-travelMessage = '''
+message = '''
 You enter the hall to the sound of glubs echoing about.
 '''
 
@@ -178,17 +178,17 @@ NORTH into the back of the room.
 
 [[rooms.exits]]
 aliases = ["FORKS", "FORK", "EAST", "FORK ROOM"]
-destLabel = "SALAMANDER_OFFICE_FORK"
+dest = "SALAMANDER_OFFICE_FORK"
 description = "a doorway with dinner forks covering the ground"
-travelMessage = '''
+message = '''
 The ground clinks as you step into the fork room.
 '''
 
 [[rooms.exits]]
 aliases = ["BACKROOM", "BACK", "NORTH", "PARTITION"]
-destLabel = "SALAMANDER_OFFICE_BACK"
+dest = "SALAMANDER_OFFICE_BACK"
 description = "the back half of the large office room, separated from where you are with a partition"
-travelMessage = '''
+message = '''
 You walk around the partition.
 '''
 
@@ -207,17 +207,17 @@ or EAST, though the way east is paved in spoons.
 
 [[rooms.exits]]
 aliases = ["SPOONS", "SPOON", "EAST", "SPOON ROOM"]
-destLabel = "SALAMANDER_OFFICE_SPOON"
+dest = "SALAMANDER_OFFICE_SPOON"
 description = "a doorway with dinner spoons covering the ground"
-travelMessage = '''
+message = '''
 You nearly faceplant after tripping on a spoon, but manage to find your balance as you walk into the spoon room.
 '''
 
 [[rooms.exits]]
 aliases = ["FRONT", "SOUTH", "PARTITION"]
-destLabel = "SALAMANDER_OFFICE_FRONT"
+dest = "SALAMANDER_OFFICE_FRONT"
 description = "the front half of the large office room, spearated from where you are with a partition"
-travelMessage = '''
+message = '''
 You step around the partition.
 '''
 
@@ -234,17 +234,17 @@ knife on the ground, or to the WEST you can see a soft green glow coming from a 
 
 [[rooms.exits]]
 aliases = ["WEST", "RECKARDS", "RECORDS", "RECORD", "RECKARD", "DOORWAY", "GREEN"]
-destLabel = "SALAMANDER_OFFICE_BACK"
+dest = "SALAMANDER_OFFICE_BACK"
 description = "a doorway leading to a room with pale green light spilling out, with a label reading 'RECKARDS' above it"
-travelMessage = '''
+message = '''
 You step through the doorway and into the sickly light.
 '''
 
 [[rooms.exits]]
 aliases = ["SOUTH", "KNIVES", "KNIFE", "HALL", "HALLWAY"]
-destLabel = "SALAMANDER_HALL"
+dest = "SALAMANDER_HALL"
 description = "a narrow hallway with a few knives on the ground"
-travelMessage = '''
+message = '''
 You carefully avoid the fallen knives as you step into the hall. Glubs echo about as you do.
 '''
 
@@ -265,25 +265,25 @@ go EAST through the treasure door.
 
 [[rooms.exits]]
 aliases = ["NORTH", "SPOONS", "SPOON"]
-destLabel = "SALAMANDER_OFFICE_SPOON"
+dest = "SALAMANDER_OFFICE_SPOON"
 description = "a room at the north end of the hall, with the ground covered in spoons"
-travelMessage = '''
+message = '''
 You make your way carefully to the north end of the knife hall, and you step into the spoon room.
 '''
 
 [[rooms.exits]]
 aliases = ["SOUTH", "FORKS", "FORK"]
-destLabel = "SALAMANDER_OFFICE_FORK"
+dest = "SALAMANDER_OFFICE_FORK"
 description = "a room at the south end of the hall, with the ground covered in forks"
-travelMessage = '''
+message = '''
 You pick your way across the knives on the ground to the south end of the hall and step into the fork room.
 '''
 
 [[rooms.exits]]
 aliases = ["EAST", "TREASURE", "DOOR", "METAL DOOR"]
-destLabel = "SALAMANDER_TREASURE"
+dest = "SALAMANDER_TREASURE"
 description = "a heavy metal door with a hand-written sign reading 'TREASURE' next to it"
-travelMessage = '''
+message = '''
 Despite looking like it should be locked, the metal door opens easily and you step into a small vault.
 '''
 
@@ -302,8 +302,8 @@ here, and that's back to the knife hall you came from via the vault door to the 
 
 [[rooms.exits]]
 aliases = ["WEST", "DOOR", "VAULT DOOR", "HALL", "HALLWAY", "KNIFE", "KNIVES"]
-destLabel = "SALAMANDER_HALL"
+dest = "SALAMANDER_HALL"
 description = "a heavy open door that once hid the contents of this vault away behind lock and key"
-travelMessage = '''
+message = '''
 You go back into the hall and pull the vault door shut behind you. Best to leave things as you found them.
 '''

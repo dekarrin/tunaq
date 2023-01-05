@@ -90,9 +90,9 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 	// ensure that all room egresses are valid existing labels
 	for roomIdx, r := range tqw.Rooms {
 		for egressIdx, eg := range r.Exits {
-			if _, ok := world.Rooms[eg.DestLabel]; !ok {
+			if _, ok := world.Rooms[eg.Dest]; !ok {
 				errMsg := "validating: rooms[%d (%q)]: exits[%d]: no room with label %q exists"
-				return world, fmt.Errorf(errMsg, roomIdx, r.Label, egressIdx, eg.DestLabel)
+				return world, fmt.Errorf(errMsg, roomIdx, r.Label, egressIdx, eg.Dest)
 			}
 		}
 	}
@@ -310,10 +310,10 @@ func validateRouteDef(ps route) error {
 		if len(ps.Path) < 2 {
 			return fmt.Errorf("'PATROL' route type must have a list with at least 2 rooms as value of 'path' property")
 		}
-		if len(ps.AllowedRooms) > 0 {
+		if len(ps.Allowed) > 0 {
 			return fmt.Errorf("'PATROL' route type does not use 'allowedRooms' property")
 		}
-		if len(ps.ForbiddenRooms) > 0 {
+		if len(ps.Forbidden) > 0 {
 			return fmt.Errorf("'PATROL' route type does not use 'forbiddenRooms' property")
 		}
 	case game.RouteWander:
@@ -324,10 +324,10 @@ func validateRouteDef(ps route) error {
 		if len(ps.Path) > 0 {
 			return fmt.Errorf("'STATIC' route type does not use 'path' property")
 		}
-		if len(ps.AllowedRooms) > 0 {
+		if len(ps.Allowed) > 0 {
 			return fmt.Errorf("'STATIC' route type does not use 'allowedRooms' property")
 		}
-		if len(ps.ForbiddenRooms) > 0 {
+		if len(ps.Forbidden) > 0 {
 			return fmt.Errorf("'STATIC' route type does not use 'forbiddenRooms' property")
 		}
 	default:
@@ -388,13 +388,13 @@ func validateRoomDef(r room) error {
 }
 
 func validateEgressDef(eg egress) error {
-	if eg.DestLabel == "" {
+	if eg.Dest == "" {
 		return fmt.Errorf("must have non-blank 'destLabel' field")
 	}
 	if eg.Description == "" {
 		return fmt.Errorf("must have non-blank 'description' field")
 	}
-	if eg.TravelMessage == "" {
+	if eg.Message == "" {
 		return fmt.Errorf("must have non-blank 'travelMessage' field")
 	}
 
