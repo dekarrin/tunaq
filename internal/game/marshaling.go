@@ -1,7 +1,6 @@
 package game
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -14,118 +13,85 @@ type tqwManifest struct {
 	Files  []string `toml:"files"`
 }
 
-type jsonNPC struct {
-	Label       string           `json:"label" toml:"label"`
-	Name        string           `json:"name" toml:"name"`
-	Pronouns    string           `json:"pronouns" toml:"pronouns"`
-	PronounSet  jsonPronounSet   `json:"customPronounSet" toml:"customPronounSet"`
-	Description string           `json:"description" toml:"description"`
-	Start       string           `json:"start" toml:"start"`
-	Movement    jsonRoute        `json:"movement" toml:"movement"`
-	Dialog      []jsonDialogStep `json:"dialog" toml:"dialog"`
+type twqNPC struct {
+	Label       string          `toml:"label"`
+	Name        string          `toml:"name"`
+	Pronouns    string          `toml:"pronouns"`
+	PronounSet  tqwPronounSet   `toml:"customPronounSet"`
+	Description string          `toml:"description"`
+	Start       string          `toml:"start"`
+	Movement    tqwRoute        `toml:"movement"`
+	Dialog      []tqwDialogStep `toml:"dialog"`
 }
 
-func (jn jsonNPC) toNPC() NPC {
+func (tn twqNPC) toNPC() NPC {
 	npc := NPC{
-		Label:       strings.ToUpper(jn.Label),
-		Name:        jn.Name,
-		Pronouns:    jn.PronounSet.toPronounSet(),
-		Description: jn.Description,
-		Start:       jn.Start,
-		Movement:    jn.Movement.toRoute(),
-		Dialog:      make([]DialogStep, len(jn.Dialog)),
+		Label:       strings.ToUpper(tn.Label),
+		Name:        tn.Name,
+		Pronouns:    tn.PronounSet.toPronounSet(),
+		Description: tn.Description,
+		Start:       tn.Start,
+		Movement:    tn.Movement.toRoute(),
+		Dialog:      make([]DialogStep, len(tn.Dialog)),
 	}
 
-	for i := range jn.Dialog {
-		npc.Dialog[i] = jn.Dialog[i].toDialogStep()
+	for i := range tn.Dialog {
+		npc.Dialog[i] = tn.Dialog[i].toDialogStep()
 	}
 
 	return npc
 }
 
-type jsonRoute struct {
-	Action         string   `json:"action" toml:"action"`
-	Path           []string `json:"path" toml:"path"`
-	ForbiddenRooms []string `json:"forbiddenRooms" toml:"forbiddenRooms"`
-	AllowedRooms   []string `json:"allowedRooms" toml:"allowedRooms"`
+type tqwRoute struct {
+	Action         string   `toml:"action"`
+	Path           []string `toml:"path"`
+	ForbiddenRooms []string `toml:"forbiddenRooms"`
+	AllowedRooms   []string `toml:"allowedRooms"`
 }
 
-func (jr jsonRoute) toRoute() Route {
-	act, ok := RouteActionsByString[strings.ToUpper(jr.Action)]
+func (tr tqwRoute) toRoute() Route {
+	act, ok := RouteActionsByString[strings.ToUpper(tr.Action)]
 	if !ok {
 		act = RouteStatic
 	}
 
 	r := Route{
 		Action:         act,
-		Path:           make([]string, len(jr.Path)),
-		ForbiddenRooms: make([]string, len(jr.ForbiddenRooms)),
-		AllowedRooms:   make([]string, len(jr.AllowedRooms)),
+		Path:           make([]string, len(tr.Path)),
+		ForbiddenRooms: make([]string, len(tr.ForbiddenRooms)),
+		AllowedRooms:   make([]string, len(tr.AllowedRooms)),
 	}
 
-	copy(r.Path, jr.Path)
-	copy(r.ForbiddenRooms, jr.ForbiddenRooms)
-	copy(r.AllowedRooms, jr.AllowedRooms)
+	copy(r.Path, tr.Path)
+	copy(r.ForbiddenRooms, tr.ForbiddenRooms)
+	copy(r.AllowedRooms, tr.AllowedRooms)
 
 	return r
 }
 
-type jsonDialogStep struct {
-	Action   string     `json:"action" toml:"action"`
-	Label    string     `json:"label" toml:"label"`
-	Content  string     `json:"content" toml:"content"`
-	Response string     `json:"response" toml:"response"`
-	Choices  [][]string `json:"choices" toml:"choices"`
+type tqwDialogStep struct {
+	Action   string     `toml:"action"`
+	Label    string     `toml:"label"`
+	Content  string     `toml:"content"`
+	Response string     `toml:"response"`
+	Choices  [][]string `toml:"choices"`
 }
 
-func (jds *jsonDialogStep) UnmarshalJSON(b []byte) error {
-	if len(b) > 0 && string(b[0:1]) == "\"" {
-		var content string
-		if jsonErr := json.Unmarshal(b, &content); jsonErr != nil {
-			return jsonErr
-		}
-		jds.Action = "LINE"
-		jds.Content = content
-		return nil
-	}
-
-	type jdsFill struct {
-		Action   string     `json:"action"`
-		Label    string     `json:"label"`
-		Content  string     `json:"content"`
-		Response string     `json:"response"`
-		Choices  [][]string `json:"choices"`
-	}
-
-	fill := jdsFill{}
-	if jsonErr := json.Unmarshal(b, &fill); jsonErr != nil {
-		return jsonErr
-	}
-
-	jds.Action = fill.Action
-	jds.Label = fill.Label
-	jds.Content = fill.Content
-	jds.Response = fill.Response
-	jds.Choices = fill.Choices
-
-	return nil
-}
-
-func (jds jsonDialogStep) toDialogStep() DialogStep {
-	act, ok := DialogActionsByString[strings.ToUpper(jds.Action)]
+func (tds tqwDialogStep) toDialogStep() DialogStep {
+	act, ok := DialogActionsByString[strings.ToUpper(tds.Action)]
 	if !ok {
 		act = DialogLine
 	}
 
 	ds := DialogStep{
 		Action:   act,
-		Label:    jds.Label,
-		Content:  jds.Content,
-		Response: jds.Response,
+		Label:    tds.Label,
+		Content:  tds.Content,
+		Response: tds.Response,
 		Choices:  make(map[string]string),
 	}
 
-	for _, ch := range jds.Choices {
+	for _, ch := range tds.Choices {
 		if len(ch) < 2 {
 			continue
 		}
@@ -138,50 +104,16 @@ func (jds jsonDialogStep) toDialogStep() DialogStep {
 	return ds
 }
 
-type jsonPronounSet struct {
-	Nominative string `json:"nominative" toml:"nominative"`
-	Objective  string `json:"objective" toml:"objective"`
-	Possessive string `json:"possessive" toml:"possessive"`
-	Determiner string `json:"determiner" toml:"determiner"`
-	Reflexive  string `json:"reflexive" toml:"reflexive"`
-
-	Label string `json:"label"`
+type tqwPronounSet struct {
+	Nominative string `toml:"nominative"`
+	Objective  string `toml:"objective"`
+	Possessive string `toml:"possessive"`
+	Determiner string `toml:"determiner"`
+	Reflexive  string `toml:"reflexive"`
 }
 
-func (jp *jsonPronounSet) UnmarshalJSON(b []byte) error {
-	if len(b) > 0 && string(b[0:1]) == "\"" {
-		var content string
-		if jsonErr := json.Unmarshal(b, &content); jsonErr != nil {
-			return jsonErr
-		}
-		jp.Label = content
-		return nil
-	}
-
-	type pronounFill struct {
-		Nominative string `json:"nominative"`
-		Objective  string `json:"objective"`
-		Possessive string `json:"possessive"`
-		Determiner string `json:"determiner"`
-		Reflexive  string `json:"reflexive"`
-	}
-
-	fill := pronounFill{}
-	if jsonErr := json.Unmarshal(b, &fill); jsonErr != nil {
-		return jsonErr
-	}
-
-	jp.Nominative = fill.Nominative
-	jp.Objective = fill.Objective
-	jp.Determiner = fill.Determiner
-	jp.Possessive = fill.Possessive
-	jp.Reflexive = fill.Reflexive
-
-	return nil
-}
-
-func (ps PronounSet) toJSON() jsonPronounSet {
-	jp := jsonPronounSet{
+func pronounSetToTWQ(ps PronounSet) tqwPronounSet {
+	tp := tqwPronounSet{
 		Nominative: ps.Nominative,
 		Objective:  ps.Objective,
 		Possessive: ps.Possessive,
@@ -189,16 +121,16 @@ func (ps PronounSet) toJSON() jsonPronounSet {
 		Reflexive:  ps.Reflexive,
 	}
 
-	return jp
+	return tp
 }
 
-func (jp jsonPronounSet) toPronounSet() PronounSet {
+func (tp tqwPronounSet) toPronounSet() PronounSet {
 	ps := PronounSet{
-		Nominative: strings.ToUpper(jp.Nominative),
-		Objective:  strings.ToUpper(jp.Objective),
-		Possessive: strings.ToUpper(jp.Possessive),
-		Determiner: strings.ToUpper(jp.Determiner),
-		Reflexive:  strings.ToUpper(jp.Reflexive),
+		Nominative: strings.ToUpper(tp.Nominative),
+		Objective:  strings.ToUpper(tp.Objective),
+		Possessive: strings.ToUpper(tp.Possessive),
+		Determiner: strings.ToUpper(tp.Determiner),
+		Reflexive:  strings.ToUpper(tp.Reflexive),
 	}
 
 	// default to they/them fills
@@ -221,69 +153,69 @@ func (jp jsonPronounSet) toPronounSet() PronounSet {
 	return ps
 }
 
-type jsonItem struct {
-	Label       string   `json:"label" toml:"label"`
-	Name        string   `json:"name" toml:"name"`
-	Description string   `json:"description" toml:"description"`
-	Aliases     []string `json:"aliases" toml:"aliases"`
+type tqwItem struct {
+	Label       string   `toml:"label"`
+	Name        string   `toml:"name"`
+	Description string   `toml:"description"`
+	Aliases     []string `toml:"aliases"`
 }
 
-func (ji jsonItem) toItem() Item {
-	it := Item{
-		Label:       ji.Label,
-		Name:        ji.Name,
-		Description: ji.Description,
-		Aliases:     make([]string, len(ji.Aliases)),
+func (ti tqwItem) toItem() Item {
+	item := Item{
+		Label:       ti.Label,
+		Name:        ti.Name,
+		Description: ti.Description,
+		Aliases:     make([]string, len(ti.Aliases)),
 	}
 
-	copy(it.Aliases, ji.Aliases)
+	copy(item.Aliases, ti.Aliases)
 
-	return it
+	return item
 }
 
-type jsonEgress struct {
-	DestLabel     string   `json:"destLabel" toml:"destLabel"`
-	Description   string   `json:"description" toml:"description"`
-	TravelMessage string   `json:"travelMessage" toml:"travelMessage"`
-	Aliases       []string `json:"aliases" toml:"aliases"`
+type tqwEgress struct {
+	DestLabel     string   `toml:"destLabel"`
+	Description   string   `toml:"description"`
+	TravelMessage string   `toml:"travelMessage"`
+	Aliases       []string `toml:"aliases"`
 }
 
-func (je jsonEgress) toEgress() Egress {
+func (te tqwEgress) toEgress() Egress {
 	eg := Egress{
-		DestLabel:     je.DestLabel,
-		Description:   je.Description,
-		TravelMessage: je.TravelMessage,
-		Aliases:       make([]string, len(je.Aliases)),
+		DestLabel:     te.DestLabel,
+		Description:   te.Description,
+		TravelMessage: te.TravelMessage,
+		Aliases:       make([]string, len(te.Aliases)),
 	}
 
-	copy(eg.Aliases, je.Aliases)
+	copy(eg.Aliases, te.Aliases)
 
 	return eg
 }
 
-type jsonRoom struct {
-	Label       string       `json:"label" toml:"label"`
-	Name        string       `json:"name" toml:"name"`
-	Description string       `json:"description" toml:"description"`
-	Exits       []jsonEgress `json:"exits" toml:"exits"`
-	Items       []jsonItem   `json:"items" toml:"items"`
+type tqwRoom struct {
+	Label       string      `toml:"label"`
+	Name        string      `toml:"name"`
+	Description string      `toml:"description"`
+	Exits       []tqwEgress `toml:"exits"`
+	Items       []tqwItem   `toml:"items"`
 }
 
-func (jr jsonRoom) toRoom() Room {
+func (tr tqwRoom) toRoom() Room {
 	r := Room{
-		Label:       jr.Label,
-		Name:        jr.Name,
-		Description: jr.Description,
-		Exits:       make([]Egress, len(jr.Exits)),
-		Items:       make([]Item, len(jr.Items)),
+		Label:       tr.Label,
+		Name:        tr.Name,
+		Description: tr.Description,
+		Exits:       make([]Egress, len(tr.Exits)),
+		Items:       make([]Item, len(tr.Items)),
 		NPCs:        make(map[string]*NPC),
 	}
 
-	for i := range jr.Exits {
-		r.Exits[i] = jr.Exits[i].toEgress()
+	for i := range tr.Exits {
+		r.Exits[i] = tr.Exits[i].toEgress()
 	}
-	for i := range jr.Items {
-		r.Items[i] = jr.Items[i].toItem()
+	for i := range tr.Items {
+		r.Items[i] = tr.Items[i].toItem()
 	}
 
 	return r
@@ -294,29 +226,29 @@ type tqwFileInfo struct {
 	Type   string `toml:"type"`
 }
 
-type tmpTqwWorld struct {
+type tqwWorld struct {
 	Start string `toml:"start"`
 }
-type tmpTqwTop struct {
-	Format   string                    `toml:"format"`
-	Type     string                    `toml:"type"`
-	Rooms    []jsonRoom                `toml:"rooms"`
-	World    tmpTqwWorld               `toml:"world"`
-	NPCs     []jsonNPC                 `toml:"npcs"`
-	Pronouns map[string]jsonPronounSet `json:"pronouns"`
-}
 
-type jsonWorld struct {
-	Rooms    []jsonRoom                `json:"rooms"`
-	Start    string                    `json:"start"`
-	NPCs     []jsonNPC                 `json:"npcs"`
-	Pronouns map[string]jsonPronounSet `json:"pronouns"`
+// tqwWorldData is the top-level structure containing all keys in a complete TQW
+// 'DATA' type file.
+type tqwWorldData struct {
+	Format   string                   `toml:"format"`
+	Type     string                   `toml:"type"`
+	Rooms    []tqwRoom                `toml:"rooms"`
+	World    tqwWorld                 `toml:"world"`
+	NPCs     []twqNPC                 `toml:"npcs"`
+	Pronouns map[string]tqwPronounSet `toml:"pronouns"`
 }
 
 // ParseManifestFromTOML takes in raw TOML bytes, reads it for manifest data,
 // and returns the files in the manifest.
 func ParseManifestFromTOML(manifestData []byte) (Manifest, error) {
 	var loaded tqwManifest
+
+	if unmarshalErr := toml.Unmarshal(manifestData, &loaded); unmarshalErr != nil {
+		return Manifest{}, unmarshalErr
+	}
 
 	if strings.ToUpper(loaded.Format) != "TUNA" {
 		return Manifest{}, fmt.Errorf("in header: 'format' key must exist and be set to 'TUNA'")
@@ -331,22 +263,6 @@ func ParseManifestFromTOML(manifestData []byte) (Manifest, error) {
 	}
 
 	return manif, nil
-}
-
-// ParseWorldFromJSON takes in raw json bytes, reads it for a world definition,
-// and returns the rooms as well as the label of the starting room.
-//
-// Note: Uses module-global variables as part of operation. Absolutely not
-// thread-safe and calling more than once concurrently will lead to unexpected
-// results.
-func ParseWorldDataFromJSON(jsonData []byte) (WorldData, error) {
-	var loadedWorld jsonWorld
-
-	if jsonErr := json.Unmarshal(jsonData, &loadedWorld); jsonErr != nil {
-		return WorldData{}, fmt.Errorf("decoding JSON data: %w", jsonErr)
-	}
-
-	return parseUnmarshaledData(loadedWorld)
 }
 
 // ParseWorldFromTOML takes in raw TOML bytes, reads it for a world definition,
@@ -365,28 +281,20 @@ func ParseWorldDataFromTOML(tomlData []byte) (WorldData, error) {
 
 // UnmarshalTOMLWorldData unmarshals but does not parse or check the loaded
 // world data.
-func UnmarshalTOMLWorldData(tomlData []byte) (jsonWorld, error) {
-	var jw jsonWorld
-	var loadedData tmpTqwTop
-	if tomlErr := toml.Unmarshal(tomlData, &loadedData); tomlErr != nil {
-		return jw, fmt.Errorf("decoding tunaquest game data: %w", tomlErr)
+func UnmarshalTOMLWorldData(tomlData []byte) (tqwWorldData, error) {
+	var tqw tqwWorldData
+	if tomlErr := toml.Unmarshal(tomlData, &tqw); tomlErr != nil {
+		return tqw, tomlErr
 	}
 
-	if strings.ToUpper(loadedData.Format) != "TUNA" {
-		return jw, fmt.Errorf("in header: 'format' key must exist and be set to 'TUNA'")
+	if strings.ToUpper(tqw.Format) != "TUNA" {
+		return tqw, fmt.Errorf("in header: 'format' key must exist and be set to 'TUNA'")
 	}
-	if strings.ToUpper(loadedData.Type) != "DATA" {
-		return jw, fmt.Errorf("in header: 'type' must exist and be set to 'DATA'")
-	}
-
-	jw = jsonWorld{
-		Rooms:    loadedData.Rooms,
-		Start:    loadedData.World.Start,
-		NPCs:     loadedData.NPCs,
-		Pronouns: loadedData.Pronouns,
+	if strings.ToUpper(tqw.Type) != "DATA" {
+		return tqw, fmt.Errorf("in header: 'type' must exist and be set to 'DATA'")
 	}
 
-	return jw, nil
+	return tqw, nil
 }
 
 // scan the first lines for format info before doing anything else
@@ -420,14 +328,14 @@ func scanFileInfo(data []byte) (tqwFileInfo, error) {
 	return info, err
 }
 
-func parseUnmarshaledData(loadedWorld jsonWorld) (WorldData, error) {
+func parseUnmarshaledData(tqw tqwWorldData) (WorldData, error) {
 	var err error
 
 	var world WorldData
-	world.Start = loadedWorld.Start
+	world.Start = tqw.World.Start
 	world.Rooms = make(map[string]*Room)
 
-	for idx, r := range loadedWorld.Rooms {
+	for idx, r := range tqw.Rooms {
 		if roomErr := validateRoomDef(r); roomErr != nil {
 			return world, fmt.Errorf("parsing: rooms[%d (%q)]: %w", idx, r.Label, roomErr)
 		}
@@ -440,15 +348,15 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (WorldData, error) {
 		world.Rooms[r.Label] = &room
 	}
 
-	pronouns := map[string]jsonPronounSet{
-		"SHE/HER":   PronounsFeminine.toJSON(),
-		"HE/HIM":    PronounsMasculine.toJSON(),
-		"THEY/THEM": PronounsNonBinary.toJSON(),
-		"IT/ITS":    PronounsItIts.toJSON(),
+	pronouns := map[string]tqwPronounSet{
+		"SHE/HER":   pronounSetToTWQ(PronounsFeminine),
+		"HE/HIM":    pronounSetToTWQ(PronounsMasculine),
+		"THEY/THEM": pronounSetToTWQ(PronounsNonBinary),
+		"IT/ITS":    pronounSetToTWQ(PronounsItIts),
 	}
 
 	// check loaded pronouns
-	for name, ps := range loadedWorld.Pronouns {
+	for name, ps := range tqw.Pronouns {
 		if err := validatePronounSetDef(ps, "", nil); err != nil {
 			return world, fmt.Errorf("parsing: pronouns[%s]: %w", name, err)
 		}
@@ -462,7 +370,7 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (WorldData, error) {
 
 	npcs := make([]NPC, 0)
 	// parse individual npcs
-	for idx, npc := range loadedWorld.NPCs {
+	for idx, npc := range tqw.NPCs {
 		if npc.Movement.Action == "" {
 			npc.Movement.Action = "STATIC"
 		}
@@ -481,7 +389,7 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (WorldData, error) {
 
 		// set pronouns to actual
 		if npc.Pronouns != "" {
-			empty := jsonPronounSet{}
+			empty := tqwPronounSet{}
 			if npc.PronounSet != empty {
 				return world, fmt.Errorf("parsing: npcs[%d (%q)]: can't define custom pronoun set because pronouns is set to %q", idx, npc.Label, npc.Pronouns)
 			}
@@ -493,7 +401,7 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (WorldData, error) {
 
 	// now that they are all loaded and individually checked for validity,
 	// ensure that all room egresses are valid existing labels
-	for roomIdx, r := range loadedWorld.Rooms {
+	for roomIdx, r := range tqw.Rooms {
 		for egressIdx, eg := range r.Exits {
 			if _, ok := world.Rooms[eg.DestLabel]; !ok {
 				errMsg := "validating: rooms[%d (%q)]: exits[%d]: no room with label %q exists"
@@ -503,8 +411,8 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (WorldData, error) {
 	}
 
 	// check that the start actually points to a real location
-	if _, ok := world.Rooms[loadedWorld.Start]; !ok {
-		return world, fmt.Errorf("validating: start: no room with label %q exists", loadedWorld.Start)
+	if _, ok := world.Rooms[tqw.World.Start]; !ok {
+		return world, fmt.Errorf("validating: world: start: no room with label %q exists", tqw.World.Start)
 	}
 
 	// ensure that all npc routes are valid, that convo trees make sense, then place NPCs in their start rooms
@@ -629,7 +537,7 @@ func parseUnmarshaledData(loadedWorld jsonWorld) (WorldData, error) {
 	return world, nil
 }
 
-func validateNPCDef(npc jsonNPC, topLevelPronouns map[string]jsonPronounSet) error {
+func validateNPCDef(npc twqNPC, topLevelPronouns map[string]tqwPronounSet) error {
 	if npc.Label == "" {
 		return fmt.Errorf("must have non-blank 'label' field")
 	}
@@ -658,7 +566,7 @@ func validateNPCDef(npc jsonNPC, topLevelPronouns map[string]jsonPronounSet) err
 	return nil
 }
 
-func validateDialogStepDef(ds jsonDialogStep) error {
+func validateDialogStepDef(ds tqwDialogStep) error {
 	diaUpper := strings.ToUpper(ds.Action)
 	dia, ok := DialogActionsByString[diaUpper]
 
@@ -702,7 +610,7 @@ func validateDialogStepDef(ds jsonDialogStep) error {
 	return nil
 }
 
-func validateRouteDef(ps jsonRoute) error {
+func validateRouteDef(ps tqwRoute) error {
 	actUpper := strings.ToUpper(ps.Action)
 	act, ok := RouteActionsByString[actUpper]
 
@@ -743,7 +651,7 @@ func validateRouteDef(ps jsonRoute) error {
 }
 
 // if topLevel is nil, then the top level is being validated.
-func validatePronounSetDef(ps jsonPronounSet, label string, topLevel map[string]jsonPronounSet) error {
+func validatePronounSetDef(ps tqwPronounSet, label string, topLevel map[string]tqwPronounSet) error {
 	if label != "" {
 		if topLevel == nil {
 			return fmt.Errorf("top-level pronoun must be full pronoun definition, not a label (%q)", label)
@@ -755,7 +663,7 @@ func validatePronounSetDef(ps jsonPronounSet, label string, topLevel map[string]
 	return nil
 }
 
-func validateRoomDef(r jsonRoom) error {
+func validateRoomDef(r tqwRoom) error {
 	if r.Label == "" {
 		return fmt.Errorf("must have non-blank 'label' field")
 	}
@@ -792,7 +700,7 @@ func validateRoomDef(r jsonRoom) error {
 	return nil
 }
 
-func validateEgressDef(eg jsonEgress) error {
+func validateEgressDef(eg tqwEgress) error {
 	if eg.DestLabel == "" {
 		return fmt.Errorf("must have non-blank 'destLabel' field")
 	}
@@ -812,7 +720,7 @@ func validateEgressDef(eg jsonEgress) error {
 	return nil
 }
 
-func validateItemDef(item jsonItem) error {
+func validateItemDef(item tqwItem) error {
 	if item.Label == "" {
 		return fmt.Errorf("must have non-blank 'label' field")
 	}

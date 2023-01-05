@@ -1,0 +1,5 @@
+format = "tuna"
+type = "manifest"
+files = [
+    "indirection.tqw"
+]
