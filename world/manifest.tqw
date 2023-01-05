@@ -8,5 +8,6 @@ files = [
     "rooms/underground.tqw",
     "pronouns.tqw",
     "npcs/joey.tqw",
-
+    "npcs/imp.tqw",
+    "npcs/casey.tqw",
 ]
