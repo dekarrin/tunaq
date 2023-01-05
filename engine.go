@@ -41,7 +41,7 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string, fo
 	}
 
 	// load world file
-	worldData, err := game.LoadWorldDataFile(worldFilePath)
+	worldData, err := game.LoadTQWResourceBundle(worldFilePath)
 	if err != nil {
 		return nil, err
 	}
