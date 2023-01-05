@@ -1,0 +1,27 @@
+format = "tuna"
+type = "data"
+
+
+[[npcs]]
+label = "CASEY"
+aliases = [
+	"CASEY",
+	"VICEROY",
+	"SALAMANDER",
+	"WANDERER",
+]
+name = "Casey the salamander"
+start = "SALAMANDER_HALL"
+pronouns = "he/him"
+description = '''
+A small yellow salamander who likes to go glub. Also known as 'VICEROY' after the Viceroy Bubbles Von Salamancer.
+'''
+
+[npcs.movement]
+action = "wander"
+forbidden = [
+	"SALAMANDER_FOYER",
+]
+
+[[npcs.dialogs]]
+content = "Glub!"

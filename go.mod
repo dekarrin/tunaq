@@ -3,6 +3,7 @@ module github.com/dekarrin/tunaq
 go 1.19
 
 require (
+	github.com/BurntSushi/toml v1.2.1
 	github.com/chzyer/readline v1.5.1
 	github.com/dekarrin/rosed v1.2.0
 )

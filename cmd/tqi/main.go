@@ -17,8 +17,8 @@ The flags are:
 		Give the current version of TunaQuest and then exit.
 
 	-w/-world [FILE]
-		Use the provided JSON world file. Defaults to the file "world.json" in
-		the current working directory.
+		Use the provided TQW resource file for the world. Defaults to the file
+		"world.tqw" in the current working directory.
 
 	-d/--direct
 	    Force reading directly from the console as opposed to using GNU readline
@@ -63,8 +63,8 @@ var (
 
 func init() {
 	const (
-		defaultWorldFile = "world.json"
-		worldUsage       = "the JSON file that contains the definition of the world"
+		defaultWorldFile = "world.tqw"
+		worldUsage       = "the TQW world data or manifest file that contains the definition of the world"
 		forceDirectUsage = "force reading directly from stdin instead of going through GNU readline where possible"
 	)
 	flag.StringVar(&worldFile, "world", defaultWorldFile, worldUsage)

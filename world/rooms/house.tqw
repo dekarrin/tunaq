@@ -1,0 +1,192 @@
+format = "tuna"
+type = "data"
+
+# your_room
+[[rooms]]
+label = "YOUR_ROOM"
+name = "your bedroom"
+description = '''
+You are standing in your bedroom. Perhaps you are a young person who only now, on your 13th birthday, will receive a
+name. You have a pretty window in the corner overlooking the world outside. There's a door leading to your bathroom to
+the east, and a door leading to the hall to the south.
+'''
+
+[[rooms.exits]]
+aliases = ["BATHROOM", "TOILET", "DOOR", "EAST"]
+dest = "BATHROOM"
+description = "your bathroom door"
+message = '''
+You go through the door and enter the bathroom.
+'''
+
+[[rooms.exits]]
+aliases = ["HALLWAY", "HALL", "OUT", "SOUTH"]
+dest = "HALLWAY"
+description = "the door to the hall"
+message = '''
+You shut the door behind you as you go into the hall.
+'''
+
+[[rooms.items]]
+label = "POGO_HAMMER"
+aliases = ["HAMMER", "POGOHAMMER", "POGO", "POGO_HAMMER"]
+name = "a pogo hammer"
+description = '''
+the door to the hall
+'''
+
+
+# bathroom
+[[rooms]]
+label = "BATHROOM"
+name = "your ensuite bathroom"
+description = '''
+You are in the bathroom attached to your bedroom. There's a toilet, pristine due to your constant efforts to keep it
+clean, next to a sink and bathtub. You enjoy having your amenities not be a complete mess. The currently closed door to
+the west leads back to your bedroom.
+'''
+
+[[rooms.exits]]
+aliases = ["BEDROOM", "ROOM", "DOOR", "WEST"]
+dest = "YOUR_ROOM"
+description = "the door"
+message = '''
+You head back into the bedroom.
+'''
+
+
+# hallway
+[[rooms]]
+label = "HALLWAY"
+name = "the main hallway in your house"
+description = '''
+This is the main hallway in your house that connects the bedrooms with the living room and kitchen. There's a doorway at
+the end, but it seems boarded up, and you're pretty sure that's because it represents the limits of the game you're in.
+I guess you're stuck here. In your home. Housetrapped.  Anyways, there's also your bedroom door at the north end.
+'''
+
+[[rooms.exits]]
+aliases = ["BEDROOM", "ROOM", "NORTH"]
+dest = "YOUR_ROOM"
+description = "the door to your bedroom"
+message = '''
+You step into your bedroom, closing the door behind you for privacy.
+'''
+
+[[rooms.exits]]
+aliases = ["LIVING_ROOM", "LIVINGROOM", "LIVING ROOM", "DOORWAY", "END"]
+dest = "LIVING_ROOM"
+description = "The end of the hall, leading to the living room"
+message = '''
+Your feelings were wrong, turns out you can pass right through the boards! You go into the living room.
+'''
+
+
+# living_room
+[[rooms]]
+label = "LIVING_ROOM"
+name = "the communal gathering and hangout room in your house"
+description = '''
+You are standing in the living room. It is here that you have formed many memories with many people. But... for some
+reason who those people are eludes you. You seem to remember something about a boy and his father fighting over cake or
+something like that... or... was it a girl? Perhaps one set to inherit a major baking corporation.  From here you can go
+to the kitchen, through the front door to the yard outside, or back to the hallway towards the bedroom.
+'''
+
+[[rooms.exits]]
+aliases = ["HALL", "HALLWAY", "BEDROOMS", "DOORWAY"]
+dest = "HALLWAY"
+description = "the hall leading to the bedrooms"
+message = '''
+You walk into the hallway towards the bedrooms.
+'''
+
+[[rooms.exits]]
+aliases = ["KITCHEN", "MEALBLOCK", "MEAL BLOCK"]
+dest = "KITCHEN"
+description = "the kitchen of the house"
+message = '''
+You walk into the kitchen.
+'''
+
+[[rooms.exits]]
+aliases = ["OUTSIDE", "OUT", "YARD", "DOOR", "FRONT DOOR"]
+dest = "FRONT_YARD"
+description = "the front door of the house. There's a neat little window to see people outside, but you don't usually get visitors."
+message = '''
+You pull open the front door, letting in a whoosh of wind. It blows your hair into a mess as you step outside, and you
+brush it out of your eyes.
+'''
+
+
+# kitchen
+[[rooms]]
+label = "KITCHEN"
+name = "the kitchen"
+description = '''
+The place where food is made. It's completely spotless, everything put away nicely and every surface gleaming. The
+windows let in plenty of light and let you see that there is an exit back to the living room.
+'''
+
+[[rooms.exits]]
+aliases = ["LIVINGROOM", "LIVING_ROOM", "LIVING ROOM", "OUT"]
+dest = "LIVING_ROOM"
+description = "the entryway back into the living room"
+message = '''
+You walk back into the living room.
+'''
+
+
+# front_yard
+[[rooms]]
+label = "FRONT_YARD"
+name = "the yard outside your house's front door"
+description = '''
+You are outside on the lawn of your house. The grass is green and very healthy-looking. From here you can go back into
+the house, the backyard, and that's pretty much it.
+'''
+
+[[rooms.exits]]
+aliases = ["LIVINGROOM", "LIVING_ROOM", "LIVING ROOM", "INSIDE", "HOUSE", "FRONT DOOR", "DOOR"]
+dest = "LIVING_ROOM"
+description = "the front door of your house, leading directly to the living room"
+message = '''
+You pull open the heavy door and are comforted by the familiar sight of your living room. You step in and shut the door
+behind you.
+'''
+
+[[rooms.exits]]
+aliases = ["BACKYARD", "BACK YARD", "BACK", "YARD"]
+dest = "BACKYARD"
+description = "the lawn and yard in the back of your house"
+message = '''
+Grass and twigs crunch under your feet as you walk around to the back yard.
+'''
+
+
+# backyard
+[[rooms]]
+label = "BACKYARD"
+name = "your house's backyard"
+description = '''
+This is the outside of your house, in the back. There's a nice lawn here, well-kept and manicured, and you see a Pogo
+ride in a nearby sandbox that seems oddly familiar. Maybe you should stay for a moment and take a break.  From here, you
+could go back to the front yard. Or, bizarrely, there seems to be an opening in the ground near the pogo ride, so you
+could go in there.
+'''
+
+[[rooms.exits]]
+aliases = ["YARD", "FRONT", "FRONT YARD", "FRONTYARD", "FRONT_YARD", "FRONT LAWN"]
+dest = "FRONT_YARD"
+description = "the yard outside of your house's front door"
+message = '''
+You decide you've had enough of the backyard and decide to go to the front.
+'''
+
+[[rooms.exits]]
+aliases = ["CAVE", "TUNNEL", "POGO", "HOLE", "OPENING", "GROUND"]
+dest = "NPC_HALL"
+description = "a dank tunnel leading down into the depths of the earth under your house"
+message = '''
+You take a deep breath and follow the tunnel underground, past a couple of turns and into the depths.
+'''

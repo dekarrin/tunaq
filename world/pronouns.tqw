@@ -1,0 +1,11 @@
+format = "tuna"
+type = "data"
+
+
+[[pronouns]]
+label = "joey"
+nominative = "JOEY"
+objective = "JOEY"
+possessive = ""
+determiner = "JOEY'S"
+reflexive = "JOEYSELF"

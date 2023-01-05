@@ -1,0 +1,6 @@
+format = "tuna"
+type = "data"
+
+
+[world]
+start = "YOUR_ROOM"

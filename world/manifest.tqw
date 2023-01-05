@@ -1,0 +1,13 @@
+format = "tuna"
+type = "manifest"
+
+
+files = [
+    "world.tqw",
+    "rooms/house.tqw",
+    "rooms/underground.tqw",
+    "pronouns.tqw",
+    "npcs/joey.tqw",
+    "npcs/imp.tqw",
+    "npcs/casey.tqw",
+]

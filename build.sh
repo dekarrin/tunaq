@@ -17,7 +17,7 @@ env GOFLAGS=-mod=mod go build -o tqi$ext cmd/tqi/main.go
 
 if [ -n "$for_windows" ]
 then
-  cat <<- EOF > "tqi.sh"
+  cat <<- 'EOF' > "tqi.sh"
   #!/bin/bash
 
   cd "$(dirname "$0")"
