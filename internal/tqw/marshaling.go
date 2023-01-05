@@ -71,9 +71,7 @@ func recursiveUnmarshalResource(path string, manifStack []string) (data topLevel
 
 		// combine all referred to files in one single unmarshaled data struct
 
-		unmarshaled := topLevelWorldData{
-			Pronouns: make(map[string]pronounSet),
-		}
+		unmarshaled := topLevelWorldData{}
 
 		// copy the manif stack into a new value and add self to it for recursive calls
 		manifSubStack := make([]string, len(manifStack)+1)
@@ -109,9 +107,7 @@ func recursiveUnmarshalResource(path string, manifStack []string) (data topLevel
 				unmarshaled.World.Start = unmarshaledFileData.World.Start
 			}
 			if len(unmarshaledFileData.Pronouns) > 0 {
-				for k := range unmarshaledFileData.Pronouns {
-					unmarshaled.Pronouns[k] = unmarshaledFileData.Pronouns[k]
-				}
+				unmarshaled.Pronouns = append(unmarshaled.Pronouns, unmarshaledFileData.Pronouns...)
 			}
 			if len(unmarshaledFileData.NPCs) > 0 {
 				unmarshaled.NPCs = append(unmarshaled.NPCs, unmarshaledFileData.NPCs...)

@@ -15,12 +15,12 @@ type topLevelManifest struct {
 // topLevelWorldData is the top-level structure containing all keys in a complete TQW
 // 'DATA' type file.
 type topLevelWorldData struct {
-	Format   string                `toml:"format"`
-	Type     string                `toml:"type"`
-	Rooms    []room                `toml:"rooms"`
-	World    world                 `toml:"world"`
-	NPCs     []npc                 `toml:"npcs"`
-	Pronouns map[string]pronounSet `toml:"pronouns"`
+	Format   string       `toml:"format"`
+	Type     string       `toml:"type"`
+	Rooms    []room       `toml:"rooms"`
+	World    world        `toml:"world"`
+	NPCs     []npc        `toml:"npcs"`
+	Pronouns []pronounSet `toml:"pronouns"`
 }
 
 type npc struct {
@@ -115,11 +115,24 @@ func (tds dialogStep) toGameDialogStep() game.DialogStep {
 }
 
 type pronounSet struct {
+	Label      string `toml:"label"`
 	Nominative string `toml:"nominative"`
 	Objective  string `toml:"objective"`
 	Possessive string `toml:"possessive"`
 	Determiner string `toml:"determiner"`
 	Reflexive  string `toml:"reflexive"`
+}
+
+func pronounSetFromGame(gps game.PronounSet) pronounSet {
+	ps := pronounSet{
+		Nominative: strings.ToUpper(gps.Nominative),
+		Objective:  strings.ToUpper(gps.Objective),
+		Possessive: strings.ToUpper(gps.Possessive),
+		Determiner: strings.ToUpper(gps.Determiner),
+		Reflexive:  strings.ToUpper(gps.Reflexive),
+	}
+
+	return ps
 }
 
 func (tp pronounSet) toGamePronounSet() game.PronounSet {

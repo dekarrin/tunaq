@@ -36,23 +36,23 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 	}
 
 	pronouns := map[string]pronounSet{
-		"SHE/HER":   pronounSet(game.PronounsFeminine),
-		"HE/HIM":    pronounSet(game.PronounsMasculine),
-		"THEY/THEM": pronounSet(game.PronounsNonBinary),
-		"IT/ITS":    pronounSet(game.PronounsItIts),
+		"SHE/HER":   pronounSetFromGame(game.PronounsFeminine),
+		"HE/HIM":    pronounSetFromGame(game.PronounsMasculine),
+		"THEY/THEM": pronounSetFromGame(game.PronounsNonBinary),
+		"IT/ITS":    pronounSetFromGame(game.PronounsItIts),
 	}
 
 	// check loaded pronouns
-	for name, ps := range tqw.Pronouns {
-		if err := validatePronounSetDef(ps, "", nil); err != nil {
-			return world, fmt.Errorf("parsing: pronouns[%s]: %w", name, err)
+	for idx, ps := range tqw.Pronouns {
+		if err := validatePronounSetDef(ps, nil); err != nil {
+			return world, fmt.Errorf("parsing: pronouns[%d (%s)]: %w", idx, ps.Label, err)
 		}
 
-		if _, ok := pronouns[name]; ok {
-			return world, fmt.Errorf("parsing: pronouns[%s]: duplicate pronoun name %q", name, name)
+		if _, ok := pronouns[ps.Label]; ok {
+			return world, fmt.Errorf("parsing: pronouns[%d (%s)]: duplicate pronoun name %q", idx, ps.Label, ps.Label)
 		}
 
-		pronouns[name] = ps
+		pronouns[ps.Label] = ps
 	}
 
 	npcs := make([]game.NPC, 0)
@@ -137,7 +137,7 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 			for roomIdx, roomLabel := range npc.Movement.AllowedRooms {
 				_, ok := world.Rooms[roomLabel]
 				if !ok {
-					errMsg := "validating: npcs[%d (%q)]: movement: allowedRooms[%d]: no room with label %q exists"
+					errMsg := "validating: npcs[%d (%q)]: movement: allowed[%d]: no room with label %q exists"
 					return world, fmt.Errorf(errMsg, idx, npc.Label, roomIdx, roomLabel)
 				}
 			}
@@ -145,7 +145,7 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 			for roomIdx, roomLabel := range npc.Movement.ForbiddenRooms {
 				_, ok := world.Rooms[roomLabel]
 				if !ok {
-					errMsg := "validating: npcs[%d (%q)]: movement: forbiddenRooms[%d]: no room with label %q exists"
+					errMsg := "validating: npcs[%d (%q)]: movement: forbidden[%d]: no room with label %q exists"
 					return world, fmt.Errorf(errMsg, idx, npc.Label, roomIdx, roomLabel)
 				}
 			}
@@ -158,7 +158,7 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 				for aRoomIdx, aRoom := range npc.Movement.AllowedRooms {
 					path := pf.Dijkstra(source, aRoom)
 					if len(path) < 1 {
-						errMsg := "validating: npcs[%d (%q)]: movement: allowedRooms[%d]: %q is not reachable from start"
+						errMsg := "validating: npcs[%d (%q)]: movement: allowed[%d]: %q is not reachable from start"
 						return world, fmt.Errorf(errMsg, idx, npc.Label, aRoomIdx, aRoom)
 					}
 				}
@@ -172,7 +172,7 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 					for fRoomIdx, fRoom := range npc.Movement.ForbiddenRooms {
 						path := pf.Dijkstra(source, fRoom)
 						if len(path) < 1 {
-							errMsg := "validating: npcs[%d (%q)]: movement: forbiddenRooms[%d]: %q is not reachable from start"
+							errMsg := "validating: npcs[%d (%q)]: movement: forbidden[%d]: %q is not reachable from start"
 							return world, fmt.Errorf(errMsg, idx, npc.Label, fRoomIdx, fRoom)
 						}
 					}
@@ -232,13 +232,25 @@ func validateNPCDef(npc npc, topLevelPronouns map[string]pronounSet) error {
 		return fmt.Errorf("must have non-blank 'name' field")
 	}
 
-	// check pronouns are set or refer to one
-	err := validatePronounSetDef(npc.PronounSet, npc.Pronouns, topLevelPronouns)
-	if err != nil {
-		return fmt.Errorf("pronouns: %w", err)
+	var empty pronounSet
+
+	if npc.Pronouns != "" {
+		if npc.PronounSet != empty {
+			return fmt.Errorf("cannot have both 'pronouns' key and custom_pronoun_set defined for the npc")
+		}
+		if _, ok := topLevelPronouns[npc.Pronouns]; !ok {
+			return fmt.Errorf("no pronoun set called %q is defined", npc.Pronouns)
+		}
+	} else if npc.PronounSet == empty {
+		return fmt.Errorf("must have non-blank 'pronouns' key or define custom_pronoun_set for the npc")
+	} else {
+		err := validatePronounSetDef(npc.PronounSet, topLevelPronouns)
+		if err != nil {
+			return fmt.Errorf("custom_pronoun_set: %w", err)
+		}
 	}
 
-	err = validateRouteDef(npc.Movement)
+	err := validateRouteDef(npc.Movement)
 	if err != nil {
 		return fmt.Errorf("movement: %w", err)
 	}
@@ -311,10 +323,10 @@ func validateRouteDef(ps route) error {
 			return fmt.Errorf("'PATROL' route type must have a list with at least 2 rooms as value of 'path' property")
 		}
 		if len(ps.Allowed) > 0 {
-			return fmt.Errorf("'PATROL' route type does not use 'allowedRooms' property")
+			return fmt.Errorf("'PATROL' route type does not use 'allowed' property")
 		}
 		if len(ps.Forbidden) > 0 {
-			return fmt.Errorf("'PATROL' route type does not use 'forbiddenRooms' property")
+			return fmt.Errorf("'PATROL' route type does not use 'forbidden' property")
 		}
 	case game.RouteWander:
 		if len(ps.Path) > 0 {
@@ -325,10 +337,10 @@ func validateRouteDef(ps route) error {
 			return fmt.Errorf("'STATIC' route type does not use 'path' property")
 		}
 		if len(ps.Allowed) > 0 {
-			return fmt.Errorf("'STATIC' route type does not use 'allowedRooms' property")
+			return fmt.Errorf("'STATIC' route type does not use 'allowed' property")
 		}
 		if len(ps.Forbidden) > 0 {
-			return fmt.Errorf("'STATIC' route type does not use 'forbiddenRooms' property")
+			return fmt.Errorf("'STATIC' route type does not use 'forbidden' property")
 		}
 	default:
 		// should never happen but you never know
@@ -338,14 +350,14 @@ func validateRouteDef(ps route) error {
 }
 
 // if topLevel is nil, then the top level is being validated.
-func validatePronounSetDef(ps pronounSet, label string, topLevel map[string]pronounSet) error {
-	if label != "" {
-		if topLevel == nil {
-			return fmt.Errorf("top-level pronoun must be full pronoun definition, not a label (%q)", label)
+func validatePronounSetDef(ps pronounSet, topLevel map[string]pronounSet) error {
+	if topLevel == nil {
+		// then it is a top-level def, and as such MUST have a label
+		if ps.Label == "" {
+			return fmt.Errorf("top-level pronoun definition must have a label")
 		}
-		if _, ok := topLevel[strings.ToUpper(label)]; !ok {
-			return fmt.Errorf("no pronoun set called %q exists", label)
-		}
+	} else if ps.Label != "" {
+		return fmt.Errorf("custom pronoun set cannot have a 'label' key")
 	}
 	return nil
 }
@@ -389,13 +401,13 @@ func validateRoomDef(r room) error {
 
 func validateEgressDef(eg egress) error {
 	if eg.Dest == "" {
-		return fmt.Errorf("must have non-blank 'destLabel' field")
+		return fmt.Errorf("must have non-blank 'dest' field")
 	}
 	if eg.Description == "" {
 		return fmt.Errorf("must have non-blank 'description' field")
 	}
 	if eg.Message == "" {
-		return fmt.Errorf("must have non-blank 'travelMessage' field")
+		return fmt.Errorf("must have non-blank 'message' field")
 	}
 
 	for idx, al := range eg.Aliases {
