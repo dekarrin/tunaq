@@ -17,9 +17,9 @@ type topLevelManifest struct {
 type topLevelWorldData struct {
 	Format   string       `toml:"format"`
 	Type     string       `toml:"type"`
-	Rooms    []room       `toml:"rooms"`
+	Rooms    []room       `toml:"room"`
 	World    world        `toml:"world"`
-	NPCs     []npc        `toml:"npcs"`
+	NPCs     []npc        `toml:"npc"`
 	Pronouns []pronounSet `toml:"pronouns"`
 }
 
@@ -32,7 +32,7 @@ type npc struct {
 	Description string       `toml:"description"`
 	Start       string       `toml:"start"`
 	Movement    route        `toml:"movement"`
-	Dialogs     []dialogStep `toml:"dialogs"`
+	Dialogs     []dialogStep `toml:"line"`
 }
 
 func (tn npc) toGameNPC() game.NPC {
@@ -223,8 +223,8 @@ type room struct {
 	Label       string   `toml:"label"`
 	Name        string   `toml:"name"`
 	Description string   `toml:"description"`
-	Exits       []egress `toml:"exits"`
-	Items       []item   `toml:"items"`
+	Exits       []egress `toml:"exit"`
+	Items       []item   `toml:"item"`
 }
 
 func (tr room) toGameRoom() game.Room {

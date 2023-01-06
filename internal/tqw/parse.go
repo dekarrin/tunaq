@@ -38,6 +38,9 @@ type worldSymbols struct {
 }
 
 func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
+	if len(tqw.Rooms) < 1 {
+		return WorldData{}, fmt.Errorf("no room definitions were read")
+	}
 	var err error
 
 	world := WorldData{

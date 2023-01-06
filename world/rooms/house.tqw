@@ -2,7 +2,7 @@ format = "tuna"
 type = "data"
 
 # your_room
-[[rooms]]
+[[room]]
 label = "YOUR_ROOM"
 name = "your bedroom"
 description = '''
@@ -11,7 +11,7 @@ name. You have a pretty window in the corner overlooking the world outside. Ther
 the east, and a door leading to the hall to the south.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["BATHROOM", "TOILET", "DOOR", "EAST"]
 dest = "BATHROOM"
 description = "your bathroom door"
@@ -19,7 +19,7 @@ message = '''
 You go through the door and enter the bathroom.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["HALLWAY", "HALL", "OUT", "SOUTH"]
 dest = "HALLWAY"
 description = "the door to the hall"
@@ -27,7 +27,7 @@ message = '''
 You shut the door behind you as you go into the hall.
 '''
 
-[[rooms.items]]
+[[room.item]]
 label = "POGO_HAMMER"
 aliases = ["HAMMER", "POGOHAMMER", "POGO", "POGO_HAMMER"]
 name = "a pogo hammer"
@@ -37,7 +37,7 @@ the door to the hall
 
 
 # bathroom
-[[rooms]]
+[[room]]
 label = "BATHROOM"
 name = "your ensuite bathroom"
 description = '''
@@ -46,7 +46,7 @@ clean, next to a sink and bathtub. You enjoy having your amenities not be a comp
 the west leads back to your bedroom.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["BEDROOM", "ROOM", "DOOR", "WEST"]
 dest = "YOUR_ROOM"
 description = "the door"
@@ -56,7 +56,7 @@ You head back into the bedroom.
 
 
 # hallway
-[[rooms]]
+[[room]]
 label = "HALLWAY"
 name = "the main hallway in your house"
 description = '''
@@ -65,7 +65,7 @@ the end, but it seems boarded up, and you're pretty sure that's because it repre
 I guess you're stuck here. In your home. Housetrapped.  Anyways, there's also your bedroom door at the north end.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["BEDROOM", "ROOM", "NORTH"]
 dest = "YOUR_ROOM"
 description = "the door to your bedroom"
@@ -73,7 +73,7 @@ message = '''
 You step into your bedroom, closing the door behind you for privacy.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["LIVING_ROOM", "LIVINGROOM", "LIVING ROOM", "DOORWAY", "END"]
 dest = "LIVING_ROOM"
 description = "The end of the hall, leading to the living room"
@@ -83,7 +83,7 @@ Your feelings were wrong, turns out you can pass right through the boards! You g
 
 
 # living_room
-[[rooms]]
+[[room]]
 label = "LIVING_ROOM"
 name = "the communal gathering and hangout room in your house"
 description = '''
@@ -93,7 +93,7 @@ something like that... or... was it a girl? Perhaps one set to inherit a major b
 to the kitchen, through the front door to the yard outside, or back to the hallway towards the bedroom.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["HALL", "HALLWAY", "BEDROOMS", "DOORWAY"]
 dest = "HALLWAY"
 description = "the hall leading to the bedrooms"
@@ -101,7 +101,7 @@ message = '''
 You walk into the hallway towards the bedrooms.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["KITCHEN", "MEALBLOCK", "MEAL BLOCK"]
 dest = "KITCHEN"
 description = "the kitchen of the house"
@@ -109,7 +109,7 @@ message = '''
 You walk into the kitchen.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["OUTSIDE", "OUT", "YARD", "DOOR", "FRONT DOOR"]
 dest = "FRONT_YARD"
 description = "the front door of the house. There's a neat little window to see people outside, but you don't usually get visitors."
@@ -120,7 +120,7 @@ brush it out of your eyes.
 
 
 # kitchen
-[[rooms]]
+[[room]]
 label = "KITCHEN"
 name = "the kitchen"
 description = '''
@@ -128,7 +128,7 @@ The place where food is made. It's completely spotless, everything put away nice
 windows let in plenty of light and let you see that there is an exit back to the living room.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["LIVINGROOM", "LIVING_ROOM", "LIVING ROOM", "OUT"]
 dest = "LIVING_ROOM"
 description = "the entryway back into the living room"
@@ -138,7 +138,7 @@ You walk back into the living room.
 
 
 # front_yard
-[[rooms]]
+[[room]]
 label = "FRONT_YARD"
 name = "the yard outside your house's front door"
 description = '''
@@ -146,7 +146,7 @@ You are outside on the lawn of your house. The grass is green and very healthy-l
 the house, the backyard, and that's pretty much it.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["LIVINGROOM", "LIVING_ROOM", "LIVING ROOM", "INSIDE", "HOUSE", "FRONT DOOR", "DOOR"]
 dest = "LIVING_ROOM"
 description = "the front door of your house, leading directly to the living room"
@@ -155,7 +155,7 @@ You pull open the heavy door and are comforted by the familiar sight of your liv
 behind you.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["BACKYARD", "BACK YARD", "BACK", "YARD"]
 dest = "BACKYARD"
 description = "the lawn and yard in the back of your house"
@@ -165,7 +165,7 @@ Grass and twigs crunch under your feet as you walk around to the back yard.
 
 
 # backyard
-[[rooms]]
+[[room]]
 label = "BACKYARD"
 name = "your house's backyard"
 description = '''
@@ -175,7 +175,7 @@ could go back to the front yard. Or, bizarrely, there seems to be an opening in 
 could go in there.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["YARD", "FRONT", "FRONT YARD", "FRONTYARD", "FRONT_YARD", "FRONT LAWN"]
 dest = "FRONT_YARD"
 description = "the yard outside of your house's front door"
@@ -183,7 +183,7 @@ message = '''
 You decide you've had enough of the backyard and decide to go to the front.
 '''
 
-[[rooms.exits]]
+[[room.exit]]
 aliases = ["CAVE", "TUNNEL", "POGO", "HOLE", "OPENING", "GROUND"]
 dest = "NPC_HALL"
 description = "a dank tunnel leading down into the depths of the earth under your house"

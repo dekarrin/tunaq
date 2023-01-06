@@ -2,7 +2,7 @@ format = "tuna"
 type = "data"
 
 
-[[npcs]]
+[[npc]]
 label = "CASEY"
 aliases = [
 	"CASEY",
@@ -17,11 +17,11 @@ description = '''
 A small yellow salamander who likes to go glub. Also known as 'VICEROY' after the Viceroy Bubbles Von Salamancer.
 '''
 
-[npcs.movement]
+[npc.movement]
 action = "wander"
 forbidden = [
 	"SALAMANDER_FOYER",
 ]
 
-[[npcs.dialogs]]
+[[npc.line]]
 content = "Glub!"
