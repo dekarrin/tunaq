@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/dekarrin/tunaq/internal/command"
 	"github.com/dekarrin/tunaq/internal/game"
 )
 
@@ -576,6 +577,11 @@ func checkAlias(alias string, conflictSet stringSet) error {
 		return fmt.Errorf("alias conflicts with another alias")
 	}
 
+	firstReservedWord := command.FindFirstReserved(alias)
+	if firstReservedWord != "" {
+		return fmt.Errorf("alias cannot contain reserved word %q", firstReservedWord)
+	}
+
 	if !aliasRegexp.MatchString(alias) {
 		// we know the alias is bad; first check if it's due to a space at start or end so we can give a special message
 		if strings.HasPrefix(alias, " ") {
@@ -601,6 +607,11 @@ func checkAlias(alias string, conflictSet stringSet) error {
 func checkLabel(label string, conflictSet stringSet, labeled string) error {
 	if _, ok := conflictSet[label]; ok {
 		return fmt.Errorf("label %q has already been used for %s", label, labeled)
+	}
+
+	firstReservedWord := command.FindFirstReserved(label)
+	if firstReservedWord != "" {
+		return fmt.Errorf("label %q cannot contain reserved word %q", label, firstReservedWord)
 	}
 
 	if !labelRegexp.MatchString(label) {
