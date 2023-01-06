@@ -2,7 +2,7 @@ format = "tuna"
 type = "data"
 
 
-[[npcs]]
+[[npc]]
 label = "JOEYC"
 aliases = [
 	"JOEY",
@@ -16,23 +16,23 @@ A girl dressed in typical 90's gear, complete with a kaleidoscope of colors. She
 and looking over the wall, stopping every few moments to examine a spot under her magnifying glass.
 '''
 
-[npcs.custom_pronoun_set]
+[npc.custom_pronoun_set]
 nominative = "she"
 objective = "her"
 possessive = ""
 determiner = ""
 reflexive = ""
 
-[[npcs.dialogs]]
+[[npc.line]]
 label = ""
 action = "line"
 content = "Hi there, I'm Joey!"
 response = "Hello, Joey."
 
-[[npcs.dialogs]]
+[[npc.line]]
 content = "alternate syntax: \" just having a string implies type=line, content of string, response of null"
 
-[[npcs.dialogs]]
+[[npc.line]]
 action = "choice"
 content = "Who are you?"
 choices = [
@@ -40,18 +40,18 @@ choices = [
 	["I'm PLAYER!", "IM_PLAYER"],
 ]
 
-[[npcs.dialogs]]
+[[npc.line]]
 label = "IM_WANDERER"
 action = "line"
 content = "Oh, wow! It's nice to meet you, I haven't seen other people here in a long, long time!"
 
-[[npcs.dialogs]]
+[[npc.line]]
 action = "end"
 
-[[npcs.dialogs]]
+[[npc.line]]
 label = "IM_PLAYER"
 content = "Your name is PLAYER? That's a weird name!"
 
-[[npcs.dialogs]]
+[[npc.line]]
 action = "end"
 
