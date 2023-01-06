@@ -13,8 +13,8 @@ const labelChars = `]A-Z0-9_!?#%^&*().,<>/+=[|{}:;-`
 const aliasChars = `]A-Z0-9_!?#%^&*().,<>/+=[|{}:; -`
 
 var (
-	labelRegexp             = regexp.MustCompile(fmt.Sprintf(`[%s]+`, labelChars))
-	aliasRegexp             = regexp.MustCompile(fmt.Sprintf(`(?:[%s][%s]*)?[%s]+`, labelChars, aliasChars, labelChars))
+	labelRegexp             = regexp.MustCompile(fmt.Sprintf(`^[%s]+$`, labelChars))
+	aliasRegexp             = regexp.MustCompile(fmt.Sprintf(`^[%s](?:[%s]*[%s])?$`, labelChars, aliasChars, labelChars))
 	identifierBadCharRegexp = regexp.MustCompile(fmt.Sprintf(`[^%s]`, labelChars))
 )
 
@@ -605,6 +605,10 @@ func checkLabel(label string, conflictSet stringSet, labeled string) error {
 		if badChar == "" {
 			// something has gone horribly wrong with coding of regular expressions
 			panic(fmt.Sprintf("could not identify bad char in alias %q", label))
+		}
+
+		if badChar == " " {
+			return fmt.Errorf("%q has a space in it which is not allowed in labels", label)
 		}
 
 		return fmt.Errorf("%q has the %q character in it which is not allowed for labels", label, badChar)
