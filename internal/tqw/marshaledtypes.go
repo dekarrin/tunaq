@@ -25,6 +25,7 @@ type topLevelWorldData struct {
 
 type npc struct {
 	Label       string       `toml:"label"`
+	Aliases     []string     `toml:"aliases"`
 	Name        string       `toml:"name"`
 	Pronouns    string       `toml:"pronouns"`
 	PronounSet  pronounSet   `toml:"custom_pronoun_set"`
@@ -40,13 +41,17 @@ func (tn npc) toGameNPC() game.NPC {
 		Name:        tn.Name,
 		Pronouns:    tn.PronounSet.toGamePronounSet(),
 		Description: tn.Description,
-		Start:       tn.Start,
+		Start:       strings.ToUpper(tn.Start),
 		Movement:    tn.Movement.toGameRoute(),
 		Dialog:      make([]game.DialogStep, len(tn.Dialogs)),
+		Aliases:     make([]string, len(tn.Aliases)),
 	}
 
 	for i := range tn.Dialogs {
 		npc.Dialog[i] = tn.Dialogs[i].toGameDialogStep()
+	}
+	for i := range tn.Aliases {
+		npc.Aliases[i] = strings.ToUpper(tn.Aliases[i])
 	}
 
 	return npc
@@ -72,9 +77,15 @@ func (tr route) toGameRoute() game.Route {
 		AllowedRooms:   make([]string, len(tr.Allowed)),
 	}
 
-	copy(r.Path, tr.Path)
-	copy(r.ForbiddenRooms, tr.Forbidden)
-	copy(r.AllowedRooms, tr.Allowed)
+	for i := range tr.Path {
+		r.Path[i] = strings.ToUpper(tr.Path[i])
+	}
+	for i := range tr.Forbidden {
+		r.ForbiddenRooms[i] = strings.ToUpper(tr.Forbidden[i])
+	}
+	for i := range tr.Allowed {
+		r.AllowedRooms[i] = strings.ToUpper(tr.Allowed[i])
+	}
 
 	return r
 }
@@ -95,7 +106,7 @@ func (tds dialogStep) toGameDialogStep() game.DialogStep {
 
 	ds := game.DialogStep{
 		Action:   act,
-		Label:    tds.Label,
+		Label:    strings.ToUpper(tds.Label),
 		Content:  tds.Content,
 		Response: tds.Response,
 		Choices:  make(map[string]string),
@@ -107,7 +118,7 @@ func (tds dialogStep) toGameDialogStep() game.DialogStep {
 		}
 
 		choice := ch[0]
-		dest := ch[1]
+		dest := strings.ToUpper(ch[1])
 		ds.Choices[choice] = dest
 	}
 
@@ -173,13 +184,15 @@ type item struct {
 
 func (ti item) toGameItem() game.Item {
 	gameItem := game.Item{
-		Label:       ti.Label,
+		Label:       strings.ToUpper(ti.Label),
 		Name:        ti.Name,
 		Description: ti.Description,
 		Aliases:     make([]string, len(ti.Aliases)),
 	}
 
-	copy(gameItem.Aliases, ti.Aliases)
+	for i := range ti.Aliases {
+		gameItem.Aliases[i] = strings.ToUpper(ti.Aliases[i])
+	}
 
 	return gameItem
 }
@@ -193,13 +206,15 @@ type egress struct {
 
 func (te egress) toGameEgress() game.Egress {
 	eg := game.Egress{
-		DestLabel:     te.Dest,
+		DestLabel:     strings.ToUpper(te.Dest),
 		Description:   te.Description,
 		TravelMessage: te.Message,
 		Aliases:       make([]string, len(te.Aliases)),
 	}
 
-	copy(eg.Aliases, te.Aliases)
+	for i := range te.Aliases {
+		eg.Aliases[i] = strings.ToUpper(te.Aliases[i])
+	}
 
 	return eg
 }
@@ -214,7 +229,7 @@ type room struct {
 
 func (tr room) toGameRoom() game.Room {
 	r := game.Room{
-		Label:       tr.Label,
+		Label:       strings.ToUpper(tr.Label),
 		Name:        tr.Name,
 		Description: tr.Description,
 		Exits:       make([]game.Egress, len(tr.Exits)),

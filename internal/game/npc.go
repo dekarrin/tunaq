@@ -19,6 +19,9 @@ type NPC struct {
 	// Name is the short description of the NPC.
 	Name string
 
+	// Aliases is all names that can be used to refer to an NPC.
+	Aliases []string
+
 	// Pronouns is used to programatically refer to the NPC in auto-generated
 	// phrases.
 	Pronouns PronounSet
@@ -122,11 +125,13 @@ func (npc NPC) Copy() NPC {
 		Start:       npc.Start,
 		Movement:    npc.Movement.Copy(),
 		Dialog:      make([]DialogStep, len(npc.Dialog)),
+		Aliases:     make([]string, len(npc.Aliases)),
 	}
 
 	for i := range npc.Dialog {
 		npcCopy.Dialog[i] = npc.Dialog[i].Copy()
 	}
+	copy(npcCopy.Aliases, npc.Aliases)
 
 	if npc.Convo != nil {
 		npcCopy.Convo = &Conversation{
