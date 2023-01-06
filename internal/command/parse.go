@@ -212,6 +212,9 @@ func ParseCommand(toParse string) (Command, error) {
 
 		if tokens[1] == "ROOM" {
 			parsedCmd.Recipient = "ROOM"
+			if len(tokens) > 2 {
+				parsedCmd.Instrument = strings.Join(tokens[2:], " ")
+			}
 		} else if tokens[1] == "NPC" {
 			parsedCmd.Recipient = "NPC"
 			if len(tokens) > 2 {

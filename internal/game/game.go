@@ -213,7 +213,17 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 		output = rosed.Edit(output).WrapOpts(gs.width, textFormatOptions).String()
 	case "DEBUG":
 		if cmd.Recipient == "ROOM" {
-			output = gs.CurrentRoom.String()
+			if cmd.Instrument == "" {
+				output = gs.CurrentRoom.String() + "\n\n(Type 'DEBUG ROOM label' to teleport to that room)"
+			} else {
+				if _, ok := gs.World[cmd.Instrument]; !ok {
+					return tqerrors.Interpreterf("There doesn't seem to be any rooms with label %q in this world", cmd.Instrument)
+				}
+
+				gs.CurrentRoom = gs.World[cmd.Instrument]
+
+				output = fmt.Sprintf("Poof! You are now in %q\n", cmd.Instrument)
+			}
 		} else if cmd.Recipient == "NPC" {
 			if cmd.Instrument == "" {
 				// info on all NPCs and their locations
@@ -280,7 +290,7 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 			} else {
 				roomLabel, ok := gs.npcLocations[cmd.Instrument]
 				if !ok {
-					return tqerrors.Interpreterf("There doesn't seem to be any NPCs named %q in this world", cmd.Instrument)
+					return tqerrors.Interpreterf("There doesn't seem to be any NPCs with label %q in this world", cmd.Instrument)
 				}
 
 				room := gs.World[roomLabel]
