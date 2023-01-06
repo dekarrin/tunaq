@@ -111,6 +111,28 @@ func (gs *State) MoveNPCs() {
 	gs.npcLocations = newLocs
 }
 
+func (gs *State) RunConversation(npc *NPC) error {
+	for {
+		step := npc.Convo.NextStep()
+		switch step.Action {
+		case DialogEnd:
+			npc.Convo = nil
+			return nil
+		case DialogLine:
+			line := step.Content
+			resp := step.Response
+
+			ed := rosed.
+				Edit(npc.Name + ":\n\n")
+			ed.
+				Insert(ed.CharCount(), "\""+line+"\"\n\n")
+			if resp == "" {
+
+			}
+		}
+	}
+}
+
 // Advance advances the game state based on the given command. If there is a
 // problem executing the command, it is given in the error output and the game
 // state is not advanced. If it is, the result of the command is written to the
@@ -211,6 +233,23 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 		}
 
 		output = rosed.Edit(output).WrapOpts(gs.width, textFormatOptions).String()
+	case "TALK":
+		roomLabel, ok := gs.npcLocations[cmd.Recipient]
+		if !ok {
+			return tqerrors.Interpreterf("There doesn't seem to be any NPCs with label %q in this world", cmd.Recipient)
+		}
+
+		room := gs.World[roomLabel]
+		npc := room.NPCs[cmd.Instrument]
+
+		if npc.Convo == nil {
+			npc.Convo = &Conversation{Dialog: npc.Dialog}
+		}
+
+		err := gs.RunConversation(npc)
+		if err != nil {
+			return err
+		}
 	case "DEBUG":
 		if cmd.Recipient == "ROOM" {
 			if cmd.Instrument == "" {
