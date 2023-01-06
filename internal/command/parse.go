@@ -7,6 +7,21 @@ import (
 )
 
 var (
+	// ReservedWords is the list of all token sequences that a symbol
+	// cannot have anywhere or it will cause issues in parsing.
+	ReservedWords = []string{
+		"TO",
+		"THROUGH",
+		"INTO",
+		"FROM",
+		"ON",
+		"IN",
+		"WITH",
+		"AT",
+	}
+)
+
+var (
 	// VerbAliases maps shorthand verbs (which must be the first words in a
 	// command) to their canonical forms. They are all uppercase.
 	VerbAliases map[string]string = map[string]string{
@@ -36,6 +51,27 @@ var (
 		"I":        "INVENTORY",
 	}
 )
+
+// FindFirstReserved takes the input, tokenizes it, and then checks whether it
+// contains one of the reserved sequences. It can be used to check whether a
+// symbol definition should be rejected by callers and marked as valid/invalid.
+//
+// Returns the first reserved word encountered. If none are encountered it will
+// return the empty string.
+func FindFirstReserved(s string) string {
+	normalizedCase := strings.ToUpper(s)
+	tokens := strings.Fields(normalizedCase)
+
+	for i := range ReservedWords {
+		for j := 0; j < len(tokens); j++ {
+			if tokens[j] == ReservedWords[i] {
+				return ReservedWords[i]
+			}
+		}
+	}
+
+	return ""
+}
 
 // ParseCommand parses a command from the given text. If it cannot, a non-nil
 // error is returned.
@@ -77,6 +113,8 @@ func ParseCommand(toParse string) (Command, error) {
 		}
 	case "GO":
 		// make shore we ignore prepositions
+		// TODO: ensure that world def parser never allows one of these to be the
+		// start of a room alias.
 		if len(tokens) > 1 && (tokens[1] == "TO" || tokens[1] == "THROUGH" || tokens[1] == "IN" || tokens[1] == "INTO") {
 			tokens = append(tokens[0:1], tokens[2:]...)
 		}
@@ -86,32 +124,68 @@ func ParseCommand(toParse string) (Command, error) {
 			return parsedCmd, tqerrors.Interpreterf("I don't know where you want to go")
 		}
 
-		if len(tokens) < 2 {
-			return parsedCmd, tqerrors.Interpreterf("I don't know where you want to go")
-		}
-
-		parsedCmd.Recipient = tokens[1]
+		// otherwise, its the rest of the tokens
+		parsedCmd.Recipient = strings.Join(tokens[1:], " ")
 	case "TAKE":
 		// need to know what we are taking
 		if len(tokens) < 2 {
 			return parsedCmd, tqerrors.Interpreterf("I don't know what you want to take")
 		}
-		parsedCmd.Recipient = tokens[1]
+
+		// get from clause
+		fromIdx := len(tokens)
+		for i := range tokens[1:] {
+			if tokens[i] == "FROM" {
+				if i+1 >= len(tokens) {
+					return parsedCmd, tqerrors.Interpreterf("I don't know where you want to take it from")
+				}
+				fromIdx = i
+				parsedCmd.Instrument = strings.Join(tokens[i+1:], " ")
+			}
+		}
+
+		// and the object is the rest of the tokens
+		parsedCmd.Recipient = strings.Join(tokens[1:fromIdx], " ")
 	case "DROP":
 		// what are we dropping
 		if len(tokens) < 2 {
 			return parsedCmd, tqerrors.Interpreterf("I don't know what you want to drop")
 		}
-		parsedCmd.Recipient = tokens[1]
+
+		onIdx := len(tokens)
+		for i := range tokens[1:] {
+			if tokens[i] == "ON" || tokens[i] == "IN" {
+				if i+1 >= len(tokens) {
+					return parsedCmd, tqerrors.Interpreterf("I don't know where you want to put it")
+				}
+			}
+			onIdx = i
+			parsedCmd.Instrument = strings.Join(tokens[i+1:], " ")
+		}
+
+		// and the object is the rest of the tokens
+		parsedCmd.Recipient = strings.Join(tokens[1:onIdx], " ")
 	case "USE":
 		// what are we using
 		if len(tokens) < 2 {
 			return parsedCmd, tqerrors.Interpreterf("I don't know what you want to use")
 		}
-		parsedCmd.Recipient = tokens[1]
+
+		withIdx := len(tokens)
+		for i := range tokens[1:] {
+			if tokens[i] == "WITH" {
+				if i+1 >= len(tokens) {
+					return parsedCmd, tqerrors.Interpreterf("I don't know where you want to use it with")
+				}
+			}
+			withIdx = i
+			parsedCmd.Instrument = strings.Join(tokens[i+1:], " ")
+		}
+
+		parsedCmd.Recipient = strings.Join(tokens[1:withIdx], " ")
 	case "TALK":
 		// talk p much always takes a 'to', make shore we ignore that
-		if len(tokens) > 1 && tokens[1] == "TO" {
+		if len(tokens) > 1 && (tokens[1] == "TO" || tokens[1] == "WITH") {
 			tokens = append(tokens[0:1], tokens[2:]...)
 		}
 
@@ -119,16 +193,17 @@ func ParseCommand(toParse string) (Command, error) {
 		if len(tokens) < 2 {
 			return parsedCmd, tqerrors.Interpreterf("I don't know what or who you want to talk to")
 		}
-		parsedCmd.Recipient = tokens[1]
+
+		parsedCmd.Recipient = strings.Join(tokens[1:], " ")
 	case "LOOK":
 		// check for 'at' and remove it
-		if len(tokens) > 1 && tokens[1] == "AT" {
+		if len(tokens) > 1 && (tokens[1] == "AT" || tokens[1] == "IN") {
 			tokens = append(tokens[0:1], tokens[2:]...)
 		}
 
 		// look has an optional recipient
 		if len(tokens) > 1 {
-			parsedCmd.Recipient = tokens[1]
+			parsedCmd.Recipient = strings.Join(tokens[1:], " ")
 		}
 	case "DEBUG":
 		if len(tokens) < 2 {
@@ -137,10 +212,13 @@ func ParseCommand(toParse string) (Command, error) {
 
 		if tokens[1] == "ROOM" {
 			parsedCmd.Recipient = "ROOM"
+			if len(tokens) > 2 {
+				parsedCmd.Instrument = strings.Join(tokens[2:], " ")
+			}
 		} else if tokens[1] == "NPC" {
 			parsedCmd.Recipient = "NPC"
 			if len(tokens) > 2 {
-				parsedCmd.Instrument = tokens[2]
+				parsedCmd.Instrument = strings.Join(tokens[2:], " ")
 			}
 		} else {
 			return parsedCmd, tqerrors.Interpreterf("%q is not a valid thing to be debugged", tokens[1])

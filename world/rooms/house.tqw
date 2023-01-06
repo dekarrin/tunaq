@@ -12,7 +12,7 @@ the east, and a door leading to the hall to the south.
 '''
 
 [[room.exit]]
-aliases = ["BATHROOM", "TOILET", "DOOR", "EAST"]
+aliases = ["BATHROOM", "TOILET", "DOOR", "EAST", "BATHROOM DOOR"]
 dest = "BATHROOM"
 description = "your bathroom door"
 message = '''
