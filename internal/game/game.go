@@ -1,7 +1,6 @@
 package game
 
 import (
-	"bufio"
 	"fmt"
 	"math"
 	"sort"
@@ -11,6 +10,8 @@ import (
 	"github.com/dekarrin/tunaq/internal/command"
 	"github.com/dekarrin/tunaq/internal/tqerrors"
 	"github.com/dekarrin/tunaq/internal/util"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var commandHelp = [][2]string{
@@ -48,7 +49,24 @@ type State struct {
 	npcLocations map[string]string
 
 	// width is how wide to make output
-	width int
+	io IODevice
+}
+
+type IODevice struct {
+	// The width of each line of output.
+	Width int
+
+	// a function to send output. If s is empty, an empty line is sent.
+	Output func(s string, a ...interface{}) error
+
+	// a function to use to get string input. If prompt is blank, no prompt is
+	// sent before the input is read.
+	Input func(prompt string) (string, error)
+
+	// a function to use to get int input. If prompt is blank, no prompt is
+	// sent before the input is read. If invalid input is received, keeps
+	// prompting until a valid one is entered.
+	InputInt func(prompt string) (int, error)
 }
 
 // New creates a new State and loads the list of rooms into it. It performs
@@ -56,18 +74,30 @@ type State struct {
 // normalizes them as needed.
 //
 // startingRoom is the label of the room to start with.
-// outputWidth is how wide the output should be. State will try to make all
+// ioDev is the input/output device to use when the user needs to be prompted
+// for more info, or for showing to the user.
+// io.Width is how wide the output should be. State will try to make all\
 // output fit within this width. If not set or < 2, it will be automatically
 // assumed to be 80.
-func New(world map[string]*Room, startingRoom string, outputWidth int) (State, error) {
-	if outputWidth < 2 {
-		outputWidth = 80
+func New(world map[string]*Room, startingRoom string, ioDev IODevice) (State, error) {
+	if ioDev.Width < 2 {
+		ioDev.Width = 80
 	}
+	if ioDev.Input == nil {
+		return State{}, fmt.Errorf("io device must define an Input function")
+	}
+	if ioDev.InputInt == nil {
+		return State{}, fmt.Errorf("io device must define an InputInt function")
+	}
+	if ioDev.Output == nil {
+		return State{}, fmt.Errorf("io device must define an Output function")
+	}
+
 	gs := State{
 		World:        world,
 		Inventory:    make(Inventory),
 		npcLocations: make(map[string]string),
-		width:        outputWidth,
+		io:           ioDev,
 	}
 
 	// now set the current room
@@ -112,22 +142,90 @@ func (gs *State) MoveNPCs() {
 }
 
 func (gs *State) RunConversation(npc *NPC) error {
-	for {
-		step := npc.Convo.NextStep()
-		switch step.Action {
-		case DialogEnd:
-			npc.Convo = nil
-			return nil
-		case DialogLine:
-			line := step.Content
-			resp := step.Response
+	var output string
+	if len(npc.Dialog) < 1 {
+		nomPro := cases.Title(language.AmericanEnglish).String(npc.Pronouns.Nominative)
+		if err := gs.io.Output("%s doesn't have much to say.", nomPro); err != nil {
+			return err
+		}
+		return nil
+	} else {
+		for {
+			step := npc.Convo.NextStep()
+			switch step.Action {
+			case DialogEnd:
+				npc.Convo = nil
+				return nil
+			case DialogLine:
+				line := step.Content
+				resp := step.Response
 
-			ed := rosed.
-				Edit(npc.Name + ":\n\n")
-			ed.
-				Insert(ed.CharCount(), "\""+line+"\"\n\n")
-			if resp == "" {
+				ed := rosed.Edit("\""+line+"\"").
+					Wrap(gs.io.Width).
+					Insert(0, npc.Name+":\n")
+				if resp == "" {
+					ed = ed.
+						Insert(ed.CharCount(), "==>\n")
+				} else {
+					ed = ed.Insert(ed.CharCount(), "\n\nYOU:\n")
+					ed = ed.Insert(ed.CharCount(), rosed.Edit(resp).Wrap(gs.io.Width).String())
+					ed = ed.Insert(ed.CharCount(), "==>")
+				}
+				output = ed.String()
 
+				if err := gs.io.Output(output); err != nil {
+					return err
+				}
+				if _, err := gs.io.Input(""); err != nil {
+					return err
+				}
+			case DialogChoice:
+				line := step.Content
+				ed := rosed.Edit("\""+line+"\"").
+					Wrap(gs.io.Width).
+					Insert(0, npc.Name+":\n")
+				ed = ed.Insert(ed.CharCount(), "\n\n")
+				ed = ed.CharsFrom(ed.CharCount())
+
+				var choiceOut = make([]string, len(step.Choices))
+				choiceIdx := 0
+				for ch := range step.Choices {
+					chDest := step.Choices[ch]
+					choiceOut[choiceIdx] = chDest
+
+					ed = ed.Insert(ed.CharCount(), fmt.Sprintf("%d) ", choiceIdx+1))
+					ed = ed.Insert(ed.CharCount(), "\n")
+
+					choiceIdx++
+				}
+				ed = ed.Apply(func(idx int, line string) []string {
+					return []string{rosed.Edit(line).Wrap(gs.io.Width).String()}
+				})
+
+				var validNum bool
+				var choiceNum int
+				var err error
+				for !validNum {
+					choiceNum, err = gs.io.InputInt("> ")
+					if err != nil {
+						return err
+					} else {
+						if choiceNum < 1 || len(step.Choices) < choiceNum {
+							err = gs.io.Output("Please enter a number between 1 and %d\n", len(step.Choices))
+							if err != nil {
+								return err
+							}
+						} else {
+							validNum = true
+						}
+					}
+				}
+
+				dest := choiceOut[choiceNum]
+				npc.Convo.JumpTo(dest)
+			default:
+				// should never happen
+				panic("unknown line type")
 			}
 		}
 	}
@@ -145,7 +243,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 // a controlling engine to end the game state based on that.
 //
 // TODO: differentiate syntax errors from io errors
-func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
+func (gs *State) Advance(cmd command.Command) error {
 	var output string
 
 	switch cmd.Verb {
@@ -161,7 +259,7 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 
 		gs.MoveNPCs()
 
-		output += rosed.Edit(egress.TravelMessage).WrapOpts(gs.width, textFormatOptions).String()
+		output += rosed.Edit(egress.TravelMessage).WrapOpts(gs.io.Width, textFormatOptions).String()
 	case "EXITS":
 		exitTable := ""
 
@@ -218,7 +316,7 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 			output += util.MakeTextList(itemNames) + "."
 		}
 
-		output = rosed.Edit(output).WrapOpts(gs.width, textFormatOptions).String()
+		output = rosed.Edit(output).WrapOpts(gs.io.Width, textFormatOptions).String()
 	case "INVENTORY":
 		if len(gs.Inventory) < 1 {
 			output = "You aren't carrying anything"
@@ -232,7 +330,7 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 			output += util.MakeTextList(itemNames) + "."
 		}
 
-		output = rosed.Edit(output).WrapOpts(gs.width, textFormatOptions).String()
+		output = rosed.Edit(output).WrapOpts(gs.io.Width, textFormatOptions).String()
 	case "TALK":
 		roomLabel, ok := gs.npcLocations[cmd.Recipient]
 		if !ok {
@@ -250,6 +348,8 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 		if err != nil {
 			return err
 		}
+
+		output = fmt.Sprintf("You stop talking to %s.", strings.ToLower(npc.Pronouns.Objective))
 	case "DEBUG":
 		if cmd.Recipient == "ROOM" {
 			if cmd.Instrument == "" {
@@ -395,7 +495,7 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 				output = rosed.Edit("NPC Info for "+npc.Label+"\n"+
 					"\n",
 				).
-					InsertDefinitionsTableOpts(math.MaxInt, npcInfo, gs.width+2, tableOpts).
+					InsertDefinitionsTableOpts(math.MaxInt, npcInfo, gs.io.Width+2, tableOpts).
 					LinesFrom(2).
 					Apply(func(idx int, line string) []string {
 						line = strings.Replace(line[2:], "  -", "  :", 1)
@@ -419,12 +519,5 @@ func (gs *State) Advance(cmd command.Command, ostream *bufio.Writer) error {
 	}
 
 	// IO to give output:
-	if _, err := ostream.WriteString(output + "\n\n"); err != nil {
-		return fmt.Errorf("could not write output: %w", err)
-	}
-	if err := ostream.Flush(); err != nil {
-		return fmt.Errorf("could not flush output: %w", err)
-	}
-
-	return nil
+	return gs.io.Output(output + "\n\n")
 }

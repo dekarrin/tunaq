@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/command"
@@ -48,14 +50,8 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string, fo
 		return nil, err
 	}
 
-	state, err := game.New(worldData.Rooms, worldData.Start, consoleOutputWidth)
-	if err != nil {
-		return nil, fmt.Errorf("initializing game engine: %w", err)
-	}
-
 	eng := &Engine{
 		out:         bufio.NewWriter(outputStream),
-		state:       state,
 		running:     false,
 		forceDirect: forceDirectInput,
 	}
@@ -68,6 +64,65 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string, fo
 	} else {
 		eng.in = input.NewDirectReader(inputStream)
 	}
+
+	// create IODevice for use with the game engine
+	outFunc := func(s string, a ...interface{}) error {
+		s = fmt.Sprintf(s, a...)
+		if eng.out.WriteString(s); err != nil {
+			return fmt.Errorf("could not write output: %w", err)
+		}
+		if err := eng.out.Flush(); err != nil {
+			return fmt.Errorf("could not flush output: %w", err)
+		}
+		return nil
+	}
+	inputFunc := func(prompt string) (string, error) {
+		if prompt != "" {
+			if err := outFunc(prompt); err != nil {
+				return "", err
+			}
+		}
+		eng.in.AllowBlank(true)
+		input, err := eng.in.ReadCommand()
+		eng.in.AllowBlank(false)
+		return input, err
+	}
+	ioDev := game.IODevice{
+		Width:  consoleOutputWidth,
+		Output: outFunc,
+		Input:  inputFunc,
+		InputInt: func(prompt string) (int, error) {
+			var intVal int
+			var valSet bool
+
+			for !valSet {
+				inputVal, err := inputFunc(prompt)
+				if err != nil {
+					return 0, err
+				}
+				intVal, err = strconv.Atoi(inputVal)
+				if err != nil {
+					msg := "Please enter a number\n"
+					if strings.Contains(inputVal, ".") {
+						msg = "Please enter a number without a decimal dot\n"
+					}
+					err := outFunc(msg)
+					if err != nil {
+						return 0, err
+					}
+				} else {
+					valSet = true
+				}
+			}
+			return intVal, nil
+		},
+	}
+
+	state, err := game.New(worldData.Rooms, worldData.Start, ioDev)
+	if err != nil {
+		return nil, fmt.Errorf("initializing game engine: %w", err)
+	}
+	eng.state = state
 
 	return eng, nil
 }
@@ -127,7 +182,7 @@ func (eng *Engine) RunUntilQuit() error {
 			break
 		}
 
-		err = eng.state.Advance(cmd, eng.out)
+		err = eng.state.Advance(cmd)
 		if err != nil {
 			consoleMessage := tqerrors.GameMessage(err)
 			consoleMessage = rosed.Edit(consoleMessage).Wrap(consoleOutputWidth).String()
