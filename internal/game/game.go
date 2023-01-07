@@ -273,6 +273,30 @@ func (gs *State) ExecuteCommandLook(cmd command.Command) (string, error) {
 		output += util.MakeTextList(itemNames) + "."
 	}
 
+	if len(gs.CurrentRoom.NPCs) > 0 {
+		var npcNames []string
+
+		for _, npc := range gs.CurrentRoom.NPCs {
+			npcNames = append(npcNames, npc.Name)
+		}
+
+		// TODO: prop so npcs can be invisible to looks for static npcs that are
+		// mostly included in description.
+		if len(npcNames) > 0 {
+			output += "\n\nOh! "
+
+			output += util.MakeTextList(npcNames)
+
+			if len(npcNames) == 1 {
+				output += " is "
+			} else {
+				output += " are "
+			}
+
+			output += "here."
+		}
+	}
+
 	output = rosed.Edit(output).WrapOpts(gs.io.Width, textFormatOptions).String()
 	return output, nil
 }
