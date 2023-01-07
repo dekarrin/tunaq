@@ -327,13 +327,10 @@ func (gs *State) ExecuteCommandInventory(cmd command.Command) (string, error) {
 // loop that will not exit until the conversation is PAUSED or an END step is
 // reached in it.
 func (gs *State) ExecuteCommandTalk(cmd command.Command) (string, error) {
-	roomLabel, ok := gs.npcLocations[cmd.Recipient]
-	if !ok {
-		return "", tqerrors.Interpreterf("There doesn't seem to be any NPCs with label %q in this world", cmd.Recipient)
+	npc := gs.CurrentRoom.GetNPCByAlias(cmd.Recipient)
+	if npc == nil {
+		return "", tqerrors.Interpreterf("I don't see a %q you can talk to here.", cmd.Recipient)
 	}
-
-	room := gs.World[roomLabel]
-	npc := room.NPCs[cmd.Recipient]
 
 	if npc.Convo == nil {
 		npc.Convo = &Conversation{Dialog: npc.Dialog}
@@ -361,6 +358,8 @@ func (gs *State) ExecuteCommandDebug(cmd command.Command) (string, error) {
 	}
 }
 
+// ExecuteCommandHelp executes the HELP command with the arguments in the
+// provided Command and returns the output.
 func (gs *State) ExecuteCommandHelp(cmd command.Command) (string, error) {
 	var output string
 
