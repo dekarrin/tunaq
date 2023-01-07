@@ -1,0 +1,18 @@
+format = "tuna"
+type = "data"
+
+[[npc]]
+label = "MUTIE"
+aliases = [
+    "MUTIE",
+    "CAT",
+    "BLACK CAT",
+    "VODKA MUTINI"
+]
+name = "Mutie"
+pronouns = "they/them"
+start = "CROC_FOYER"
+description = '''
+A small black cat with more than the typical number of mouths. And tentacles. Actually the sheer number of tentacles on
+this creature is really quite concerning. You're not sure if this is okay.
+'''

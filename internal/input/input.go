@@ -18,7 +18,8 @@ import (
 // DirectCommandReader should not be used directly; instead, create one with
 // [NewDirectReader].
 type DirectCommandReader struct {
-	r *bufio.Reader
+	r             *bufio.Reader
+	blanksAllowed bool
 }
 
 // InteractiveCommandReader implements command.Reader and reads commands from
@@ -30,7 +31,9 @@ type DirectCommandReader struct {
 // InteractiveCommandReader should not be used directly; instead, create one
 // with [NewInteractiveReader].
 type InteractiveCommandReader struct {
-	rl *readline.Instance
+	rl            *readline.Instance
+	blanksAllowed bool
+	prompt        string
 }
 
 // Create a new DirectCommandReader and initialize a buffered reader on the
@@ -54,7 +57,8 @@ func NewInteractiveReader() (*InteractiveCommandReader, error) {
 	}
 
 	return &InteractiveCommandReader{
-		rl: rl,
+		rl:     rl,
+		prompt: "> ",
 	}, nil
 }
 
@@ -92,6 +96,10 @@ func (dcr *DirectCommandReader) ReadCommand() (string, error) {
 		}
 
 		line = strings.TrimSpace(line)
+
+		if line == "" && dcr.blanksAllowed {
+			return line, nil
+		}
 	}
 
 	return line, nil
@@ -115,7 +123,31 @@ func (icr *InteractiveCommandReader) ReadCommand() (string, error) {
 		}
 
 		line = strings.TrimSpace(line)
+
+		if line == "" && icr.blanksAllowed {
+			return line, nil
+		}
 	}
 
 	return line, nil
+}
+
+// AllowBlank sets whether blank output is allowed. By default it is not.
+func (dcr *DirectCommandReader) AllowBlank(allow bool) {
+	dcr.blanksAllowed = allow
+}
+
+// AllowBlank sets whether blank output is allowed. By default it is not.
+func (icr *InteractiveCommandReader) AllowBlank(allow bool) {
+	icr.blanksAllowed = allow
+}
+
+// SetPrompt updates the prompt to the given text.
+func (icr *InteractiveCommandReader) SetPrompt(p string) {
+	icr.rl.SetPrompt(p)
+}
+
+// GetPrompt gets the current prompt.
+func (icr *InteractiveCommandReader) GetPrompt() string {
+	return icr.prompt
 }

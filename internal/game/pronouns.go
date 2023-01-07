@@ -35,10 +35,18 @@ type PronounSet struct {
 	// that would be used to replace "NPCSELF" is the following sentence: "NPC
 	// THINKS ABOUT NPCSELF A LOT".
 	Reflexive string
+
+	// Plural is whether the pronoun requires plural conjugation of verbs; e.g.
+	// use 'NOMINATIVE are' instead of 'NOMINATIVE is'.
+	Plural bool
 }
 
 func (ps PronounSet) String() string {
-	return fmt.Sprintf("PronounSet<%q/%q/%q/%q/%q>", ps.Nominative, ps.Objective, ps.Possessive, ps.Determiner, ps.Reflexive)
+	conjug := "SINGULAR"
+	if ps.Plural {
+		conjug = "PLURAL"
+	}
+	return fmt.Sprintf("PronounSet<%q/%q/%q/%q/%q/%s>", ps.Nominative, ps.Objective, ps.Possessive, ps.Determiner, ps.Reflexive, conjug)
 }
 
 // Short returns the string representing the shortened version of the pronoun
@@ -81,17 +89,17 @@ var (
 
 	// PronounsFeminine is the predefined set of feminine pronouns, commonly
 	// referred to as "she/her" pronouns.
-	PronounsFeminine = PronounSet{"SHE", "HER", "HERS", "HER", "HERSELF"}
+	PronounsFeminine = PronounSet{"SHE", "HER", "HERS", "HER", "HERSELF", false}
 
 	// PronounsMasculine is the predefined set of masculine pronouns, commonly
 	// referred to as "he/him" pronouns.
-	PronounsMasculine = PronounSet{"HE", "HIM", "HIS", "HIS", "HIMSELF"}
+	PronounsMasculine = PronounSet{"HE", "HIM", "HIS", "HIS", "HIMSELF", false}
 
 	// PronounsNonBinary is the predefined set of non-binary pronouns, commonly
 	// referred to as "they/them" pronouns.
-	PronounsNonBinary = PronounSet{"THEY", "THEM", "THEIRS", "THEIR", "THEMSELF"}
+	PronounsNonBinary = PronounSet{"THEY", "THEM", "THEIRS", "THEIR", "THEMSELF", true}
 
 	// PronounsItIts is the predefined set of pronouns commonly referred to as
 	// "it/its".
-	PronounsItIts = PronounSet{"IT", "IT", "ITS", "ITS", "ITSELF"}
+	PronounsItIts = PronounSet{"IT", "IT", "ITS", "ITS", "ITSELF", false}
 )

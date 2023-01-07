@@ -10,4 +10,5 @@ files = [
     "npcs/joey.tqw",
     "npcs/imp.tqw",
     "npcs/casey.tqw",
+    "npcs/mutie.tqw"
 ]

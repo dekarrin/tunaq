@@ -109,6 +109,30 @@ func (room Room) String() string {
 	return fmt.Sprintf("Room<%s %q EXITS: %s>", room.Label, room.Name, exitsStr)
 }
 
+// GetNPCByAlias returns the NPC from the room that is referred to by the given
+// alias. If no NPC has that alias, the returned NPC is nil.
+func (room Room) GetNPCByAlias(alias string) *NPC {
+	foundLabel := ""
+
+	for label, npc := range room.NPCs {
+		for _, al := range npc.Aliases {
+			if al == alias {
+				foundLabel = label
+				break
+			}
+		}
+		if foundLabel != "" {
+			break
+		}
+	}
+
+	var foundNPC *NPC
+	if foundLabel != "" {
+		foundNPC = room.NPCs[foundLabel]
+	}
+	return foundNPC
+}
+
 // GetEgressByAlias returns the egress from the room that is represented by the
 // given alias. If no Egress has that alias, the returned egress is nil.
 func (room Room) GetEgressByAlias(alias string) *Egress {

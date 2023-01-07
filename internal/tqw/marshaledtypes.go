@@ -132,6 +132,7 @@ type pronounSet struct {
 	Possessive string `toml:"possessive"`
 	Determiner string `toml:"determiner"`
 	Reflexive  string `toml:"reflexive"`
+	Plural     bool   `toml:"plural"`
 }
 
 func pronounSetFromGame(gps game.PronounSet) pronounSet {
@@ -141,6 +142,7 @@ func pronounSetFromGame(gps game.PronounSet) pronounSet {
 		Possessive: strings.ToUpper(gps.Possessive),
 		Determiner: strings.ToUpper(gps.Determiner),
 		Reflexive:  strings.ToUpper(gps.Reflexive),
+		Plural:     gps.Plural,
 	}
 
 	return ps
@@ -153,6 +155,7 @@ func (tp pronounSet) toGamePronounSet() game.PronounSet {
 		Possessive: strings.ToUpper(tp.Possessive),
 		Determiner: strings.ToUpper(tp.Determiner),
 		Reflexive:  strings.ToUpper(tp.Reflexive),
+		Plural:     tp.Plural,
 	}
 
 	// default to they/them fills

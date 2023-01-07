@@ -22,6 +22,9 @@ type Reader interface {
 	// io.EOF.
 	ReadCommand() (string, error)
 
+	// AllowBlank sets whether blank output is allowed. By default it is not.
+	AllowBlank(allow bool)
+
 	// Close performs any operations required to clean the resources created by
 	// the Reader. It should be called at least once when the Reader is no
 	// longer needed.

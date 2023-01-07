@@ -158,9 +158,9 @@ func ParseCommand(toParse string) (Command, error) {
 				if i+1 >= len(tokens) {
 					return parsedCmd, tqerrors.Interpreterf("I don't know where you want to put it")
 				}
+				onIdx = i
+				parsedCmd.Instrument = strings.Join(tokens[i+1:], " ")
 			}
-			onIdx = i
-			parsedCmd.Instrument = strings.Join(tokens[i+1:], " ")
 		}
 
 		// and the object is the rest of the tokens
@@ -177,9 +177,9 @@ func ParseCommand(toParse string) (Command, error) {
 				if i+1 >= len(tokens) {
 					return parsedCmd, tqerrors.Interpreterf("I don't know where you want to use it with")
 				}
+				withIdx = i
+				parsedCmd.Instrument = strings.Join(tokens[i+1:], " ")
 			}
-			withIdx = i
-			parsedCmd.Instrument = strings.Join(tokens[i+1:], " ")
 		}
 
 		parsedCmd.Recipient = strings.Join(tokens[1:withIdx], " ")

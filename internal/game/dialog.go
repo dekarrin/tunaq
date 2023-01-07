@@ -1,6 +1,13 @@
 package game
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/dekarrin/rosed"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+)
 
 type DialogAction int
 
@@ -157,5 +164,105 @@ func (convo *Conversation) buildAliases() {
 		}
 
 		convo.aliases[convo.Dialog[i].Label] = i
+	}
+}
+
+func (gs *State) RunConversation(npc *NPC) error {
+	var output string
+	if len(npc.Dialog) < 1 {
+		nomPro := cases.Title(language.AmericanEnglish).String(npc.Pronouns.Nominative)
+		doesNot := "doesn't"
+		if npc.Pronouns.Plural {
+			doesNot = "don't"
+		}
+		if err := gs.io.Output("%s %s have much to say.\n", nomPro, doesNot); err != nil {
+			return err
+		}
+		return nil
+	} else {
+		for {
+			step := npc.Convo.NextStep()
+			switch step.Action {
+			case DialogEnd:
+				npc.Convo = nil
+				return nil
+			case DialogLine:
+				line := step.Content
+				resp := step.Response
+
+				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").
+					CharsFrom(rosed.End).
+					Insert(rosed.End, "\""+line+"\"").
+					Wrap(gs.io.Width).
+					Insert(rosed.End, "\n")
+				if resp != "" {
+					ed = ed.
+						Insert(rosed.End, "\nYOU:\n").
+						Insert(rosed.End, rosed.Edit("\""+resp+"\"").Wrap(gs.io.Width).String()).
+						Insert(rosed.End, "\n")
+				}
+				output = ed.String()
+
+				if err := gs.io.Output(output); err != nil {
+					return err
+				}
+				if _, err := gs.io.Input("==> "); err != nil {
+					return err
+				}
+			case DialogChoice:
+				line := step.Content
+				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").
+					CharsFrom(rosed.End).
+					Insert(rosed.End, "\""+line+"\"").
+					Wrap(gs.io.Width).
+					Insert(rosed.End, "\n\n").
+					CharsFrom(rosed.End)
+
+				var choiceOut = make([]string, len(step.Choices))
+				choiceIdx := 0
+				for ch := range step.Choices {
+					chDest := step.Choices[ch]
+					choiceOut[choiceIdx] = chDest
+
+					ed = ed.Insert(rosed.End, fmt.Sprintf("%d) \"%s\"\n", choiceIdx+1, ch))
+
+					choiceIdx++
+				}
+				ed = ed.Apply(func(idx int, line string) []string {
+					return []string{rosed.Edit(line).Wrap(gs.io.Width).String()}
+				})
+
+				var err error
+
+				err = gs.io.Output(ed.String())
+				if err != nil {
+					return err
+				}
+
+				var validNum bool
+				var choiceNum int
+				for !validNum {
+					choiceNum, err = gs.io.InputInt("==> ")
+					if err != nil {
+						return err
+					} else {
+						if choiceNum < 1 || len(step.Choices) < choiceNum {
+							err = gs.io.Output("Please enter a number between 1 and %d\n", len(step.Choices))
+							if err != nil {
+								return err
+							}
+						} else {
+							validNum = true
+						}
+					}
+				}
+
+				dest := choiceOut[choiceNum-1]
+				npc.Convo.JumpTo(dest)
+			default:
+				// should never happen
+				panic("unknown line type")
+			}
+		}
 	}
 }

@@ -32,7 +32,7 @@ label = "POGO_HAMMER"
 aliases = ["HAMMER", "POGOHAMMER", "POGO", "POGO_HAMMER"]
 name = "a pogo hammer"
 description = '''
-the door to the hall
+A hammer combined with a pogo-stick. What could go wrong?
 '''
 
 

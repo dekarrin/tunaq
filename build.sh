@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -eo pipefail
+
 if ! which go >/dev/null 2>&1
 then
   echo "The Go language compiler appears to be uninstalled" >&2
