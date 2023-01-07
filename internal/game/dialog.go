@@ -171,7 +171,11 @@ func (gs *State) RunConversation(npc *NPC) error {
 	var output string
 	if len(npc.Dialog) < 1 {
 		nomPro := cases.Title(language.AmericanEnglish).String(npc.Pronouns.Nominative)
-		if err := gs.io.Output("%s doesn't have much to say.", nomPro); err != nil {
+		doesNot := "doesn't"
+		if npc.Pronouns.Plural {
+			doesNot = "don't"
+		}
+		if err := gs.io.Output("%s %s have much to say.\n", nomPro, doesNot); err != nil {
 			return err
 		}
 		return nil
@@ -207,9 +211,10 @@ func (gs *State) RunConversation(npc *NPC) error {
 				}
 			case DialogChoice:
 				line := step.Content
-				ed := rosed.Edit("\n\""+strings.ToUpper(line)+"\"").
+				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").
+					CharsFrom(rosed.End).
+					Insert(rosed.End, "\""+line+"\"").
 					Wrap(gs.io.Width).
-					Insert(0, npc.Name+":\n").
 					Insert(rosed.End, "\n\n").
 					CharsFrom(rosed.End)
 

@@ -367,7 +367,7 @@ func (gs *State) ExecuteCommandTalk(cmd command.Command) (string, error) {
 		return "", err
 	}
 
-	output := fmt.Sprintf("You stop talking to %s.", strings.ToLower(npc.Pronouns.Objective))
+	output := fmt.Sprintf("\nYou stop talking to %s.", strings.ToLower(npc.Pronouns.Objective))
 	return output, nil
 }
 
