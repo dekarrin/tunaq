@@ -137,6 +137,56 @@ func (gs *State) MoveNPCs() {
 	gs.npcLocations = newLocs
 }
 
+// Look gets the look description as a single long string. It returns non-nil
+// error if there are issues retrieving it. If alias is empty, the room is
+// looked at. The returned string is not formatted except that any seperate
+// listings (such as items or NPCs in a room) will be separated by "\n\n".
+func (gs *State) Look(alias string) (string, error) {
+	if alias != "" {
+		return "", tqerrors.Interpreterf("I can't LOOK at particular things yet")
+	}
+
+	output := gs.CurrentRoom.Description
+	if len(gs.CurrentRoom.Items) > 0 {
+		var itemNames []string
+
+		for _, it := range gs.CurrentRoom.Items {
+			itemNames = append(itemNames, it.Name)
+		}
+
+		output += "\n\n"
+		output += "On the ground, you can see "
+
+		output += util.MakeTextList(itemNames) + "."
+	}
+
+	if len(gs.CurrentRoom.NPCs) > 0 {
+		var npcNames []string
+
+		for _, npc := range gs.CurrentRoom.NPCs {
+			npcNames = append(npcNames, npc.Name)
+		}
+
+		// TODO: prop so npcs can be invisible to looks for static npcs that are
+		// mostly included in description.
+		if len(npcNames) > 0 {
+			output += "\n\nOh! "
+
+			output += util.MakeTextList(npcNames)
+
+			if len(npcNames) == 1 {
+				output += " is "
+			} else {
+				output += " are "
+			}
+
+			output += "here."
+		}
+	}
+
+	return output, nil
+}
+
 // Advance advances the game state based on the given command. If there is a
 // problem executing the command, it is given in the error output and the game
 // state is not advanced. If it is, the result of the command is written to the
@@ -198,7 +248,20 @@ func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
 
 	gs.MoveNPCs()
 
-	return rosed.Edit(egress.TravelMessage).WrapOpts(gs.io.Width, textFormatOptions).String(), nil
+	lookText, err := gs.Look("")
+	if err != nil {
+		return "", err
+	}
+
+	output := rosed.Edit(egress.TravelMessage).WithOptions(textFormatOptions).
+		Wrap(gs.io.Width).
+		Insert(rosed.End, "\n\n").
+		CharsFrom(rosed.End).
+		Insert(rosed.End, lookText).
+		Wrap(gs.io.Width).
+		String()
+
+	return output, nil
 }
 
 // ExecuteCommandExits executes the EXITS command with the arguments in the
@@ -255,46 +318,9 @@ func (gs *State) ExecuteCommandDrop(cmd command.Command) (string, error) {
 // ExecuteCommandDrop executes the LOOK command with the arguments in the
 // provided Command and returns the output.
 func (gs *State) ExecuteCommandLook(cmd command.Command) (string, error) {
-	if cmd.Recipient != "" {
-		return "", tqerrors.Interpreterf("I can't LOOK at particular things yet")
-	}
-
-	output := gs.CurrentRoom.Description
-	if len(gs.CurrentRoom.Items) > 0 {
-		var itemNames []string
-
-		for _, it := range gs.CurrentRoom.Items {
-			itemNames = append(itemNames, it.Name)
-		}
-
-		output += "\n\n"
-		output += "On the ground, you can see "
-
-		output += util.MakeTextList(itemNames) + "."
-	}
-
-	if len(gs.CurrentRoom.NPCs) > 0 {
-		var npcNames []string
-
-		for _, npc := range gs.CurrentRoom.NPCs {
-			npcNames = append(npcNames, npc.Name)
-		}
-
-		// TODO: prop so npcs can be invisible to looks for static npcs that are
-		// mostly included in description.
-		if len(npcNames) > 0 {
-			output += "\n\nOh! "
-
-			output += util.MakeTextList(npcNames)
-
-			if len(npcNames) == 1 {
-				output += " is "
-			} else {
-				output += " are "
-			}
-
-			output += "here."
-		}
+	output, err := gs.Look(cmd.Recipient)
+	if err != nil {
+		return "", err
 	}
 
 	output = rosed.Edit(output).WrapOpts(gs.io.Width, textFormatOptions).String()

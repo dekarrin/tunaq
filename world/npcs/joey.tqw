@@ -30,7 +30,7 @@ content = "Hi there, I'm Joey!"
 response = "Hello, Joey."
 
 [[npc.line]]
-content = "alternate syntax: \" just having a string implies type=line, content of string, response of null"
+content = "So, um..."
 
 [[npc.line]]
 action = "choice"

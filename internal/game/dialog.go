@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dekarrin/rosed"
 	"golang.org/x/text/cases"
@@ -185,13 +186,16 @@ func (gs *State) RunConversation(npc *NPC) error {
 				line := step.Content
 				resp := step.Response
 
-				ed := rosed.Edit("\""+line+"\"").
+				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").
+					CharsFrom(rosed.End).
+					Insert(rosed.End, "\""+line+"\"").
 					Wrap(gs.io.Width).
-					Insert(0, npc.Name+":\n")
+					Insert(rosed.End, "\n")
 				if resp != "" {
-					ed = ed.Insert(ed.CharCount(), "\n\nYOU:\n")
-					ed = ed.Insert(ed.CharCount(), rosed.Edit(resp).Wrap(gs.io.Width).String())
-					ed = ed.Insert(ed.CharCount(), "\n")
+					ed = ed.
+						Insert(rosed.End, "\nYOU:\n").
+						Insert(rosed.End, rosed.Edit("\""+resp+"\"").Wrap(gs.io.Width).String()).
+						Insert(rosed.End, "\n")
 				}
 				output = ed.String()
 
@@ -203,7 +207,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 				}
 			case DialogChoice:
 				line := step.Content
-				ed := rosed.Edit("\""+line+"\"").
+				ed := rosed.Edit("\n\""+strings.ToUpper(line)+"\"").
 					Wrap(gs.io.Width).
 					Insert(0, npc.Name+":\n")
 				ed = ed.Insert(ed.CharCount(), "\n\n")
