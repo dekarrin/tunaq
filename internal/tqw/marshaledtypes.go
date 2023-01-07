@@ -96,6 +96,7 @@ type dialogStep struct {
 	Content  string     `toml:"content"`
 	Response string     `toml:"response"`
 	Choices  [][]string `toml:"choices"`
+	Continue string     `toml:"continue"`
 }
 
 func (tds dialogStep) toGameDialogStep() game.DialogStep {
@@ -110,6 +111,7 @@ func (tds dialogStep) toGameDialogStep() game.DialogStep {
 		Content:  tds.Content,
 		Response: tds.Response,
 		Choices:  make(map[string]string),
+		ResumeAt: strings.ToUpper(tds.Continue),
 	}
 
 	for _, ch := range tds.Choices {

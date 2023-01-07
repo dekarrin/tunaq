@@ -1,0 +1,242 @@
+format = "tuna"
+type = "data"
+
+[[npc]]
+label = "JHARLEY"
+name = "Jude Harley"
+aliases = ["JUDE", "JUDE HARLEY"]
+description = '''
+A rather nerdy looking kid with large-rim glasses. He's looking around at everything, and jumping at every sound. He
+doesn't seem to notice you in his concentration, ironically, as you're currently the one who's actually looking him
+over. He just keeps on muttering something about UFOs and jiggling a knob on a handheld radio sputtering static and
+whitenoise.
+'''
+pronouns = "he/him"
+start = "IGUANA_FOYER"
+
+[[npc.line]]
+content = "Psst. Hey."
+response = "Me?"
+
+[[npc.line]]
+content = "Yes, you. Who else would I be talking to?"
+response = "Um..."
+
+[[npc.line]]
+content = "Hold on. Is this medium a secure channel?"
+response = "I'm standing here talking to you directly, so yes, probably?"
+
+[[npc.line]]
+content = "Acceptable. My name's Jude. Listen, I have to tell you something."
+response = "What is it?"
+
+[[npc.line]]
+content = "There's something fishy going on around here. Something... consipiratorial."
+response = "Are you sure about that?"
+
+[[npc.line]]
+content = "Yes! Well, mostly. Well, I haven't really found any proof yet, but..."
+response = "So you have nothing?"
+
+[[npc.line]]
+content = "Well... no. Not yet anyways. But it's out there, I'm sure of it!"
+response = "But how do you know?"
+
+[[npc.line]]
+content = "See this radio?"
+
+[[npc.line]]
+content = '''
+Up until this morning it was working fine! Then, I bring it with me this morning on my daily trip to MATCHSTICK HILL to
+probe the secrets of visitors from another planet from the airwaves.
+'''
+response = "Wait, are you saying aliens are real?!"
+
+[[npc.line]]
+content = "Oh, they very much are, but that's a story for another time."
+
+[[npc.line]]
+content = '''
+Anyway, I walk by your place on my way to the hill, like I normally do, when all of a sudden I get the clearest signal
+I've ever heard!
+
+So of course I follow the signal, as I'm sure you too would do, my newfound friend.
+'''
+
+[[npc.line]]
+content = '''
+And what do I find but a whole dug in your yard, from which pours out the purest of radio signals.
+
+Naturally, I had to investigate.
+'''
+response = "So you broke into my house."
+
+[[npc.line]]
+content = '''
+Ohhhhh, um, this is your house?
+'''
+response = "It is."
+
+[[npc.line]]
+content = '''
+In that case, may I submit my intent was only to further mankind's knowlege of that which is undertaken without their
+knowledge by the very elected officials that we have put into office!
+
+But still, my apologies for doing so. I assure you, I meant you no harm, but it was still not my finest moment. If you
+had been there for me to ask permission, I would have.
+'''
+response = "Whatever. This day has been too weird for me to really care, I guess."
+
+[[npc.line]]
+content = "Your friendship is appreciated. We have to stick together to overcome the great conspiracies!"
+response = "Sure. Anwyays, does your radio still work at least?"
+
+[[npc.line]]
+content = '''
+I'm afraid not, fellow conspiracy hunter. On entry into the lair of the swimming iguana's, the signal suddenly went dark
+once more. No doubt the work of nefarious secret societies bent on halting our inevitable discovery of their vicious
+deeds.
+'''
+
+[[npc.line]]
+content = "Or worse."
+response = "What?"
+
+[[npc.line]]
+content = "The BATTERIES may be dying."
+reponse = "Gog forbid."
+
+[[npc.line]]
+content = '''
+Indeed. If you should happen to come across some BATTERIES in your wanderings, I would be very appreciative if you could
+inform me of such.
+'''
+response = "...huh?"
+
+[[npc.line]]
+content = "I'd really like it if you brought me any BATTERIES you find."
+response = "Ah. Sure, I'll keep an eye out."
+
+[[npc.line]]
+content = "Excellent, fellow conspiracy hunter!"
+response = "Battery hunter."
+
+[[npc.line]]
+content = "That, too."
+
+[[npc.line]]
+content = '''
+By the way, we should probably establish code names for future contact. That'll really throw them off our trail.
+'''
+response = "Who?"
+
+[[npc.line]]
+content = "You know. Them. The power behind the power. Illuminati, majestic twelve, and their ilk."
+response = "...Right. Of course. Them."
+
+[[npc.line]]
+content = "I'll go by RADIOHEAD. From now on, call me that, okay?"
+response = "Whatever you say."
+
+[[npc.line]]
+action = "choice"
+content = "What about you? What should your name be?"
+choices = [
+    ["I'll go with SPIDERMONKEY.", "SPIDERMONKER"],
+    ["GREEN GHOST will be my call sign.", "GREEN_GHOST"]
+    ["I'm not doing this. Just call me PLAYER.", "PLAYER"]
+]
+
+[[npc.line]]
+label = "SPIDERMONKEY"
+content = '''
+Ooh, nice one. SPIDERMONKEY will spook anybody listening in and make them think you're incredibly intimidating. Like
+some kind of super agent!
+'''
+response = "Heh, thanks, RADIOHEAD."
+
+[[npc.line]]
+content = "I think we'll make a great team. Be on the lookout for those BATTERIES, okay?"
+response = "Will do."
+
+[[npc.line]]
+action = "PAUSE"
+
+[[npc.line]]
+label = "SPIDERMONKEY_POST_TALK"
+content = "Good luck finding those BATTERIES, SPIDERMONKEY. Don't let them catch you off guard!"
+response = "You too, RADIOHEAD."
+
+[[npc.line]]
+content = '''
+Don't worry about me. I have ways of disappearing.
+
+RADIOHEAD over and out.
+'''
+
+[[npc.line]]
+action = "PAUSE"
+continue = "SPIDERMONKEY_POST_TALK"
+
+[[npc.line]]
+label = "GREEN_GHOST"
+content = '''
+Hmmm, GREEN GHOST, huh? I like it. Has an air of mystery to it that'll keep the ne'er-do-wells of the world guessing
+while you slip in without a sound and accomplish your mission.
+'''
+response = "They'll never see me coming! Especially if I make ghost sounds. Ooooooooooooooh!"
+
+[[npc.line]]
+content = '''
+Uh... yeah! That, uh, will confuse them at least. Probably.
+
+No doubt you'll be able to use this to your advantage to gather intel on those BATTERIES.
+'''
+response = "Ooooooooooooh, yes!"
+
+[[npc.line]]
+action = "PAUSE"
+
+[[npc.line]]
+label = "GREEN_GHOST_POST_TALK"
+content = "GREEN GHOST, good to see you. Any luck finding those BATTERIES?"
+response = "Not yet, RADIOHEAD, but I'll keep looking. Oooooooooooooh~"
+
+[[npc.line]]
+content = "Uh. Sure. Good. Good luck."
+
+[[npc.line]]
+action = "PAUSE"
+continue = "GREEN_GHOST_POST_TALK"
+
+[[npc.line]]
+label = "PLAYER"
+content = '''
+Oh. Well, that's disappointing, and possibly compromising to security both national and planetary in nature... but in
+the interest of friendship, I'll accept your choice, PLAYER.
+'''
+response = "Thank you. Hopefully this mysterious THEY or whatever won't figure it out."
+
+[[npc.line]]
+content = '''
+To be honest, it's a pretty atypical name and thus suits the purpose of being a cryptic name to confuse others, so I
+don't think it will be an issue.
+
+Anyways, please let me know if you find any BATTERIES.
+'''
+response = "Yeah, okay."
+
+[[npc.line]]
+action = "PAUSE"
+
+[[npc.line]]
+label = "PLAYER_POST_TALK"
+content = "Hello again, PLAYER. Did you run across any BATTERIES?"
+response = "Nope, still looking."
+
+[[npc.line]]
+content = "Ah. Best of luck."
+
+[[npc.line]]
+action = "PAUSE"
+continue = "PLAYER_POST_TALK"

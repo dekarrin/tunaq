@@ -15,6 +15,7 @@ const (
 	DialogEnd DialogAction = iota
 	DialogLine
 	DialogChoice
+	DialogPause
 )
 
 func (dst DialogAction) String() string {
@@ -25,6 +26,8 @@ func (dst DialogAction) String() string {
 		return "LINE"
 	case DialogChoice:
 		return "CHOICE"
+	case DialogPause:
+		return "PAUSE"
 	default:
 		return fmt.Sprintf("DialogAction(%d)", int(dst))
 	}
@@ -36,6 +39,7 @@ var DialogActionsByString map[string]DialogAction = map[string]DialogAction{
 	DialogEnd.String():    DialogEnd,
 	DialogLine.String():   DialogLine,
 	DialogChoice.String(): DialogChoice,
+	DialogPause.String():  DialogPause,
 }
 
 // DialogStep is a single step of a Dialog tree. It instructions a Dialog as to
@@ -58,6 +62,11 @@ type DialogStep struct {
 	// Label of the DialogStep. If not set it will just be the index within the
 	// conversation tree.
 	Label string
+
+	// Resume is the label to resume the conversation with after coming back
+	// after a PAUSE step. It is only relevant if Action is DialogPause. If
+	// blank on a PAUSE step, it will resume with the next step in the tree.
+	ResumeAt string
 }
 
 // Copy returns a deeply-copied DialogStep.
@@ -68,6 +77,7 @@ func (ds DialogStep) Copy() DialogStep {
 		Response: ds.Response,
 		Choices:  make(map[string]string, len(ds.Choices)),
 		Content:  ds.Content,
+		ResumeAt: ds.ResumeAt,
 	}
 
 	for k, v := range ds.Choices {
@@ -100,6 +110,12 @@ func (ds DialogStep) String() string {
 			}
 		}
 		str += ")>"
+		return str
+	case DialogPause:
+		if ds.ResumeAt != "" {
+			str += fmt.Sprintf(" (RESUME: %q)", ds.ResumeAt)
+		}
+		str += ">"
 		return str
 	default:
 		return str + " (UNKNOWN TYPE)>"
@@ -259,6 +275,13 @@ func (gs *State) RunConversation(npc *NPC) error {
 
 				dest := choiceOut[choiceNum-1]
 				npc.Convo.JumpTo(dest)
+			case DialogPause:
+				// if resumeAt is not set, no jump needs to be made, convo will
+				// resume with NextStep.
+				if step.ResumeAt != "" {
+					npc.Convo.JumpTo(step.ResumeAt)
+				}
+
 			default:
 				// should never happen
 				panic("unknown line type")
