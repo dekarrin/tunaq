@@ -2,8 +2,6 @@ package game
 
 import (
 	"fmt"
-	"math"
-	"sort"
 	"strings"
 
 	"github.com/dekarrin/rosed"
@@ -153,279 +151,202 @@ func (gs *State) MoveNPCs() {
 // TODO: differentiate syntax errors from io errors
 func (gs *State) Advance(cmd command.Command) error {
 	var output string
+	var err error
 
 	switch cmd.Verb {
 	case "QUIT":
 		return tqerrors.Interpreterf("I can't QUIT; I'm not being executed by a quitable engine")
 	case "GO":
-		egress := gs.CurrentRoom.GetEgressByAlias(cmd.Recipient)
-		if egress == nil {
-			return tqerrors.Interpreterf("%q isn't a place you can go from here", cmd.Recipient)
-		}
-
-		gs.CurrentRoom = gs.World[egress.DestLabel]
-
-		gs.MoveNPCs()
-
-		output += rosed.Edit(egress.TravelMessage).WrapOpts(gs.io.Width, textFormatOptions).String()
+		output, err = gs.ExecuteCommandGo(cmd)
 	case "EXITS":
-		exitTable := ""
-
-		for _, eg := range gs.CurrentRoom.Exits {
-			exitTable += strings.Join(eg.Aliases, "/")
-			exitTable += " -> "
-			exitTable += eg.Description
-			exitTable += "\n"
-		}
-
-		output = exitTable
+		output, err = gs.ExecuteCommandExits(cmd)
 	case "TAKE":
-		item := gs.CurrentRoom.GetItemByAlias(cmd.Recipient)
-		if item == nil {
-			return tqerrors.Interpreterf("I don't see any %q here", cmd.Recipient)
-		}
-
-		// first remove the item from the room
-		gs.CurrentRoom.RemoveItem(item.Label)
-
-		// then add it to inventory.
-		gs.Inventory[item.Label] = *item
-
-		output = fmt.Sprintf("You pick up the %s and add it to your inventory.", item.Name)
+		output, err = gs.ExecuteCommandTake(cmd)
 	case "DROP":
-		item := gs.Inventory.GetItemByAlias(cmd.Recipient)
-		if item == nil {
-			return tqerrors.Interpreterf("You don't have a %q", cmd.Recipient)
-		}
-
-		// first remove item from inven
-		delete(gs.Inventory, item.Label)
-
-		// add to room
-		gs.CurrentRoom.Items = append(gs.CurrentRoom.Items, *item)
-
-		output = fmt.Sprintf("You drop the %s onto the ground", item.Name)
+		output, err = gs.ExecuteCommandDrop(cmd)
 	case "LOOK":
-		if cmd.Recipient != "" {
-			return tqerrors.Interpreterf("I can't LOOK at particular things yet")
-		}
-
-		output = gs.CurrentRoom.Description
-		if len(gs.CurrentRoom.Items) > 0 {
-			var itemNames []string
-
-			for _, it := range gs.CurrentRoom.Items {
-				itemNames = append(itemNames, it.Name)
-			}
-
-			output += "\n\n"
-			output += "On the ground, you can see "
-
-			output += util.MakeTextList(itemNames) + "."
-		}
-
-		output = rosed.Edit(output).WrapOpts(gs.io.Width, textFormatOptions).String()
+		output, err = gs.ExecuteCommandLook(cmd)
 	case "INVENTORY":
-		if len(gs.Inventory) < 1 {
-			output = "You aren't carrying anything"
-		} else {
-			var itemNames []string
-			for _, it := range gs.Inventory {
-				itemNames = append(itemNames, it.Name)
-			}
-
-			output = "You currently have the following items:\n"
-			output += util.MakeTextList(itemNames) + "."
-		}
-
-		output = rosed.Edit(output).WrapOpts(gs.io.Width, textFormatOptions).String()
+		output, err = gs.ExecuteCommandInventory(cmd)
 	case "TALK":
-		roomLabel, ok := gs.npcLocations[cmd.Recipient]
-		if !ok {
-			return tqerrors.Interpreterf("There doesn't seem to be any NPCs with label %q in this world", cmd.Recipient)
-		}
-
-		room := gs.World[roomLabel]
-		npc := room.NPCs[cmd.Recipient]
-
-		if npc.Convo == nil {
-			npc.Convo = &Conversation{Dialog: npc.Dialog}
-		}
-
-		err := gs.RunConversation(npc)
-		if err != nil {
-			return err
-		}
-
-		output = fmt.Sprintf("You stop talking to %s.", strings.ToLower(npc.Pronouns.Objective))
+		output, err = gs.ExecuteCommandTalk(cmd)
 	case "DEBUG":
-		if cmd.Recipient == "ROOM" {
-			if cmd.Instrument == "" {
-				output = gs.CurrentRoom.String() + "\n\n(Type 'DEBUG ROOM label' to teleport to that room)"
-			} else {
-				if _, ok := gs.World[cmd.Instrument]; !ok {
-					return tqerrors.Interpreterf("There doesn't seem to be any rooms with label %q in this world", cmd.Instrument)
-				}
-
-				gs.CurrentRoom = gs.World[cmd.Instrument]
-
-				output = fmt.Sprintf("Poof! You are now in %q", cmd.Instrument)
-			}
-		} else if cmd.Recipient == "NPC" {
-			if cmd.Instrument == "" {
-				// info on all NPCs and their locations
-				data := [][]string{{"NPC", "Movement", "Room"}}
-
-				// we need to ensure a consistent ordering so need to sort all
-				// keys first
-				orderedNPCLabels := make([]string, len(gs.npcLocations))
-				var orderedIdx int
-				for npcLabel := range gs.npcLocations {
-					orderedNPCLabels[orderedIdx] = npcLabel
-					orderedIdx++
-				}
-				sort.Strings(orderedNPCLabels)
-
-				for _, npcLabel := range orderedNPCLabels {
-					roomLabel := gs.npcLocations[npcLabel]
-					room := gs.World[roomLabel]
-					npc := room.NPCs[npcLabel]
-
-					infoRow := []string{npc.Label, npc.Movement.Action.String(), room.Label}
-					data = append(data, infoRow)
-				}
-
-				footer := "Type \"DEBUG NPC\" followed by the label of an NPC for more info on that NPC.\n"
-				footer += "Type \"DEBUG NPC @STEP\" to move all NPCs forward by one turn."
-
-				tableOpts := rosed.Options{
-					TableHeaders: true,
-				}
-
-				output = rosed.Edit("\n"+footer).
-					InsertTableOpts(0, data, 80, tableOpts).
-					String()
-			} else if strings.HasPrefix(cmd.Instrument, "@") {
-				if cmd.Instrument == "@STEP" {
-					// check original locations so we can tell how many moved
-					originalLocs := make(map[string]string)
-					for k, v := range gs.npcLocations {
-						originalLocs[k] = v
-					}
-
-					gs.MoveNPCs()
-
-					// count how many moved and how many stayed
-					var moved, stayed int
-					for k := range gs.npcLocations {
-						if originalLocs[k] != gs.npcLocations[k] {
-							moved++
-						} else {
-							stayed++
-						}
-					}
-
-					pluralNPCs := ""
-					if stayed+moved != 1 {
-						pluralNPCs = "s"
-					}
-
-					output = fmt.Sprintf("Applied movement to %d NPC%s; %d moved, %d stayed", stayed+moved, pluralNPCs, moved, stayed)
-				} else {
-					return tqerrors.Interpreterf("There is no NPC DEBUG action called @%q; you can only use the @STEP action with NPCs")
-				}
-			} else {
-				roomLabel, ok := gs.npcLocations[cmd.Instrument]
-				if !ok {
-					return tqerrors.Interpreterf("There doesn't seem to be any NPCs with label %q in this world", cmd.Instrument)
-				}
-
-				room := gs.World[roomLabel]
-				npc := room.NPCs[cmd.Instrument]
-
-				npcInfo := [][2]string{
-					{"Name", npc.Name},
-					{"Pronouns", npc.Pronouns.Short()},
-					{"Room", room.Label},
-					{"Movement Type", npc.Movement.Action.String()},
-					{"Start Room", npc.Start},
-				}
-
-				if npc.Movement.Action == RoutePatrol {
-					routeInfo := ""
-					for i := range npc.Movement.Path {
-						if npc.routeCur != nil && (((*npc.routeCur)+1)%len(npc.Movement.Path) == i) {
-							routeInfo += "==> "
-						} else {
-							routeInfo += "--> "
-						}
-						routeInfo += npc.Movement.Path[i]
-						if i+1 < len(npc.Movement.Path) {
-							routeInfo += " "
-						}
-					}
-					npcInfo = append(npcInfo, [2]string{"Route", routeInfo})
-				} else if npc.Movement.Action == RouteWander {
-					allowed := strings.Join(npc.Movement.AllowedRooms, ", ")
-					forbidden := strings.Join(npc.Movement.AllowedRooms, ", ")
-
-					if forbidden == "" {
-						if allowed == "" {
-							forbidden = "(none)"
-						} else {
-							forbidden = "(any not in Allowed list)"
-						}
-					}
-					if allowed == "" {
-						allowed = "(all)"
-					}
-
-					npcInfo = append(npcInfo, [2]string{"Allowed Rooms", allowed})
-					npcInfo = append(npcInfo, [2]string{"Forbidden Rooms", forbidden})
-				}
-
-				diaStr := "(none defined)"
-				if len(npc.Dialog) > 0 {
-					node := "step"
-					if len(npc.Dialog) != 1 {
-						node += "s"
-					}
-					diaStr = fmt.Sprintf("%d %s in dialog tree", len(npc.Dialog), node)
-				}
-				npcInfo = append(npcInfo, [2]string{"Dialog", diaStr})
-
-				npcInfo = append(npcInfo, [2]string{"Description", npc.Description})
-
-				// build at width + 2 then eliminate the left margin that
-				// InsertDefinitionsTable always adds to remove the 2 extra
-				// chars
-				tableOpts := rosed.Options{ParagraphSeparator: "\n"}
-				output = rosed.Edit("NPC Info for "+npc.Label+"\n"+
-					"\n",
-				).
-					InsertDefinitionsTableOpts(math.MaxInt, npcInfo, gs.io.Width+2, tableOpts).
-					LinesFrom(2).
-					Apply(func(idx int, line string) []string {
-						line = strings.Replace(line[2:], "  -", "  :", 1)
-						return []string{line}
-					}).
-					String()
-			}
-		} else {
-			return tqerrors.Interpreterf("I don't know how to debug %q", cmd.Recipient)
-		}
+		output, err = gs.ExecuteCommandDebug(cmd)
 	case "HELP":
-		ed := rosed.
-			Edit("").
-			WithOptions(rosed.Options{ParagraphSeparator: "\n"}).
-			InsertDefinitionsTable(0, commandHelp, 80)
-		output = ed.
-			Insert(0, "Here are the commands you can use (WIP commands do not yet work fully):\n").
-			String()
+		output, err = gs.ExecuteCommandHelp(cmd)
 	default:
 		return tqerrors.Interpreterf("I don't know how to %q", cmd.Verb)
 	}
 
+	if err != nil {
+		return err
+	}
+
 	// IO to give output:
 	return gs.io.Output(output + "\n\n")
+}
+
+// ExecuteCommandGo executes the GO command with the arguments in the provided
+// Command and returns the output.
+func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
+	egress := gs.CurrentRoom.GetEgressByAlias(cmd.Recipient)
+	if egress == nil {
+		return "", tqerrors.Interpreterf("%q isn't a place you can go from here", cmd.Recipient)
+	}
+
+	gs.CurrentRoom = gs.World[egress.DestLabel]
+
+	gs.MoveNPCs()
+
+	return rosed.Edit(egress.TravelMessage).WrapOpts(gs.io.Width, textFormatOptions).String(), nil
+}
+
+// ExecuteCommandExits executes the EXITS command with the arguments in the
+// provided Command and returns the output.
+func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
+	exitTable := ""
+
+	for _, eg := range gs.CurrentRoom.Exits {
+		exitTable += strings.Join(eg.Aliases, "/")
+		exitTable += " -> "
+		exitTable += eg.Description
+		exitTable += "\n"
+	}
+
+	return exitTable, nil
+}
+
+// ExecuteCommandTake executes the TAKE command with the arguments in the
+// provided Command and returns the output.
+func (gs *State) ExecuteCommandTake(cmd command.Command) (string, error) {
+	item := gs.CurrentRoom.GetItemByAlias(cmd.Recipient)
+	if item == nil {
+		return "", tqerrors.Interpreterf("I don't see any %q here", cmd.Recipient)
+	}
+
+	// first remove the item from the room
+	gs.CurrentRoom.RemoveItem(item.Label)
+
+	// then add it to inventory.
+	gs.Inventory[item.Label] = *item
+
+	output := fmt.Sprintf("You pick up the %s and add it to your inventory.", item.Name)
+	return output, nil
+}
+
+// ExecuteCommandDrop executes the DROP command with the arguments in the
+// provided Command and returns the output.
+func (gs *State) ExecuteCommandDrop(cmd command.Command) (string, error) {
+	item := gs.Inventory.GetItemByAlias(cmd.Recipient)
+	if item == nil {
+		return "", tqerrors.Interpreterf("You don't have a %q", cmd.Recipient)
+	}
+
+	// first remove item from inven
+	delete(gs.Inventory, item.Label)
+
+	// add to room
+	gs.CurrentRoom.Items = append(gs.CurrentRoom.Items, *item)
+
+	output := fmt.Sprintf("You drop the %s onto the ground", item.Name)
+	return output, nil
+}
+
+// ExecuteCommandDrop executes the LOOK command with the arguments in the
+// provided Command and returns the output.
+func (gs *State) ExecuteCommandLook(cmd command.Command) (string, error) {
+	if cmd.Recipient != "" {
+		return "", tqerrors.Interpreterf("I can't LOOK at particular things yet")
+	}
+
+	output := gs.CurrentRoom.Description
+	if len(gs.CurrentRoom.Items) > 0 {
+		var itemNames []string
+
+		for _, it := range gs.CurrentRoom.Items {
+			itemNames = append(itemNames, it.Name)
+		}
+
+		output += "\n\n"
+		output += "On the ground, you can see "
+
+		output += util.MakeTextList(itemNames) + "."
+	}
+
+	output = rosed.Edit(output).WrapOpts(gs.io.Width, textFormatOptions).String()
+	return output, nil
+}
+
+// ExecuteCommandInventory executes the INVENTORY command with the arguments in
+// the provided Command and returns the output.
+func (gs *State) ExecuteCommandInventory(cmd command.Command) (string, error) {
+	var output string
+
+	if len(gs.Inventory) < 1 {
+		output = "You aren't carrying anything"
+	} else {
+		var itemNames []string
+		for _, it := range gs.Inventory {
+			itemNames = append(itemNames, it.Name)
+		}
+
+		output = "You currently have the following items:\n"
+		output += util.MakeTextList(itemNames) + "."
+	}
+
+	output = rosed.Edit(output).WrapOpts(gs.io.Width, textFormatOptions).String()
+	return output, nil
+}
+
+// ExecuteCommandTalk executes the TALK command with the arguments in
+// the provided Command and returns the output. This will enter into an input
+// loop that will not exit until the conversation is PAUSED or an END step is
+// reached in it.
+func (gs *State) ExecuteCommandTalk(cmd command.Command) (string, error) {
+	roomLabel, ok := gs.npcLocations[cmd.Recipient]
+	if !ok {
+		return "", tqerrors.Interpreterf("There doesn't seem to be any NPCs with label %q in this world", cmd.Recipient)
+	}
+
+	room := gs.World[roomLabel]
+	npc := room.NPCs[cmd.Recipient]
+
+	if npc.Convo == nil {
+		npc.Convo = &Conversation{Dialog: npc.Dialog}
+	}
+
+	err := gs.RunConversation(npc)
+	if err != nil {
+		return "", err
+	}
+
+	output := fmt.Sprintf("You stop talking to %s.", strings.ToLower(npc.Pronouns.Objective))
+	return output, nil
+}
+
+// ExecuteCommandDebug executes the DEBUG command with the arguments in the
+// provided Command and returns the output. The DEBUG command has varied
+// arguments and may do different things based on what else is provided.
+func (gs *State) ExecuteCommandDebug(cmd command.Command) (string, error) {
+	if cmd.Recipient == "ROOM" {
+		return gs.executeDebugRoom(cmd.Instrument)
+	} else if cmd.Recipient == "NPC" {
+		return gs.executeDebugNPC(cmd.Instrument)
+	} else {
+		return "", tqerrors.Interpreterf("I don't know how to debug %q", cmd.Recipient)
+	}
+}
+
+func (gs *State) ExecuteCommandHelp(cmd command.Command) (string, error) {
+	var output string
+
+	ed := rosed.
+		Edit("").
+		WithOptions(rosed.Options{ParagraphSeparator: "\n"}).
+		InsertDefinitionsTable(0, commandHelp, 80)
+	output = ed.
+		Insert(0, "Here are the commands you can use (WIP commands do not yet work fully):\n").
+		String()
+
+	return output, nil
 }
