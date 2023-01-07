@@ -209,9 +209,9 @@ func (gs *State) RunConversation(npc *NPC) error {
 				line := step.Content
 				ed := rosed.Edit("\n\""+strings.ToUpper(line)+"\"").
 					Wrap(gs.io.Width).
-					Insert(0, npc.Name+":\n")
-				ed = ed.Insert(ed.CharCount(), "\n\n")
-				ed = ed.CharsFrom(ed.CharCount())
+					Insert(0, npc.Name+":\n").
+					Insert(rosed.End, "\n\n").
+					CharsFrom(rosed.End)
 
 				var choiceOut = make([]string, len(step.Choices))
 				choiceIdx := 0
@@ -219,7 +219,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 					chDest := step.Choices[ch]
 					choiceOut[choiceIdx] = chDest
 
-					ed = ed.Insert(ed.CharCount(), fmt.Sprintf("%d) \"%s\"\n", choiceIdx+1, ch))
+					ed = ed.Insert(rosed.End, fmt.Sprintf("%d) \"%s\"\n", choiceIdx+1, ch))
 
 					choiceIdx++
 				}
