@@ -64,11 +64,11 @@ So of course I follow the signal, as I'm sure you too would do, my newfound frie
 '''
 
 [[npc.line]]
-content = '''
-And what do I find but a whole dug in your yard, from which pours out the purest of radio signals.
+content = """
+And what do I find but a hole dug in your yard, from which pours out the purest of radio signals.
 
 Naturally, I had to investigate.
-'''
+"""
 response = "So you broke into my house."
 
 [[npc.line]]
@@ -142,8 +142,8 @@ response = "Whatever you say."
 action = "choice"
 content = "What about you? What should your name be?"
 choices = [
-    ["I'll go with SPIDERMONKEY.", "SPIDERMONKER"],
-    ["GREEN GHOST will be my call sign.", "GREEN_GHOST"]
+    ["I'll go with SPIDERMONKEY.", "SPIDERMONKEY"],
+    ["GREEN GHOST will be my call sign.", "GREEN_GHOST"],
     ["I'm not doing this. Just call me PLAYER.", "PLAYER"]
 ]
 

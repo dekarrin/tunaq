@@ -184,6 +184,9 @@ func (convo *Conversation) buildAliases() {
 }
 
 func (gs *State) RunConversation(npc *NPC) error {
+	// in case we need to end convo early, so we can reset it
+	oldConvoCur := npc.Convo.cur
+
 	var output string
 	if len(npc.Dialog) < 1 {
 		nomPro := cases.Title(language.AmericanEnglish).String(npc.Pronouns.Nominative)
@@ -206,15 +209,15 @@ func (gs *State) RunConversation(npc *NPC) error {
 				line := step.Content
 				resp := step.Response
 
-				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").
+				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
-					Insert(rosed.End, "\""+line+"\"").
+					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
 					Wrap(gs.io.Width).
 					Insert(rosed.End, "\n")
 				if resp != "" {
 					ed = ed.
 						Insert(rosed.End, "\nYOU:\n").
-						Insert(rosed.End, rosed.Edit("\""+resp+"\"").Wrap(gs.io.Width).String()).
+						Insert(rosed.End, rosed.Edit("\""+strings.TrimSpace(resp)+"\"").Wrap(gs.io.Width).String()).
 						Insert(rosed.End, "\n")
 				}
 				output = ed.String()
@@ -222,14 +225,21 @@ func (gs *State) RunConversation(npc *NPC) error {
 				if err := gs.io.Output(output); err != nil {
 					return err
 				}
-				if _, err := gs.io.Input("==> "); err != nil {
+
+				stopCmd, err := gs.io.Input("==> ")
+				if err != nil {
 					return err
+				}
+				stopCmdUpper := strings.ToUpper(strings.TrimSpace(stopCmd))
+				if stopCmdUpper == "STOP" || stopCmdUpper == "QUIT" || stopCmdUpper == "LEAVE" {
+					npc.Convo.cur = oldConvoCur
+					return nil
 				}
 			case DialogChoice:
 				line := step.Content
-				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").
+				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
-					Insert(rosed.End, "\""+line+"\"").
+					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
 					Wrap(gs.io.Width).
 					Insert(rosed.End, "\n\n").
 					CharsFrom(rosed.End)
@@ -240,7 +250,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 					chDest := step.Choices[ch]
 					choiceOut[choiceIdx] = chDest
 
-					ed = ed.Insert(rosed.End, fmt.Sprintf("%d) \"%s\"\n", choiceIdx+1, ch))
+					ed = ed.Insert(rosed.End, fmt.Sprintf("%d) \"%s\"\n", choiceIdx+1, strings.TrimSpace(ch)))
 
 					choiceIdx++
 				}
