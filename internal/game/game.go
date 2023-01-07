@@ -338,7 +338,7 @@ func (gs *State) Advance(cmd command.Command) error {
 		}
 
 		room := gs.World[roomLabel]
-		npc := room.NPCs[cmd.Instrument]
+		npc := room.NPCs[cmd.Recipient]
 
 		if npc.Convo == nil {
 			npc.Convo = &Conversation{Dialog: npc.Dialog}
@@ -361,7 +361,7 @@ func (gs *State) Advance(cmd command.Command) error {
 
 				gs.CurrentRoom = gs.World[cmd.Instrument]
 
-				output = fmt.Sprintf("Poof! You are now in %q\n", cmd.Instrument)
+				output = fmt.Sprintf("Poof! You are now in %q", cmd.Instrument)
 			}
 		} else if cmd.Recipient == "NPC" {
 			if cmd.Instrument == "" {
