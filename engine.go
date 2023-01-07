@@ -56,7 +56,9 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string, fo
 		forceDirect: forceDirectInput,
 	}
 
-	if !forceDirectInput && inputStream == os.Stdin && outputStream == os.Stdout {
+	useReadline := !forceDirectInput && inputStream == os.Stdin && outputStream == os.Stdout
+
+	if useReadline {
 		eng.in, err = input.NewInteractiveReader()
 		if err != nil {
 			return nil, fmt.Errorf("initializing interactive-mode input reader: %w", err)
@@ -77,15 +79,27 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string, fo
 		return nil
 	}
 	inputFunc := func(prompt string) (string, error) {
-		if prompt != "" {
-			if err := outFunc(prompt); err != nil {
-				return "", err
+		var oldPrompt string
+		var icr *input.InteractiveCommandReader
+		if useReadline {
+			icr = eng.in.(*input.InteractiveCommandReader)
+			oldPrompt = icr.GetPrompt()
+			icr.SetPrompt(prompt)
+		} else {
+			if prompt != "" {
+				if err := outFunc(prompt); err != nil {
+					return "", err
+				}
 			}
 		}
 		eng.in.AllowBlank(true)
-		input, err := eng.in.ReadCommand()
+		readInput, err := eng.in.ReadCommand()
 		eng.in.AllowBlank(false)
-		return input, err
+		if useReadline {
+			icr = eng.in.(*input.InteractiveCommandReader)
+			icr.SetPrompt(oldPrompt)
+		}
+		return readInput, err
 	}
 	ioDev := game.IODevice{
 		Width:  consoleOutputWidth,

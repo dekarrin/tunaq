@@ -12,6 +12,7 @@
 /tqi
 /tqi.exe
 /tqi.sh
+/tqi.exe~
 
 # we are a go mod household tyvm
 /vendor

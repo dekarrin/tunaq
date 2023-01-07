@@ -33,6 +33,7 @@ type DirectCommandReader struct {
 type InteractiveCommandReader struct {
 	rl            *readline.Instance
 	blanksAllowed bool
+	prompt        string
 }
 
 // Create a new DirectCommandReader and initialize a buffered reader on the
@@ -56,7 +57,8 @@ func NewInteractiveReader() (*InteractiveCommandReader, error) {
 	}
 
 	return &InteractiveCommandReader{
-		rl: rl,
+		rl:     rl,
+		prompt: "> ",
 	}, nil
 }
 
@@ -138,4 +140,14 @@ func (dcr *DirectCommandReader) AllowBlank(allow bool) {
 // AllowBlank sets whether blank output is allowed. By default it is not.
 func (icr *InteractiveCommandReader) AllowBlank(allow bool) {
 	icr.blanksAllowed = allow
+}
+
+// SetPrompt updates the prompt to the given text.
+func (icr *InteractiveCommandReader) SetPrompt(p string) {
+	icr.rl.SetPrompt(p)
+}
+
+// GetPrompt gets the current prompt.
+func (icr *InteractiveCommandReader) GetPrompt() string {
+	return icr.prompt
 }
