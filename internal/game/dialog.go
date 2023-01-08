@@ -55,9 +55,8 @@ type DialogStep struct {
 	// use choices.
 	Response string
 
-	// Choices and the label of dialog step they map to. If one isn't given, it
-	// is assumed to end the conversation.
-	Choices map[string]string
+	// Choices is a series of options for a CHOICE type dialog step.
+	Choices [][2]string
 
 	// Label of the DialogStep. If not set it will just be the index within the
 	// conversation tree.
@@ -75,13 +74,13 @@ func (ds DialogStep) Copy() DialogStep {
 		Action:   ds.Action,
 		Label:    ds.Label,
 		Response: ds.Response,
-		Choices:  make(map[string]string, len(ds.Choices)),
+		Choices:  make([][2]string, len(ds.Choices)),
 		Content:  ds.Content,
 		ResumeAt: ds.ResumeAt,
 	}
 
-	for k, v := range ds.Choices {
-		dsCopy.Choices[k] = v
+	for idx, v := range ds.Choices {
+		dsCopy.Choices[idx] = [2]string{v[0], v[1]}
 	}
 
 	return dsCopy
@@ -245,14 +244,12 @@ func (gs *State) RunConversation(npc *NPC) error {
 					CharsFrom(rosed.End)
 
 				var choiceOut = make([]string, len(step.Choices))
-				choiceIdx := 0
-				for ch := range step.Choices {
-					chDest := step.Choices[ch]
-					choiceOut[choiceIdx] = chDest
+				for idx := range step.Choices {
+					ch := step.Choices[idx][0]
+					chDest := step.Choices[idx][1]
+					choiceOut[idx] = chDest
 
-					ed = ed.Insert(rosed.End, fmt.Sprintf("%d) \"%s\"\n", choiceIdx+1, strings.TrimSpace(ch)))
-
-					choiceIdx++
+					ed = ed.Insert(rosed.End, fmt.Sprintf("%d) \"%s\"\n", idx+1, strings.TrimSpace(ch)))
 				}
 				ed = ed.Apply(func(idx int, line string) []string {
 					return []string{rosed.Edit(line).Wrap(gs.io.Width).String()}
@@ -291,7 +288,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 				if step.ResumeAt != "" {
 					npc.Convo.JumpTo(step.ResumeAt)
 				}
-
+				return nil
 			default:
 				// should never happen
 				panic("unknown line type")

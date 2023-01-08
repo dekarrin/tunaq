@@ -93,7 +93,7 @@ response = "Sure. Anwyays, does your radio still work at least?"
 
 [[npc.line]]
 content = '''
-I'm afraid not, fellow conspiracy hunter. On entry into the lair of the swimming iguana's, the signal suddenly went dark
+I'm afraid not, fellow conspiracy hunter. On entry into the lair of the swimming iguanas, the signal suddenly went dark
 once more. No doubt the work of nefarious secret societies bent on halting our inevitable discovery of their vicious
 deeds.
 '''
@@ -104,7 +104,7 @@ response = "What?"
 
 [[npc.line]]
 content = "The BATTERIES may be dying."
-reponse = "Gog forbid."
+response = "Gog forbid."
 
 [[npc.line]]
 content = '''

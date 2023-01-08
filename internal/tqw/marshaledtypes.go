@@ -110,18 +110,19 @@ func (tds dialogStep) toGameDialogStep() game.DialogStep {
 		Label:    strings.ToUpper(tds.Label),
 		Content:  tds.Content,
 		Response: tds.Response,
-		Choices:  make(map[string]string),
+		Choices:  make([][2]string, len(tds.Choices)),
 		ResumeAt: strings.ToUpper(tds.Continue),
 	}
 
-	for _, ch := range tds.Choices {
-		if len(ch) < 2 {
+	for i := range tds.Choices {
+		if len(tds.Choices[i]) < 2 {
 			continue
 		}
 
-		choice := ch[0]
-		dest := strings.ToUpper(ch[1])
-		ds.Choices[choice] = dest
+		choice := tds.Choices[i][0]
+		dest := strings.ToUpper(tds.Choices[i][1])
+
+		ds.Choices[i] = [2]string{choice, dest}
 	}
 
 	return ds
