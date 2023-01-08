@@ -3,6 +3,7 @@ package tunascript
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 // tunascript execution engine
@@ -92,13 +93,23 @@ func NewInterpreter(w WorldInterface) Interpreter {
 type symbolType int
 
 const (
-	symbolLeftParen symbolType = iota
-	symbolRightParen
-	symbolValue
+	symbolValue symbolType = iota
 	symbolDollar
 	symbolIdentifier
-	symbolComma
 )
+
+func (st symbolType) String() string {
+	switch st {
+	case symbolValue:
+		return "value"
+	case symbolDollar:
+		return "\"$\""
+	case symbolIdentifier:
+		return "identifier"
+	default:
+		return "UNKNOWN SYMBOL TYPE"
+	}
+}
 
 type symbol struct {
 	sType  symbolType
@@ -129,11 +140,63 @@ type nodeType int
 
 const (
 	nodeItem nodeType = iota
+	nodeGroup
+	nodeRoot
 )
+
+type evalState int
+
+const (
+	evalDefault evalState = iota
+	evalDollar
+)
+
+// ParseText interprets the text in the abstract syntax tree and evaluates it.
+func (inter Interpreter) EvalText(ast *ASTNode) (Value, error) {
+	var v Value
+	if ast.t != nodeRoot {
+		return v, fmt.Errorf("Cannot parse AST anywhere besides root of the tree")
+	}
+
+	mode := evalDefault
+
+	for i := 0; i < len(ast.children); i++ {
+		child := ast.children[i]
+		if child.t == nodeGroup {
+			return v, fmt.Errorf("Unexpected parenthesis group\n(to use \"(\" and \")\" as Str values, put them in between two \"|\" chars or\nescape them)")
+		}
+		if child.sym.sType == symbolIdentifier {
+			// TODO: move this into AST builder,
+			// for now just convert these here
+			// an identifier on its own is rly just a val.
+			child.sym.sType = symbolValue
+		}
+
+		if child.sym.sType == symbolDollar {
+			// okay, check ahead for an ident
+			if i+1 >= len(ast.children) {
+				return v, fmt.Errorf("Unexpected bare \"$\" character at end\n(to use \"$\" as a  Str value, put it in between two \"|\" chars or escape it)")
+			}
+			identNode := ast.children[i+1]
+			if identNode.t == nodeGroup {
+				return v, fmt.Errorf("Unexpected parenthesis group after \"$\" character, expected identifier")
+			}
+			if identNode.sym.sType != symbolIdentifier {
+				return v, fmt.Errorf("Unexpected %s after \"$\" character, expected identifier")
+			}
+
+			// we now have an identifier, but is this a var or function?
+			isFunc := false
+			if i+2 <= len(ast.children) {
+
+			}
+		}
+	}
+}
 
 // LexText lexes the text. Returns the AST, whether exiting on right paren, how
 // many bytes were consumed, and whether an error was encountered.
-func (inter Interpreter) LexText(s string, parent *ASTNode) (*ASTNode, bool, int, error) {
+func (inter Interpreter) buildAST(s string, parent *ASTNode) (*ASTNode, bool, int, error) {
 	node := &ASTNode{children: make([]*ASTNode, 0)}
 	if parent == nil {
 		node.root = node
@@ -179,7 +242,7 @@ func (inter Interpreter) LexText(s string, parent *ASTNode) (*ASTNode, bool, int
 			} else if !escaping && ch == '|' {
 				symNode := &ASTNode{
 					root: node.root,
-					sym:  symbol{sType: symbolValue, source: "|" + buildingText + "|"},
+					sym:  symbol{sType: symbolValue, source: buildingText, forceType: Str},
 				}
 				node.children = append(node.children, symNode)
 				buildingText = ""
@@ -212,33 +275,19 @@ func (inter Interpreter) LexText(s string, parent *ASTNode) (*ASTNode, bool, int
 					buildingText = ""
 				}
 
-				pNode := &ASTNode{
-					root: node.root,
-					sym:  symbol{sType: symbolLeftParen, source: "("},
+				if i+1 >= len(sRunes) {
+					return nil, false, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
 				}
-				node.children = append(node.children, pNode)
+				nextByteIdx := sBytes[i+1]
 
-				// need to find the next byte
-				nextByteIdx := -1
-				if i+1 < len(sRunes) {
-					nextByteIdx = sBytes[i+1]
+				subNode, _, consumed, err := inter.buildAST(s[nextByteIdx:], node)
+				if err != nil {
+					return nil, false, 0, err
 				}
+				subNode.t = nodeGroup
 
-				// parse the rest as tree, if there's more
-				if nextByteIdx != -1 {
-					subNode, addRightParen, consumed, err := inter.LexText(s[nextByteIdx:], node)
-					if err != nil {
-						return nil, false, 0, err
-					}
-					node.children = append(node.children, subNode)
-					if addRightParen {
-						node.children = append(node.children, &ASTNode{
-							root: node.root,
-							sym:  symbol{sType: symbolRightParen, source: ")"},
-						})
-					}
-					i += consumed
-				}
+				node.children = append(node.children[:len(node.children)-1], subNode)
+				i += consumed
 			} else if !escaping && ch == ',' {
 				if buildingText != "" {
 					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
@@ -246,11 +295,7 @@ func (inter Interpreter) LexText(s string, parent *ASTNode) (*ASTNode, bool, int
 					buildingText = ""
 				}
 
-				cNode := &ASTNode{
-					root: node.root,
-					sym:  symbol{sType: symbolComma, source: ","},
-				}
-				node.children = append(node.children, cNode)
+				// comma breaks up values but doesn't actually need to be its own node
 			} else if !escaping && ch == '|' {
 				if buildingText != "" {
 					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
@@ -276,7 +321,9 @@ func (inter Interpreter) LexText(s string, parent *ASTNode) (*ASTNode, bool, int
 				// don't add it bc parent will
 				return node, true, sBytes[i], nil
 			} else {
-				buildingText += string(ch)
+				if escaping || !unicode.IsSpace(ch) {
+					buildingText += string(ch)
+				}
 				escaping = false
 			}
 		}
@@ -288,13 +335,21 @@ func (inter Interpreter) LexText(s string, parent *ASTNode) (*ASTNode, bool, int
 		return nil, false, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
 	}
 
-	if buildingText != "" {
-		textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
-		node.children = append(node.children, textNode)
-		buildingText = ""
+	node.t = nodeRoot
+
+	if mode == lexDefault {
+		if buildingText != "" {
+			textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+			node.children = append(node.children, textNode)
+			buildingText = ""
+		}
+	}
+	if mode == lexStr {
+		return nil, false, 0, fmt.Errorf("unexpected end of expression (unmatched string start \"|\")")
 	}
 
-	// okay now go through and update (for instance, make the values not have double quotes but force to str type)
+	// okay now go through and update
+	// - make the values not have double quotes but force to str type
 
 	return node, false, len(s), nil
 }

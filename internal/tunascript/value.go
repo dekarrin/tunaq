@@ -21,6 +21,10 @@ type Value struct {
 	t ValueType
 }
 
+func (v Value) String() string {
+	return v.Str()
+}
+
 // Type returns the type of the Value.
 func (v Value) Type() ValueType {
 	return v.t
