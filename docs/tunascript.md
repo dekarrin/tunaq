@@ -23,9 +23,8 @@ as `true` and both will evaluate to the boolean-typed `true` value.
 * If a value appears to be "true" or "false", it will be interpreted as a bool
 * If a value appears to be an integer, it will be interpreted as a number.
 * If a value does not match the above rules, it will be interpreted as a string.
-* Specific interpretation can be forced with the $TYPE(x, y) function, which always
-returns the x-type of its arguments (or string if x is not one of "str", "bool",
-or "num")
+* Specific interpretation can be forced with the $STR(x), $BOOL(x), or $NUM(x)
+functions, which always returns that type of its arguments.
 
 There are operations, which result in built-in funcs being called:
 * `x + y` is the same as `$ADD(x, y)`. Works for both concatenation and
@@ -46,9 +45,17 @@ during expansions.
 Note that the naming rules for variables are considerably more stringent than
 the typical labeling rules. `[A-Z0-9_]+`.
 
+Names of variables and functions are not case-sensitive.
+
 Built-in Functions
 ------------------
 The following built-in functions are in tunascript:
+
+* `$add(x str, y str) str`
+* `$add(x num, y num) num`
+* `$add(x any, y any) -> $add(num(x), y)`
+* `$sub(x num, y num) num`
+*
 
 ### `$ADD(x, y)`
 Parameters:
@@ -57,4 +64,4 @@ a number and added to its value. If `x` is a string, `y` will be forced to a
 string and concatenated to it. If `x` is a bool, it will be forced to a number.
 If `x` is untyped, it will be forced to a number.
 
-Returns 
+Returns string-type if x is a string, and number-type if x is a number.
