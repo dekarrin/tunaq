@@ -4,6 +4,16 @@ TunaQuest
 An engine for building text adventures and choose-your-own adventures. Set sail
 for adventure!
 
+## Showcase
+todo: show some tunaquest logs
+
+## File Format
+a brief overview of the file format and tunascript
+
+## Sample
+link to source code to see sample directly, and link to live server to play,
+(one day, glubglub!!!)
+
 
 Possible Issues For Devs
 ------------------------
