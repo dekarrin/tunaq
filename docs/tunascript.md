@@ -70,7 +70,6 @@ context that a tunascript expression is required.
 * `$flagIs(flag str, val str) bool`
 * `$flagIsLessThan(flag str, val num) bool`
 * `$flagIsGreaterThan(flag str, val num) bool`
-* `$value(flag str) any`
 * `$ininven(item str) bool`
 
 The following functions have side-effects, and may not be used in `if` clauses.

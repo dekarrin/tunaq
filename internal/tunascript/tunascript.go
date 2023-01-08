@@ -67,6 +67,23 @@ func NewInterpreter(w WorldInterface) Interpreter {
 	inter.fn["AND"] = Function{Name: "AND", RequiredArgs: 2, Call: builtIn_And}
 	inter.fn["NOT"] = Function{Name: "NOT", RequiredArgs: 1, Call: builtIn_Not}
 
+	inter.fn["FLAG_ENABLED"] = Function{Name: "FLAG_ENABLED", RequiredArgs: 1, Call: inter.builtIn_FlagEnabled}
+	inter.fn["FLAG_DISABLED"] = Function{Name: "FLAG_DISABLED", RequiredArgs: 1, Call: inter.builtIn_FlagDisabled}
+	inter.fn["FLAG_IS"] = Function{Name: "FLAG_IS", RequiredArgs: 2, Call: inter.builtIn_FlagIs}
+	inter.fn["FLAG_LESS_THAN"] = Function{Name: "FLAG_LESS_THAN", RequiredArgs: 2, Call: inter.builtIn_FlagLessThan}
+	inter.fn["FLAG_GREATER_THAN"] = Function{Name: "FLAG_GREATER_THAN", RequiredArgs: 2, Call: inter.builtIn_FlagGreaterThan}
+	inter.fn["IN_INVEN"] = Function{Name: "IN_INVEN", RequiredArgs: 1, Call: inter.builtIn_InInven}
+	inter.fn["ENABLE"] = Function{Name: "ENABLE", RequiredArgs: 1, Call: inter.builtIn_Enable}
+	inter.fn["DISABLE"] = Function{Name: "DISABLE", RequiredArgs: 1, Call: inter.builtIn_Disable}
+	inter.fn["INC"] = Function{Name: "INC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Inc}
+	inter.fn["DEC"] = Function{Name: "DEC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Dec}
+	inter.fn["SET"] = Function{Name: "SET", RequiredArgs: 2, Call: inter.builtIn_Set}
+	inter.fn["TOGGLE"] = Function{Name: "TOGGLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
+	inter.fn["TOGGLE"] = Function{Name: "TOGGLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
+	inter.fn["TOGGLE"] = Function{Name: "TOGGLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
+	inter.fn["TOGGLE"] = Function{Name: "TOGGLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
+	inter.fn["TOGGLE"] = Function{Name: "TOGGLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
+
 	// TODO: add the rest
 
 	return inter
