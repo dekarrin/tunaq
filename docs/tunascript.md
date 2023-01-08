@@ -48,4 +48,13 @@ the typical labeling rules. `[A-Z0-9_]+`.
 
 Built-in Functions
 ------------------
-The following built-in functions in 
+The following built-in functions are in tunascript:
+
+### `$ADD(x, y)`
+Parameters:
+* `x`, `y` - what to add together. If `x` is a number, `y` will be forced to
+a number and added to its value. If `x` is a string, `y` will be forced to a
+string and concatenated to it. If `x` is a bool, it will be forced to a number.
+If `x` is untyped, it will be forced to a number.
+
+Returns 
