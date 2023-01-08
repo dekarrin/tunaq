@@ -3,6 +3,8 @@ The TunaQuest Worlds Format v0.1
 This is a complete reference describing the data files that TunaQuest uses to
 define games that it runs and techniques for building up a world.
 
+**TODO: This file is out of date and needs to be rewritten and completed.**
+
 File Organization
 -----------------
 The entire world may be defined in a single TQW resource file. To do this, the

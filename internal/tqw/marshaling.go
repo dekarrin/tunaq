@@ -115,6 +115,9 @@ func recursiveUnmarshalResource(path string, manifStack []string) (data topLevel
 			if len(unmarshaledFileData.Rooms) > 0 {
 				unmarshaled.Rooms = append(unmarshaled.Rooms, unmarshaledFileData.Rooms...)
 			}
+			if len(unmarshaledFileData.Items) > 0 {
+				unmarshaled.Items = append(unmarshaled.Items, unmarshaledFileData.Items...)
+			}
 			processedFiles++
 		}
 
