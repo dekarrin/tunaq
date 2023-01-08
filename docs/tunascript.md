@@ -1,6 +1,8 @@
 Tunascript Expression Language
 ==============================
 
+UPDATE: there is no untyped; it is always string by default
+
 The tunascript expression language is the language used to update and read flags
 during particular points of gameplay to make the game more dynamic. It can be
 used to set whether someone has talked to a person, to record the number of
@@ -206,7 +208,7 @@ Returns whether the thing is in a new place after the move.
 Prints the given value to the screen. If it isnt string type, it is converted to
 it.
 
-Returns true always.
+Returns whether it successfully printed.
 
 ### Low-Priority: Operators
 
