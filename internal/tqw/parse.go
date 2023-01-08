@@ -75,6 +75,18 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 		world.Rooms[r.Label] = &room
 	}
 
+	// validate items
+	for _, it := range tqw.Items {
+		itemErr := validateItemDef(it, symbols)
+		if itemErr != nil {
+			return world, fmt.Errorf("items[%q]: %w", it.Label, itemErr)
+		}
+
+		gameItem := it.toGameItem()
+		r := world.Rooms[strings.ToUpper(it.Start)]
+		r.Items = append(r.Items, gameItem)
+	}
+
 	// validate pronouns and gather them into a map for later conversion of NPC
 	// pronouns references.
 	pronouns := map[string]pronounSet{
@@ -172,21 +184,22 @@ func scanSymbols(top topLevelWorldData) (symbols worldSymbols, err error) {
 			return syms, fmt.Errorf("room %q: %w", r.Label, err)
 		}
 		syms.roomLabels[rLabelUpper] = true
+	}
 
-		for _, it := range r.Items {
-			itLabelUpper := strings.ToUpper(it.Label)
-			if err := checkLabel(itLabelUpper, syms.itemLabels, "an item"); err != nil {
-				return syms, fmt.Errorf("room %q: item %q: %w", r.Label, it.Label, err)
+	// scan items
+	for _, it := range top.Items {
+		itLabelUpper := strings.ToUpper(it.Label)
+		if err := checkLabel(itLabelUpper, syms.itemLabels, "an item"); err != nil {
+			return syms, fmt.Errorf("item %q: %w", it.Label, err)
+		}
+		syms.itemLabels[itLabelUpper] = true
+
+		for _, alias := range it.Aliases {
+			aliasUpper := strings.ToUpper(alias)
+			if err := checkAlias(aliasUpper, syms.itemAliases); err != nil {
+				return syms, fmt.Errorf("item %q: alias %q: %w", it.Label, alias, err)
 			}
 			syms.itemLabels[itLabelUpper] = true
-
-			for _, alias := range it.Aliases {
-				aliasUpper := strings.ToUpper(alias)
-				if err := checkAlias(aliasUpper, syms.itemAliases); err != nil {
-					return syms, fmt.Errorf("room %q: item %q: alias %q: %w", r.Label, it.Label, alias, err)
-				}
-				syms.itemLabels[itLabelUpper] = true
-			}
 		}
 	}
 
@@ -542,15 +555,6 @@ func validateRoomDef(r room, syms worldSymbols) error {
 		}
 	}
 
-	// items must have their labels and aliases checked against ALL items so not
-	// doing the check here
-	for idx, eg := range r.Items {
-		itemErr := validateItemDef(eg)
-		if itemErr != nil {
-			return fmt.Errorf("items[%d]: %w", idx, itemErr)
-		}
-	}
-
 	return nil
 }
 
@@ -575,7 +579,7 @@ func validateEgressDef(eg egress, syms worldSymbols) error {
 	return nil
 }
 
-func validateItemDef(item item) error {
+func validateItemDef(item item, syms worldSymbols) error {
 	if item.Label == "" {
 		return fmt.Errorf("must have non-blank 'label' field")
 	}
@@ -590,6 +594,13 @@ func validateItemDef(item item) error {
 		if al == "" {
 			return fmt.Errorf("aliases[%d]: must not be blank", idx)
 		}
+	}
+
+	if item.Start == "" {
+		return fmt.Errorf("must have non-blank 'start' field")
+	}
+	if _, ok := syms.roomLabels[item.Start]; !ok {
+		return fmt.Errorf("start: no room with label %q exists", item.Start)
 	}
 
 	// do not check alias naming rules and uniqueness here, that has already

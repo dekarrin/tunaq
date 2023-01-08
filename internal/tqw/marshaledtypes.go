@@ -21,6 +21,7 @@ type topLevelWorldData struct {
 	World    world        `toml:"world"`
 	NPCs     []npc        `toml:"npc"`
 	Pronouns []pronounSet `toml:"pronouns"`
+	Items    []item       `toml:"item"`
 }
 
 type npc struct {
@@ -186,6 +187,7 @@ type item struct {
 	Name        string   `toml:"name"`
 	Description string   `toml:"description"`
 	Aliases     []string `toml:"aliases"`
+	Start       string   `toml:"start"`
 }
 
 func (ti item) toGameItem() game.Item {
@@ -230,7 +232,6 @@ type room struct {
 	Name        string   `toml:"name"`
 	Description string   `toml:"description"`
 	Exits       []egress `toml:"exit"`
-	Items       []item   `toml:"item"`
 }
 
 func (tr room) toGameRoom() game.Room {
@@ -239,15 +240,11 @@ func (tr room) toGameRoom() game.Room {
 		Name:        tr.Name,
 		Description: tr.Description,
 		Exits:       make([]game.Egress, len(tr.Exits)),
-		Items:       make([]game.Item, len(tr.Items)),
 		NPCs:        make(map[string]*game.NPC),
 	}
 
 	for i := range tr.Exits {
 		r.Exits[i] = tr.Exits[i].toGameEgress()
-	}
-	for i := range tr.Items {
-		r.Items[i] = tr.Items[i].toGameItem()
 	}
 
 	return r

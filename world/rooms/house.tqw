@@ -1,6 +1,17 @@
 format = "tuna"
 type = "data"
 
+
+[[item]]
+label = "POGO_HAMMER"
+aliases = ["HAMMER", "POGOHAMMER", "POGO", "POGO_HAMMER"]
+name = "a pogo hammer"
+description = '''
+A hammer combined with a pogo-stick. What could go wrong?
+'''
+start = "YOUR_ROOM"
+
+
 # your_room
 [[room]]
 label = "YOUR_ROOM"
@@ -25,14 +36,6 @@ dest = "HALLWAY"
 description = "the door to the hall"
 message = '''
 You shut the door behind you as you go into the hall.
-'''
-
-[[room.item]]
-label = "POGO_HAMMER"
-aliases = ["HAMMER", "POGOHAMMER", "POGO", "POGO_HAMMER"]
-name = "a pogo hammer"
-description = '''
-A hammer combined with a pogo-stick. What could go wrong?
 '''
 
 
