@@ -78,17 +78,12 @@ func NewInterpreter(w WorldInterface) Interpreter {
 	inter.fn["INC"] = Function{Name: "INC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Inc}
 	inter.fn["DEC"] = Function{Name: "DEC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Dec}
 	inter.fn["SET"] = Function{Name: "SET", RequiredArgs: 2, Call: inter.builtIn_Set}
-	inter.fn["TOGGLE"] = Function{Name: "TOGGLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
-	inter.fn["TOGGLE"] = Function{Name: "TOGGLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
-	inter.fn["TOGGLE"] = Function{Name: "TOGGLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
-	inter.fn["TOGGLE"] = Function{Name: "TOGGLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
-	inter.fn["TOGGLE"] = Function{Name: "TOGGLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
-
-	// TODO: add the rest
+	inter.fn["MOVE"] = Function{Name: "MOVE", RequiredArgs: 2, Call: inter.builtIn_Move}
+	inter.fn["OUTPUT"] = Function{Name: "OUTPUT", RequiredArgs: 1, Call: inter.builtIn_Output}
 
 	return inter
 }
 
-func ParseText(s string) {
-
+// LexText lexes the text.
+func (inter Interpreter) LexText(s string) {
 }
