@@ -1,5 +1,10 @@
 package tunascript
 
+import (
+	"fmt"
+	"strings"
+)
+
 // tunascript execution engine
 
 // FuncCall is the implementation of a function in tunaquest. It receives some
@@ -84,6 +89,212 @@ func NewInterpreter(w WorldInterface) Interpreter {
 	return inter
 }
 
-// LexText lexes the text.
-func (inter Interpreter) LexText(s string) {
+type symbolType int
+
+const (
+	symbolLeftParen symbolType = iota
+	symbolRightParen
+	symbolValue
+	symbolDollar
+	symbolIdentifier
+	symbolComma
+)
+
+type symbol struct {
+	sType  symbolType
+	source string
+
+	// only applies if sType is symbolValue
+	forceType ValueType
+}
+
+type ASTNode struct {
+	root     *ASTNode
+	children []*ASTNode
+	sym      symbol
+	t        nodeType
+
+	forceType ValueType
+}
+
+type lexerState int
+
+const (
+	lexDefault lexerState = iota
+	lexIdent
+	lexStr
+)
+
+type nodeType int
+
+const (
+	nodeItem nodeType = iota
+)
+
+// LexText lexes the text. Returns the AST, whether exiting on right paren, how
+// many bytes were consumed, and whether an error was encountered.
+func (inter Interpreter) LexText(s string, parent *ASTNode) (*ASTNode, bool, int, error) {
+	node := &ASTNode{children: make([]*ASTNode, 0)}
+	if parent == nil {
+		node.root = node
+	} else {
+		node.root = parent.root
+	}
+
+	escaping := false
+	mode := lexDefault
+	node.t = nodeItem
+
+	s = strings.TrimSpace(s)
+	sRunes := []rune(s)
+	sBytes := make([]int, len(sRunes))
+	sBytesIdx := 0
+	for b := range s {
+		sBytes[sBytesIdx] = b
+		sBytesIdx++
+	}
+
+	var buildingText string
+	for i := 0; i < len(sRunes); i++ {
+		ch := sRunes[i]
+
+		switch mode {
+		case lexIdent:
+			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
+				buildingText += string(ch)
+			} else {
+				idNode := &ASTNode{
+					root: node.root,
+					sym:  symbol{sType: symbolIdentifier, source: buildingText},
+				}
+				node.children = append(node.children, idNode)
+				buildingText = ""
+				i--
+				mode = lexDefault
+			}
+		case lexStr:
+			if !escaping && ch == '\\' {
+				// do not add a node for this
+				escaping = true
+			} else if !escaping && ch == '|' {
+				symNode := &ASTNode{
+					root: node.root,
+					sym:  symbol{sType: symbolValue, source: "|" + buildingText + "|"},
+				}
+				node.children = append(node.children, symNode)
+				buildingText = ""
+				mode = lexDefault
+			} else {
+				buildingText += string(ch)
+				escaping = false
+			}
+		case lexDefault:
+			if !escaping && ch == '\\' {
+				// do not add a node for this
+				escaping = true
+			} else if !escaping && ch == '$' {
+				if buildingText != "" {
+					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					node.children = append(node.children, textNode)
+					buildingText = ""
+				}
+
+				dNode := &ASTNode{
+					root: node.root,
+					sym:  symbol{sType: symbolDollar, source: "$"},
+				}
+				node.children = append(node.children, dNode)
+				mode = lexIdent
+			} else if !escaping && ch == '(' {
+				if buildingText != "" {
+					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					node.children = append(node.children, textNode)
+					buildingText = ""
+				}
+
+				pNode := &ASTNode{
+					root: node.root,
+					sym:  symbol{sType: symbolLeftParen, source: "("},
+				}
+				node.children = append(node.children, pNode)
+
+				// need to find the next byte
+				nextByteIdx := -1
+				if i+1 < len(sRunes) {
+					nextByteIdx = sBytes[i+1]
+				}
+
+				// parse the rest as tree, if there's more
+				if nextByteIdx != -1 {
+					subNode, addRightParen, consumed, err := inter.LexText(s[nextByteIdx:], node)
+					if err != nil {
+						return nil, false, 0, err
+					}
+					node.children = append(node.children, subNode)
+					if addRightParen {
+						node.children = append(node.children, &ASTNode{
+							root: node.root,
+							sym:  symbol{sType: symbolRightParen, source: ")"},
+						})
+					}
+					i += consumed
+				}
+			} else if !escaping && ch == ',' {
+				if buildingText != "" {
+					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					node.children = append(node.children, textNode)
+					buildingText = ""
+				}
+
+				cNode := &ASTNode{
+					root: node.root,
+					sym:  symbol{sType: symbolComma, source: ","},
+				}
+				node.children = append(node.children, cNode)
+			} else if !escaping && ch == '|' {
+				if buildingText != "" {
+					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					node.children = append(node.children, textNode)
+					buildingText = ""
+				}
+
+				// string start
+				mode = lexStr
+			} else if !escaping && ch == ')' {
+				// we have reached the end of our parsing. if we are the PARENT,
+				// this is an error
+				if parent == nil {
+					return nil, false, 0, fmt.Errorf("unexpected end of expression (unmatched right-parenthesis)")
+				}
+
+				if buildingText != "" {
+					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					node.children = append(node.children, textNode)
+					buildingText = ""
+				}
+
+				// don't add it bc parent will
+				return node, true, sBytes[i], nil
+			} else {
+				buildingText += string(ch)
+				escaping = false
+			}
+		}
+
+	}
+
+	// if we get to the end but we are not the parent, we have a paren mismatch
+	if parent != nil {
+		return nil, false, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
+	}
+
+	if buildingText != "" {
+		textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+		node.children = append(node.children, textNode)
+		buildingText = ""
+	}
+
+	// okay now go through and update (for instance, make the values not have double quotes but force to str type)
+
+	return node, false, len(s), nil
 }
