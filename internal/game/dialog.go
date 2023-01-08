@@ -15,6 +15,7 @@ const (
 	DialogEnd DialogAction = iota
 	DialogLine
 	DialogChoice
+	DialogPause
 )
 
 func (dst DialogAction) String() string {
@@ -25,6 +26,8 @@ func (dst DialogAction) String() string {
 		return "LINE"
 	case DialogChoice:
 		return "CHOICE"
+	case DialogPause:
+		return "PAUSE"
 	default:
 		return fmt.Sprintf("DialogAction(%d)", int(dst))
 	}
@@ -36,6 +39,7 @@ var DialogActionsByString map[string]DialogAction = map[string]DialogAction{
 	DialogEnd.String():    DialogEnd,
 	DialogLine.String():   DialogLine,
 	DialogChoice.String(): DialogChoice,
+	DialogPause.String():  DialogPause,
 }
 
 // DialogStep is a single step of a Dialog tree. It instructions a Dialog as to
@@ -51,13 +55,17 @@ type DialogStep struct {
 	// use choices.
 	Response string
 
-	// Choices and the label of dialog step they map to. If one isn't given, it
-	// is assumed to end the conversation.
-	Choices map[string]string
+	// Choices is a series of options for a CHOICE type dialog step.
+	Choices [][2]string
 
 	// Label of the DialogStep. If not set it will just be the index within the
 	// conversation tree.
 	Label string
+
+	// Resume is the label to resume the conversation with after coming back
+	// after a PAUSE step. It is only relevant if Action is DialogPause. If
+	// blank on a PAUSE step, it will resume with the next step in the tree.
+	ResumeAt string
 }
 
 // Copy returns a deeply-copied DialogStep.
@@ -66,12 +74,13 @@ func (ds DialogStep) Copy() DialogStep {
 		Action:   ds.Action,
 		Label:    ds.Label,
 		Response: ds.Response,
-		Choices:  make(map[string]string, len(ds.Choices)),
+		Choices:  make([][2]string, len(ds.Choices)),
 		Content:  ds.Content,
+		ResumeAt: ds.ResumeAt,
 	}
 
-	for k, v := range ds.Choices {
-		dsCopy.Choices[k] = v
+	for idx, v := range ds.Choices {
+		dsCopy.Choices[idx] = [2]string{v[0], v[1]}
 	}
 
 	return dsCopy
@@ -100,6 +109,12 @@ func (ds DialogStep) String() string {
 			}
 		}
 		str += ")>"
+		return str
+	case DialogPause:
+		if ds.ResumeAt != "" {
+			str += fmt.Sprintf(" (RESUME: %q)", ds.ResumeAt)
+		}
+		str += ">"
 		return str
 	default:
 		return str + " (UNKNOWN TYPE)>"
@@ -168,6 +183,9 @@ func (convo *Conversation) buildAliases() {
 }
 
 func (gs *State) RunConversation(npc *NPC) error {
+	// in case we need to end convo early, so we can reset it
+	oldConvoCur := npc.Convo.cur
+
 	var output string
 	if len(npc.Dialog) < 1 {
 		nomPro := cases.Title(language.AmericanEnglish).String(npc.Pronouns.Nominative)
@@ -190,15 +208,15 @@ func (gs *State) RunConversation(npc *NPC) error {
 				line := step.Content
 				resp := step.Response
 
-				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").
+				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
-					Insert(rosed.End, "\""+line+"\"").
+					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
 					Wrap(gs.io.Width).
 					Insert(rosed.End, "\n")
 				if resp != "" {
 					ed = ed.
 						Insert(rosed.End, "\nYOU:\n").
-						Insert(rosed.End, rosed.Edit("\""+resp+"\"").Wrap(gs.io.Width).String()).
+						Insert(rosed.End, rosed.Edit("\""+strings.TrimSpace(resp)+"\"").Wrap(gs.io.Width).String()).
 						Insert(rosed.End, "\n")
 				}
 				output = ed.String()
@@ -206,27 +224,32 @@ func (gs *State) RunConversation(npc *NPC) error {
 				if err := gs.io.Output(output); err != nil {
 					return err
 				}
-				if _, err := gs.io.Input("==> "); err != nil {
+
+				stopCmd, err := gs.io.Input("==> ")
+				if err != nil {
 					return err
+				}
+				stopCmdUpper := strings.ToUpper(strings.TrimSpace(stopCmd))
+				if stopCmdUpper == "STOP" || stopCmdUpper == "QUIT" || stopCmdUpper == "LEAVE" {
+					npc.Convo.cur = oldConvoCur
+					return nil
 				}
 			case DialogChoice:
 				line := step.Content
-				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").
+				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
-					Insert(rosed.End, "\""+line+"\"").
+					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
 					Wrap(gs.io.Width).
 					Insert(rosed.End, "\n\n").
 					CharsFrom(rosed.End)
 
 				var choiceOut = make([]string, len(step.Choices))
-				choiceIdx := 0
-				for ch := range step.Choices {
-					chDest := step.Choices[ch]
-					choiceOut[choiceIdx] = chDest
+				for idx := range step.Choices {
+					ch := step.Choices[idx][0]
+					chDest := step.Choices[idx][1]
+					choiceOut[idx] = chDest
 
-					ed = ed.Insert(rosed.End, fmt.Sprintf("%d) \"%s\"\n", choiceIdx+1, ch))
-
-					choiceIdx++
+					ed = ed.Insert(rosed.End, fmt.Sprintf("%d) \"%s\"\n", idx+1, strings.TrimSpace(ch)))
 				}
 				ed = ed.Apply(func(idx int, line string) []string {
 					return []string{rosed.Edit(line).Wrap(gs.io.Width).String()}
@@ -259,6 +282,13 @@ func (gs *State) RunConversation(npc *NPC) error {
 
 				dest := choiceOut[choiceNum-1]
 				npc.Convo.JumpTo(dest)
+			case DialogPause:
+				// if resumeAt is not set, no jump needs to be made, convo will
+				// resume with NextStep.
+				if step.ResumeAt != "" {
+					npc.Convo.JumpTo(step.ResumeAt)
+				}
+				return nil
 			default:
 				// should never happen
 				panic("unknown line type")

@@ -346,6 +346,9 @@ func validateDialogStepDef(ds dialogStep, allDiaLabels stringSet) error {
 		if ds.Content == "" {
 			return fmt.Errorf("'LINE' dialog step type requires a string as value of 'content' property")
 		}
+		if ds.Continue != "" {
+			return fmt.Errorf("'LINE' dialog step type does not use 'continue' key")
+		}
 	case game.DialogChoice:
 		if len(ds.Choices) < 2 {
 			return fmt.Errorf("'CHOICE' dialog step type must have a list with at least 2 choices as value of 'choices' property")
@@ -355,6 +358,9 @@ func validateDialogStepDef(ds dialogStep, allDiaLabels stringSet) error {
 		}
 		if ds.Content == "" {
 			return fmt.Errorf("'CHOICE' dialog step type requires a string as value of 'content' property")
+		}
+		if ds.Continue != "" {
+			return fmt.Errorf("'CHOICE' dialog step type does not use 'continue' key")
 		}
 
 		// now we check the choices for valid ref
@@ -378,6 +384,26 @@ func validateDialogStepDef(ds dialogStep, allDiaLabels stringSet) error {
 		}
 		if ds.Content != "" {
 			return fmt.Errorf("'END' dialog step does not use 'content' property")
+		}
+		if ds.Continue != "" {
+			return fmt.Errorf("'END' dialog step type does not use 'continue' key")
+		}
+	case game.DialogPause:
+		if ds.Response != "" {
+			return fmt.Errorf("'PAUSE' dialog step type does not use 'response' property")
+		}
+		if len(ds.Choices) > 0 {
+			return fmt.Errorf("'PAUSE' dialog step type does not use 'choices' property")
+		}
+		if ds.Content != "" {
+			return fmt.Errorf("'PAUSE' dialog step does not use 'content' property")
+		}
+
+		// validate that a continue is a valid dia label if it's present
+		if ds.Continue != "" {
+			if _, ok := allDiaLabels[strings.ToUpper(ds.Continue)]; !ok {
+				return fmt.Errorf("continue: %q is not the label of any step in this NPC's dialog tree", ds.Continue)
+			}
 		}
 	default:
 		// should never happen but you never know
