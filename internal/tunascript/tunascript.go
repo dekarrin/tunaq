@@ -116,12 +116,12 @@ type symbol struct {
 	source string
 
 	// only applies if sType is symbolValue
-	forceType ValueType
+	forceStr bool
 }
 
-type ASTNode struct {
-	root     *ASTNode
-	children []*ASTNode
+type astNode struct {
+	root     *astNode
+	children []*astNode
 	sym      symbol
 	t        nodeType
 
@@ -151,19 +151,37 @@ const (
 	evalDollar
 )
 
-// ParseText interprets the text in the abstract syntax tree and evaluates it.
-func (inter Interpreter) EvalText(ast *ASTNode) (Value, error) {
-	var v Value
-	if ast.t != nodeRoot {
-		return v, fmt.Errorf("Cannot parse AST anywhere besides root of the tree")
+func (inter Interpreter) Eval(s string) (string, error) {
+	ast, _, err := buildAST(s, nil)
+	if err != nil {
+		return "", fmt.Errorf("syntax error: %w", err)
 	}
 
-	mode := evalDefault
+	vals, err := inter.evalExpr(ast)
+	if err != nil {
+		return "", fmt.Errorf("syntax error: %w", err)
+	}
+
+	strVals := make([]string, len(vals))
+	for i := range vals {
+		strVals[i] = vals[i].Str()
+	}
+
+	return strings.Join(strVals, " "), nil
+}
+
+// ParseText interprets the text in the abstract syntax tree and evaluates it.
+func (inter Interpreter) evalExpr(ast *astNode) ([]Value, error) {
+	if ast.t != nodeRoot && ast.t != nodeGroup {
+		return nil, fmt.Errorf("cannot parse AST anywhere besides root of the tree")
+	}
+
+	values := []Value{}
 
 	for i := 0; i < len(ast.children); i++ {
 		child := ast.children[i]
 		if child.t == nodeGroup {
-			return v, fmt.Errorf("Unexpected parenthesis group\n(to use \"(\" and \")\" as Str values, put them in between two \"|\" chars or\nescape them)")
+			return nil, fmt.Errorf("unexpected parenthesis group\n(to use \"(\" and \")\" as Str values, put them in between two \"|\" chars or\nescape them)")
 		}
 		if child.sym.sType == symbolIdentifier {
 			// TODO: move this into AST builder,
@@ -175,29 +193,107 @@ func (inter Interpreter) EvalText(ast *ASTNode) (Value, error) {
 		if child.sym.sType == symbolDollar {
 			// okay, check ahead for an ident
 			if i+1 >= len(ast.children) {
-				return v, fmt.Errorf("Unexpected bare \"$\" character at end\n(to use \"$\" as a  Str value, put it in between two \"|\" chars or escape it)")
+				return nil, fmt.Errorf("unexpected bare \"$\" character at end\n(to use \"$\" as a  Str value, put it in between two \"|\" chars or escape it)")
 			}
 			identNode := ast.children[i+1]
 			if identNode.t == nodeGroup {
-				return v, fmt.Errorf("Unexpected parenthesis group after \"$\" character, expected identifier")
+				return nil, fmt.Errorf("unexpected parenthesis group after \"$\" character, expected identifier")
 			}
 			if identNode.sym.sType != symbolIdentifier {
-				return v, fmt.Errorf("Unexpected %s after \"$\" character, expected identifier")
+				return nil, fmt.Errorf("unexpected %s after \"$\" character, expected identifier", identNode.sym.sType.String())
 			}
 
 			// we now have an identifier, but is this a var or function?
 			isFunc := false
-			if i+2 <= len(ast.children) {
-
+			if i+2 < len(ast.children) {
+				argsNode := ast.children[i+2]
+				if argsNode.t == nodeGroup {
+					isFunc = true
+				}
 			}
+
+			if isFunc {
+				// function call, gather args and call it
+				argsNode := ast.children[i+2]
+				funcName := strings.ToUpper(identNode.sym.source)
+
+				fn, ok := inter.fn[funcName]
+				if !ok {
+					return nil, fmt.Errorf("function $%s() does not exist", funcName)
+				}
+
+				args, err := inter.evalExpr(argsNode)
+				if err != nil {
+					return nil, err
+				}
+
+				if len(args) < fn.RequiredArgs {
+					s := "s"
+					if fn.RequiredArgs == 1 {
+						s = ""
+					}
+					return nil, fmt.Errorf("function $%s() requires at least %d parameter%s; %d given", fn.Name, fn.RequiredArgs, s, len(args))
+				}
+
+				maxArgs := fn.RequiredArgs + fn.OptionalArgs
+				if len(args) > maxArgs {
+					s := "s"
+					if maxArgs == 1 {
+						s = ""
+					}
+					return nil, fmt.Errorf("function $%s() takes at most %d parameter%s; %d given", fn.Name, maxArgs, s, len(args))
+				}
+
+				// oh yeah. no error returned. you saw that right. the Call function is literally not allowed to fail.
+				// int 100 bbyyyyyyyyyyyyyyyyyyy
+				//
+				// Oh my gog ::::/
+				//
+				// i AM ur gog now >38D
+				v := fn.Call(args)
+				values = append(values, v)
+				i += 2
+			} else {
+				// flag substitution, read it in
+				flagName := strings.ToUpper(identNode.sym.source)
+
+				var v Value
+				flag, ok := inter.flags[flagName]
+				if ok {
+					v = NewStr(flag.Str())
+				} else {
+					v = NewStr("")
+				}
+				values = append(values, v)
+				i++
+			}
+		} else if child.sym.sType == symbolValue {
+			src := child.sym.source
+			var v Value
+			if child.sym.forceStr {
+				v = NewStr(src)
+			} else {
+				v = parseUntypedValString(src)
+			}
+			values = append(values, v)
 		}
 	}
+	return values, nil
+}
+
+func parseUntypedValString(valStr string) Value {
+	srcUpper := strings.ToUpper(valStr)
+	var v Value
+	if srcUpper == "TRUE" || srcUpper == "YES" || srcUpper == "ON" {
+		v = NewBool(true)
+	}
+	return v
 }
 
 // LexText lexes the text. Returns the AST, whether exiting on right paren, how
 // many bytes were consumed, and whether an error was encountered.
-func (inter Interpreter) buildAST(s string, parent *ASTNode) (*ASTNode, bool, int, error) {
-	node := &ASTNode{children: make([]*ASTNode, 0)}
+func buildAST(s string, parent *astNode) (*astNode, int, error) {
+	node := &astNode{children: make([]*astNode, 0)}
 	if parent == nil {
 		node.root = node
 	} else {
@@ -226,7 +322,7 @@ func (inter Interpreter) buildAST(s string, parent *ASTNode) (*ASTNode, bool, in
 			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
 				buildingText += string(ch)
 			} else {
-				idNode := &ASTNode{
+				idNode := &astNode{
 					root: node.root,
 					sym:  symbol{sType: symbolIdentifier, source: buildingText},
 				}
@@ -240,9 +336,9 @@ func (inter Interpreter) buildAST(s string, parent *ASTNode) (*ASTNode, bool, in
 				// do not add a node for this
 				escaping = true
 			} else if !escaping && ch == '|' {
-				symNode := &ASTNode{
+				symNode := &astNode{
 					root: node.root,
-					sym:  symbol{sType: symbolValue, source: buildingText, forceType: Str},
+					sym:  symbol{sType: symbolValue, source: buildingText, forceStr: true},
 				}
 				node.children = append(node.children, symNode)
 				buildingText = ""
@@ -257,12 +353,12 @@ func (inter Interpreter) buildAST(s string, parent *ASTNode) (*ASTNode, bool, in
 				escaping = true
 			} else if !escaping && ch == '$' {
 				if buildingText != "" {
-					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &astNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
 
-				dNode := &ASTNode{
+				dNode := &astNode{
 					root: node.root,
 					sym:  symbol{sType: symbolDollar, source: "$"},
 				}
@@ -270,19 +366,19 @@ func (inter Interpreter) buildAST(s string, parent *ASTNode) (*ASTNode, bool, in
 				mode = lexIdent
 			} else if !escaping && ch == '(' {
 				if buildingText != "" {
-					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &astNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
 
 				if i+1 >= len(sRunes) {
-					return nil, false, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
+					return nil, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
 				}
 				nextByteIdx := sBytes[i+1]
 
-				subNode, _, consumed, err := inter.buildAST(s[nextByteIdx:], node)
+				subNode, consumed, err := buildAST(s[nextByteIdx:], node)
 				if err != nil {
-					return nil, false, 0, err
+					return nil, 0, err
 				}
 				subNode.t = nodeGroup
 
@@ -290,7 +386,7 @@ func (inter Interpreter) buildAST(s string, parent *ASTNode) (*ASTNode, bool, in
 				i += consumed
 			} else if !escaping && ch == ',' {
 				if buildingText != "" {
-					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &astNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
@@ -298,7 +394,7 @@ func (inter Interpreter) buildAST(s string, parent *ASTNode) (*ASTNode, bool, in
 				// comma breaks up values but doesn't actually need to be its own node
 			} else if !escaping && ch == '|' {
 				if buildingText != "" {
-					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &astNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
@@ -309,17 +405,17 @@ func (inter Interpreter) buildAST(s string, parent *ASTNode) (*ASTNode, bool, in
 				// we have reached the end of our parsing. if we are the PARENT,
 				// this is an error
 				if parent == nil {
-					return nil, false, 0, fmt.Errorf("unexpected end of expression (unmatched right-parenthesis)")
+					return nil, 0, fmt.Errorf("unexpected end of expression (unmatched right-parenthesis)")
 				}
 
 				if buildingText != "" {
-					textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &astNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
 
 				// don't add it bc parent will
-				return node, true, sBytes[i], nil
+				return node, sBytes[i], nil
 			} else {
 				if escaping || !unicode.IsSpace(ch) {
 					buildingText += string(ch)
@@ -332,24 +428,24 @@ func (inter Interpreter) buildAST(s string, parent *ASTNode) (*ASTNode, bool, in
 
 	// if we get to the end but we are not the parent, we have a paren mismatch
 	if parent != nil {
-		return nil, false, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
+		return nil, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
 	}
 
 	node.t = nodeRoot
 
 	if mode == lexDefault {
 		if buildingText != "" {
-			textNode := &ASTNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+			textNode := &astNode{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 			node.children = append(node.children, textNode)
 			buildingText = ""
 		}
 	}
 	if mode == lexStr {
-		return nil, false, 0, fmt.Errorf("unexpected end of expression (unmatched string start \"|\")")
+		return nil, 0, fmt.Errorf("unexpected end of expression (unmatched string start \"|\")")
 	}
 
 	// okay now go through and update
 	// - make the values not have double quotes but force to str type
 
-	return node, false, len(s), nil
+	return node, len(s), nil
 }
