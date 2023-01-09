@@ -52,7 +52,7 @@ func builtIn_Mult(args []Value) Value {
 
 		num := y.Num()
 		for i := 0; i < num; i++ {
-			builtStr += y.Str()
+			builtStr += x.Str()
 		}
 
 		ret = NewStr(builtStr)
@@ -94,7 +94,7 @@ func builtIn_Not(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_FlagEnabled(args []Value) Value {
-	flagName := args[0].Str()
+	flagName := strings.ToUpper(args[0].Str())
 
 	if flag, ok := inter.flags[flagName]; !ok {
 		return NewBool(false)
@@ -104,7 +104,7 @@ func (inter Interpreter) builtIn_FlagEnabled(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_FlagDisabled(args []Value) Value {
-	flagName := args[0].Str()
+	flagName := strings.ToUpper(args[0].Str())
 
 	if flag, ok := inter.flags[flagName]; !ok {
 		return NewBool(true)
@@ -114,7 +114,7 @@ func (inter Interpreter) builtIn_FlagDisabled(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_FlagIs(args []Value) Value {
-	flagName := args[0].Str()
+	flagName := strings.ToUpper(args[0].Str())
 	checkVal := args[1]
 
 	var ret Value
@@ -143,7 +143,7 @@ func (inter Interpreter) builtIn_FlagIs(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_FlagLessThan(args []Value) Value {
-	flagName := args[0].Str()
+	flagName := strings.ToUpper(args[0].Str())
 	checkVal := args[1]
 
 	if flag, ok := inter.flags[flagName]; !ok {
@@ -154,7 +154,7 @@ func (inter Interpreter) builtIn_FlagLessThan(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_FlagGreaterThan(args []Value) Value {
-	flagName := args[0].Str()
+	flagName := strings.ToUpper(args[0].Str())
 	checkVal := args[1]
 
 	if flag, ok := inter.flags[flagName]; !ok {
@@ -165,18 +165,18 @@ func (inter Interpreter) builtIn_FlagGreaterThan(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_InInven(args []Value) Value {
-	itemLabelName := args[0].Str()
+	itemLabelName := strings.ToUpper(args[0].Str())
 
 	return NewBool(inter.world.InInventory(itemLabelName))
 }
 
 func (inter Interpreter) builtIn_Enable(args []Value) Value {
-	flagName := args[0].Str()
+	flagName := strings.ToUpper(args[0].Str())
 
 	flag := inter.flags[flagName]
 	if flag == nil {
 		flag = &Flag{
-			Name: strings.ToUpper(flagName),
+			Name: flagName,
 		}
 		inter.flags[flagName] = flag
 	}
@@ -186,7 +186,7 @@ func (inter Interpreter) builtIn_Enable(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_Disable(args []Value) Value {
-	flagName := args[0].Str()
+	flagName := strings.ToUpper(args[0].Str())
 
 	flag := inter.flags[flagName]
 	if flag == nil {
@@ -201,7 +201,7 @@ func (inter Interpreter) builtIn_Disable(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_Toggle(args []Value) Value {
-	flagName := args[0].Str()
+	flagName := strings.ToUpper(args[0].Str())
 
 	flag := inter.flags[flagName]
 	if flag == nil {
@@ -216,7 +216,7 @@ func (inter Interpreter) builtIn_Toggle(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_Inc(args []Value) Value {
-	flagName := args[0].Str()
+	flagName := strings.ToUpper(args[0].Str())
 	amount := 1
 	if len(args) > 1 {
 		amount = args[1].Num()
@@ -235,7 +235,7 @@ func (inter Interpreter) builtIn_Inc(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_Dec(args []Value) Value {
-	flagName := args[0].Str()
+	flagName := strings.ToUpper(args[0].Str())
 	amount := 1
 	if len(args) > 1 {
 		amount = args[1].Num()
@@ -254,7 +254,7 @@ func (inter Interpreter) builtIn_Dec(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_Set(args []Value) Value {
-	flagName := args[0].Str()
+	flagName := strings.ToUpper(args[0].Str())
 	setVal := args[1]
 
 	flag := inter.flags[flagName]
@@ -275,8 +275,8 @@ func (inter Interpreter) builtIn_Set(args []Value) Value {
 }
 
 func (inter Interpreter) builtIn_Move(args []Value) Value {
-	target := args[0].Str()
-	dest := args[1].Str()
+	target := strings.ToUpper(args[0].Str())
+	dest := strings.ToUpper(args[1].Str())
 
 	return NewBool(inter.world.Move(target, dest))
 }

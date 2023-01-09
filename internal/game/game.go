@@ -150,6 +150,7 @@ func New(world map[string]*Room, startingRoom string, ioDev IODevice) (State, er
 						it := gs.Inventory[target]
 						gs.World[dest].Items = append(gs.World[dest].Items, it)
 						delete(gs.Inventory, it.Label)
+						gs.itemLocations[target] = dest
 					}
 					if roomLabel == dest {
 						return false
@@ -165,6 +166,7 @@ func New(world map[string]*Room, startingRoom string, ioDev IODevice) (State, er
 
 					gs.World[roomLabel].RemoveItem(target)
 					gs.World[dest].Items = append(gs.World[dest].Items, item)
+					gs.itemLocations[target] = dest
 					return true
 				}
 
@@ -180,6 +182,7 @@ func New(world map[string]*Room, startingRoom string, ioDev IODevice) (State, er
 				npc := gs.World[roomLabel].NPCs[target]
 				delete(gs.World[roomLabel].NPCs, npc.Label)
 				gs.World[dest].NPCs[npc.Label] = npc
+				gs.npcLocations[target] = dest
 				return true
 			}
 		},

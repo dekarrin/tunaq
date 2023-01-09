@@ -84,6 +84,7 @@ func NewInterpreter(w WorldInterface) Interpreter {
 	inter.fn["IN_INVEN"] = Function{Name: "IN_INVEN", RequiredArgs: 1, Call: inter.builtIn_InInven}
 	inter.fn["ENABLE"] = Function{Name: "ENABLE", RequiredArgs: 1, Call: inter.builtIn_Enable}
 	inter.fn["DISABLE"] = Function{Name: "DISABLE", RequiredArgs: 1, Call: inter.builtIn_Disable}
+	inter.fn["TOGGLE"] = Function{Name: "DISABLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
 	inter.fn["INC"] = Function{Name: "INC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Inc}
 	inter.fn["DEC"] = Function{Name: "DEC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Dec}
 	inter.fn["SET"] = Function{Name: "SET", RequiredArgs: 2, Call: inter.builtIn_Set}
@@ -184,13 +185,6 @@ const (
 	nodeItem nodeType = iota
 	nodeGroup
 	nodeRoot
-)
-
-type evalState int
-
-const (
-	evalDefault evalState = iota
-	evalDollar
 )
 
 // ParseText interprets the text in the abstract syntax tree and evaluates it.
@@ -367,6 +361,12 @@ func buildAST(s string, parent *astNode) (*astNode, int, error) {
 			if !escaping && ch == '\\' {
 				// do not add a node for this
 				escaping = true
+			} else if escaping && ch == 'n' {
+				buildingText += "\n"
+				escaping = false
+			} else if escaping && ch == 't' {
+				buildingText += "\t"
+				escaping = false
 			} else if !escaping && ch == '|' {
 				symNode := &astNode{
 					root: node.root,
@@ -448,6 +448,12 @@ func buildAST(s string, parent *astNode) (*astNode, int, error) {
 
 				// don't add it bc parent will
 				return node, i + 1, nil
+			} else if escaping && ch == 'n' {
+				buildingText += "\n"
+				escaping = false
+			} else if escaping && ch == 't' {
+				buildingText += "\t"
+				escaping = false
 			} else {
 				if escaping || !unicode.IsSpace(ch) {
 					buildingText += string(ch)
