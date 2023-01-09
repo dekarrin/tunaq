@@ -191,8 +191,18 @@ func (inter Interpreter) Expand(s string) (string, error) {
 			}
 			possibleFlagOrIf.WriteRune('$')
 		} else {
+			expandedText.WriteRune(ch)
 		}
 	}
+	if possibleFlagOrIf.Len() > 0 {
+		// then we need to break the current one and expand it
+		fullVar := possibleFlagOrIf.String()
+		val := expandFlag(fullVar)
+		expandedText.WriteString(val)
+		possibleFlagOrIf.Reset()
+	}
+
+	return expandedText.String(), nil
 
 }
 
