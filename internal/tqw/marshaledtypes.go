@@ -12,6 +12,11 @@ type topLevelManifest struct {
 	Files  []string `toml:"files"`
 }
 
+type flag struct {
+	Label   string `toml:"label"`
+	Default string `toml:"default"`
+}
+
 // topLevelWorldData is the top-level structure containing all keys in a complete TQW
 // 'DATA' type file.
 type topLevelWorldData struct {
@@ -22,6 +27,7 @@ type topLevelWorldData struct {
 	NPCs     []npc        `toml:"npc"`
 	Pronouns []pronounSet `toml:"pronouns"`
 	Items    []item       `toml:"item"`
+	Flags    []flag       `toml:"flag"`
 }
 
 type npc struct {

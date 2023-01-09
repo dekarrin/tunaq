@@ -229,6 +229,8 @@ func ParseCommand(toParse string) (Command, error) {
 
 			// we need to respect case for our arg
 			parsedCmd.Instrument = strings.TrimSpace(strings.Join(casedTokens[2:], " "))
+		} else if tokens[1] == "FLAGS" {
+			parsedCmd.Recipient = "FLAGS"
 		} else {
 			return parsedCmd, tqerrors.Interpreterf("%q is not a valid thing to be debugged", tokens[1])
 		}

@@ -17,6 +17,7 @@ var commandHelp = [][2]string{
 	{"DEBUG NPC", "print info on all NPCs, or a single NPC with label LABEL if 'DEBUG NPC LABEL' is typed, or steps all NPCs if 'DEBUG NPC @STEP' is typed."},
 	{"DEBUG ROOM", "print info on the current room, or teleport to room with label LABEL if 'DEBUG ROOM LABEL' is typed."},
 	{"DEBUG EXEC [tunascript code]", "print what the tunascript code evaluates to"},
+	{"DEBUG FLAGS", "print all flags and their values"},
 	{"EXITS", "show the names of all exits from the room"},
 	{"GO/MOVE", "go to another room via one of the exits"},
 	{"INVENTORY/INVEN", "show your current inventory"},
@@ -101,7 +102,7 @@ func (wi worldInterface) Output(out string) bool {
 // io.Width is how wide the output should be. State will try to make all\
 // output fit within this width. If not set or < 2, it will be automatically
 // assumed to be 80.
-func New(world map[string]*Room, startingRoom string, ioDev IODevice) (State, error) {
+func New(world map[string]*Room, startingRoom string, flags map[string]string, ioDev IODevice) (State, error) {
 	if ioDev.Width < 2 {
 		ioDev.Width = 80
 	}
@@ -212,8 +213,9 @@ func New(world map[string]*Room, startingRoom string, ioDev IODevice) (State, er
 	}
 
 	gs.scripts = tunascript.NewInterpreter(scriptInterface)
-	// lets give us somefin to play with
-	gs.scripts.AddFlag("GLUB", "20")
+	for fl := range flags {
+		gs.scripts.AddFlag(fl, flags[fl])
+	}
 
 	return gs, nil
 }
@@ -488,6 +490,8 @@ func (gs *State) ExecuteCommandDebug(cmd command.Command) (string, error) {
 		return gs.executeDebugNPC(cmd.Instrument)
 	} else if cmd.Recipient == "EXEC" {
 		return gs.executeDebugExec(cmd.Instrument)
+	} else if cmd.Recipient == "FLAGS" {
+		return gs.executeDebugFlags()
 	} else {
 		return "", tqerrors.Interpreterf("I don't know how to debug %q", cmd.Recipient)
 	}
