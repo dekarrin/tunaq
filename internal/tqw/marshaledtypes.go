@@ -3,6 +3,7 @@ package tqw
 import (
 	"strings"
 
+	"github.com/BurntSushi/toml"
 	"github.com/dekarrin/tunaq/internal/game"
 )
 
@@ -13,8 +14,9 @@ type topLevelManifest struct {
 }
 
 type flag struct {
-	Label   string `toml:"label"`
-	Default string `toml:"default"`
+	Label       string         `toml:"label"`
+	DefaultPrim toml.Primitive `toml:"default"`
+	Default     string         // manually toml decode this one from Prim, either as string, int, or bool
 }
 
 // topLevelWorldData is the top-level structure containing all keys in a complete TQW

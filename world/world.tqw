@@ -6,5 +6,5 @@ type = "data"
 start = "YOUR_ROOM"
 
 [[flag]]
-label = "GLUB"
-value = "22"
+label = "GLUB_IS_GOOD"
+default = true
