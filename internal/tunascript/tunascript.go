@@ -140,6 +140,65 @@ func (inter Interpreter) GetFlag(label string) string {
 	return flag.String()
 }
 
+// Expand applies expansion on the given text. Expansion will expand the
+// following constructs:
+//
+//   - any flag reference with the $ will be expanded to its full value.
+//   - any $IF() ... $ENDIF() block will be evaluated and included in the output
+//     text only if the tunaquest expression inside the $IF evaluates to true.
+//   - function calls are not allowed outside of the tunascript expression in an
+//     $IF. If they are there, they will be interpreted as a variable expansion,
+//     and if there is no value matching that one, it will be expanded to an
+//     empty string. E.g. "$ADD()" in the body text would evaluate to value of
+//     flag called "ADD" (probably ""), followed by literal parenthesis.
+//   - bare dollar signs are evaluated as literal. This will only happen if they
+//     are not immediately followed by identifier chars.
+//   - literal $ signs can be included with a backslash. Thus the escape
+//     backslash will work.
+//   - literal backslashes can be included by escaping them.
+func (inter Interpreter) Expand(s string) (string, error) {
+	var expandedText strings.Builder
+	var possibleFlagOrIf strings.Builder
+
+	var escaping bool
+
+	expandFlag := func(fullFlagToken string) string {
+		flagName := fullFlagToken[1:]
+		if flagName == "" {
+			// bare dollarsign, go add it to expanded
+			return "$"
+		} else {
+			// it is a full var name
+			flagName = strings.ToUpper(flagName)
+			flag, ok := inter.flags[flagName]
+			if !ok {
+				return ""
+			}
+			return flag.Value.String()
+		}
+	}
+
+	for _, ch := range s {
+		if !escaping && ch == '\\' {
+			escaping = true
+		} else if !escaping && ch == '$' {
+			if possibleFlagOrIf.Len() > 0 {
+				// then we need to break the current one and expand it
+				fullVar := possibleFlagOrIf.String()
+				val := expandFlag(fullVar)
+				expandedText.WriteString(val)
+				possibleFlagOrIf.Reset()
+			}
+			possibleFlagOrIf.WriteRune('$')
+		} else {
+		}
+	}
+
+}
+
+// Eval interprets the tunaquest expression in the given string. If there is an
+// error in the code, it is returned as a non-nil error, otherwise the output of
+// evaluating the expression is returned as a string.
 func (inter Interpreter) Eval(s string) (string, error) {
 	ast, _, err := buildAST(s, nil)
 	if err != nil {
