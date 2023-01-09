@@ -62,6 +62,7 @@ type WorldInterface interface {
 func NewInterpreter(w WorldInterface) Interpreter {
 	inter := Interpreter{
 		fn:    make(map[string]Function),
+		flags: make(map[string]*Flag),
 		world: w,
 	}
 
