@@ -56,6 +56,10 @@ func (gs *State) executeDebugNPC(npcLabel string) (string, error) {
 	return output, nil
 }
 
+func (gs *State) executeDebugExec(s string) (string, error) {
+	return gs.scripts.Eval(s)
+}
+
 // ListNPCs returns a text table of the NPCs in the game and some general
 // information about them.
 func (gs *State) ListNPCs() string {

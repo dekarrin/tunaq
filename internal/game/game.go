@@ -7,6 +7,7 @@ import (
 	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/command"
 	"github.com/dekarrin/tunaq/internal/tqerrors"
+	"github.com/dekarrin/tunaq/internal/tunascript"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
@@ -15,6 +16,7 @@ var commandHelp = [][2]string{
 	{"DROP/PUT", "put down an object in the room"},
 	{"DEBUG NPC", "print info on all NPCs, or a single NPC with label LABEL if 'DEBUG NPC LABEL' is typed, or steps all NPCs if 'DEBUG NPC @STEP' is typed."},
 	{"DEBUG ROOM", "print info on the current room, or teleport to room with label LABEL if 'DEBUG ROOM LABEL' is typed."},
+	{"DEBUG EXEC [tunascript code]", "print what the tunascript code evaluates to"},
 	{"EXITS", "show the names of all exits from the room"},
 	{"GO/MOVE", "go to another room via one of the exits"},
 	{"INVENTORY/INVEN", "show your current inventory"},
@@ -44,8 +46,14 @@ type State struct {
 	// NPC is currently in.
 	npcLocations map[string]string
 
+	// itemLocations is a map of items to the label of the room that the item is
+	// currently in. will map to "@INVEN" if it is in the inventory.
+	itemLocations map[string]string
+
 	// width is how wide to make output
 	io IODevice
+
+	scripts tunascript.Interpreter
 }
 
 type IODevice struct {
@@ -63,6 +71,24 @@ type IODevice struct {
 	// sent before the input is read. If invalid input is received, keeps
 	// prompting until a valid one is entered.
 	InputInt func(prompt string) (int, error)
+}
+
+type worldInterface struct {
+	fnInInven func(string) bool
+	fnMove    func(string, string) bool
+	fnOutput  func(string) bool
+}
+
+func (wi worldInterface) InInventory(item string) bool {
+	return wi.fnInInven(item)
+}
+
+func (wi worldInterface) Move(target, dest string) bool {
+	return wi.fnMove(target, dest)
+}
+
+func (wi worldInterface) Output(out string) bool {
+	return wi.fnOutput(out)
 }
 
 // New creates a new State and loads the list of rooms into it. It performs
@@ -90,10 +116,80 @@ func New(world map[string]*Room, startingRoom string, ioDev IODevice) (State, er
 	}
 
 	gs := State{
-		World:        world,
-		Inventory:    make(Inventory),
-		npcLocations: make(map[string]string),
-		io:           ioDev,
+		World:         world,
+		Inventory:     make(Inventory),
+		npcLocations:  make(map[string]string),
+		itemLocations: make(map[string]string),
+		io:            ioDev,
+	}
+
+	scriptInterface := worldInterface{
+		fnInInven: func(s string) bool {
+			_, ok := gs.Inventory[strings.ToUpper(s)]
+			return ok
+		},
+		fnMove: func(target, dest string) bool {
+			target = strings.ToUpper(target)
+			dest = strings.ToUpper(dest)
+
+			if _, ok := gs.World[dest]; !ok {
+				// TODO: don't fail silently
+				return false
+			}
+			if target == "@PLAYER" {
+				if gs.CurrentRoom.Label == dest {
+					return false
+				}
+				gs.CurrentRoom = gs.World[dest]
+				return true
+			} else {
+				// item?
+				if roomLabel, ok := gs.itemLocations[target]; ok {
+					if roomLabel == "@INVEN" {
+						// it DOES move from backpack
+						it := gs.Inventory[target]
+						gs.World[dest].Items = append(gs.World[dest].Items, it)
+						delete(gs.Inventory, it.Label)
+						gs.itemLocations[target] = dest
+					}
+					if roomLabel == dest {
+						return false
+					}
+					// get the item
+					var item Item
+					for _, it := range gs.World[roomLabel].Items {
+						if it.Label == target {
+							item = it
+							break
+						}
+					}
+
+					gs.World[roomLabel].RemoveItem(target)
+					gs.World[dest].Items = append(gs.World[dest].Items, item)
+					gs.itemLocations[target] = dest
+					return true
+				}
+
+				// npc?
+				roomLabel, ok := gs.npcLocations[target]
+				if !ok {
+					return false
+				}
+				if roomLabel == dest {
+					return false
+				}
+
+				npc := gs.World[roomLabel].NPCs[target]
+				delete(gs.World[roomLabel].NPCs, npc.Label)
+				gs.World[dest].NPCs[npc.Label] = npc
+				gs.npcLocations[target] = dest
+				return true
+			}
+		},
+		fnOutput: func(s string) bool {
+			err := ioDev.Output(s)
+			return err == nil
+		},
 	}
 
 	// now set the current room
@@ -109,7 +205,15 @@ func New(world map[string]*Room, startingRoom string, ioDev IODevice) (State, er
 			npc.ResetRoute()
 			gs.npcLocations[npc.Label] = r.Label
 		}
+		for _, item := range r.Items {
+			gs.itemLocations[item.Label] = r.Label
+		}
+
 	}
+
+	gs.scripts = tunascript.NewInterpreter(scriptInterface)
+	// lets give us somefin to play with
+	gs.scripts.AddFlag("GLUB", "20")
 
 	return gs, nil
 }
@@ -293,6 +397,8 @@ func (gs *State) ExecuteCommandTake(cmd command.Command) (string, error) {
 	// then add it to inventory.
 	gs.Inventory[item.Label] = *item
 
+	gs.itemLocations[item.Label] = "@INVEN"
+
 	output := fmt.Sprintf("You pick up the %s and add it to your inventory.", item.Name)
 	return output, nil
 }
@@ -310,6 +416,7 @@ func (gs *State) ExecuteCommandDrop(cmd command.Command) (string, error) {
 
 	// add to room
 	gs.CurrentRoom.Items = append(gs.CurrentRoom.Items, *item)
+	gs.itemLocations[item.Label] = gs.CurrentRoom.Label
 
 	output := fmt.Sprintf("You drop the %s onto the ground", item.Name)
 	return output, nil
@@ -379,6 +486,8 @@ func (gs *State) ExecuteCommandDebug(cmd command.Command) (string, error) {
 		return gs.executeDebugRoom(cmd.Instrument)
 	} else if cmd.Recipient == "NPC" {
 		return gs.executeDebugNPC(cmd.Instrument)
+	} else if cmd.Recipient == "EXEC" {
+		return gs.executeDebugExec(cmd.Instrument)
 	} else {
 		return "", tqerrors.Interpreterf("I don't know how to debug %q", cmd.Recipient)
 	}

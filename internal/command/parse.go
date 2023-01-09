@@ -220,6 +220,15 @@ func ParseCommand(toParse string) (Command, error) {
 			if len(tokens) > 2 {
 				parsedCmd.Instrument = strings.Join(tokens[2:], " ")
 			}
+		} else if tokens[1] == "EXEC" {
+			parsedCmd.Recipient = "EXEC"
+			if len(tokens) < 3 {
+				return parsedCmd, tqerrors.Interpreterf("I don't know what you want me to EXEC.")
+			}
+			casedTokens := strings.Fields(toParse)
+
+			// we need to respect case for our arg
+			parsedCmd.Instrument = strings.TrimSpace(strings.Join(casedTokens[2:], " "))
 		} else {
 			return parsedCmd, tqerrors.Interpreterf("%q is not a valid thing to be debugged", tokens[1])
 		}
