@@ -2,6 +2,7 @@ package tunascript
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -114,6 +115,29 @@ func (inter Interpreter) AddFlag(label string, val string) error {
 	}
 
 	return nil
+}
+
+// ListFlags returns a list of all flags, sorted.
+func (inter Interpreter) ListFlags() []string {
+	flags := make([]string, len(inter.flags))
+	curFlagIdx := 0
+	for k := range inter.flags {
+		flags[curFlagIdx] = k
+	}
+
+	sort.Strings(flags)
+	return flags
+}
+
+// GetFlag gets the give flag's value. If it is unset, it will be "".
+func (inter Interpreter) GetFlag(label string) string {
+	label = strings.ToUpper(label)
+
+	flag, ok := inter.flags[label]
+	if !ok {
+		return ""
+	}
+	return flag.String()
 }
 
 func (inter Interpreter) Eval(s string) (string, error) {

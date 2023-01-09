@@ -60,6 +60,41 @@ func (gs *State) executeDebugExec(s string) (string, error) {
 	return gs.scripts.Eval(s)
 }
 
+func (gs *State) executeDebugFlags() (string, error) {
+	output := gs.ListFlags()
+	return output, nil
+}
+
+// ListFlags returns a text table of the Flags in the game and their current
+// values.
+func (gs *State) ListFlags() string {
+	var output string
+
+	// info on all flags
+	data := [][]string{{"Flag", "Value"}}
+
+	// we need to ensure a consistent ordering so need to sort all
+	// keys first
+	flagLabels := gs.scripts.ListFlags()
+
+	for _, flagLabel := range flagLabels {
+		val := gs.scripts.GetFlag(flagLabel)
+
+		infoRow := []string{flagLabel, val}
+		data = append(data, infoRow)
+	}
+
+	tableOpts := rosed.Options{
+		TableHeaders: true,
+	}
+
+	output = rosed.Edit("").
+		InsertTableOpts(0, data, 80, tableOpts).
+		String()
+
+	return output
+}
+
 // ListNPCs returns a text table of the NPCs in the game and some general
 // information about them.
 func (gs *State) ListNPCs() string {

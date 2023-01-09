@@ -132,7 +132,7 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string, fo
 		},
 	}
 
-	state, err := game.New(worldData.Rooms, worldData.Start, ioDev)
+	state, err := game.New(worldData.Rooms, worldData.Start, worldData.Flags, ioDev)
 	if err != nil {
 		return nil, fmt.Errorf("initializing game engine: %w", err)
 	}

@@ -4,3 +4,7 @@ type = "data"
 
 [world]
 start = "YOUR_ROOM"
+
+[[flag]]
+label = "GLUB_IS_GOOD"
+default = true

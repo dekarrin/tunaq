@@ -43,6 +43,9 @@ type WorldData struct {
 
 	// Start is the room the character starts in.
 	Start string
+
+	// Flags is the flags that the game starts with.
+	Flags map[string]string
 }
 
 // FileInfo contains the essential information all TQW format files must

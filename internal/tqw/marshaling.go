@@ -118,6 +118,9 @@ func recursiveUnmarshalResource(path string, manifStack []string) (data topLevel
 			if len(unmarshaledFileData.Items) > 0 {
 				unmarshaled.Items = append(unmarshaled.Items, unmarshaledFileData.Items...)
 			}
+			if len(unmarshaledFileData.Flags) > 0 {
+				unmarshaled.Flags = append(unmarshaled.Flags, unmarshaledFileData.Flags...)
+			}
 			processedFiles++
 		}
 
@@ -137,7 +140,10 @@ func recursiveUnmarshalResource(path string, manifStack []string) (data topLevel
 // parse or check world data.
 func unmarshalWorldData(tomlData []byte) (topLevelWorldData, error) {
 	var tqw topLevelWorldData
-	if tomlErr := toml.Unmarshal(tomlData, &tqw); tomlErr != nil {
+	strTOMLData := string(tomlData)
+
+	md, tomlErr := toml.Decode(strTOMLData, &tqw)
+	if tomlErr != nil {
 		return tqw, tomlErr
 	}
 
@@ -146,6 +152,29 @@ func unmarshalWorldData(tomlData []byte) (topLevelWorldData, error) {
 	}
 	if strings.ToUpper(tqw.Type) != "DATA" {
 		return tqw, fmt.Errorf("in header: 'type' must exist and be set to 'DATA'")
+	}
+
+	// now we must decode the type-unknown TOML of the flags;
+	// they must either be string, int, or bool (which we will immediately
+	// convert to a string, but we accept all to make the file format easier)
+	for i := range tqw.Flags {
+		fl := tqw.Flags[i]
+
+		var boolVal bool
+		var intVal int
+		var strVal string
+
+		if boolErr := md.PrimitiveDecode(fl.DefaultPrim, &boolVal); boolErr == nil {
+			fl.Default = fmt.Sprintf("%t", boolVal)
+		} else if intErr := md.PrimitiveDecode(fl.DefaultPrim, &intVal); intErr == nil {
+			fl.Default = fmt.Sprintf("%d", intVal)
+		} else if strErr := md.PrimitiveDecode(fl.DefaultPrim, &strVal); strErr == nil {
+			fl.Default = strVal
+		} else {
+			return tqw, fmt.Errorf("flag %q: default: must be a double-quoted string, true, false, or a number", fl.Label)
+		}
+
+		tqw.Flags[i] = fl
 	}
 
 	return tqw, nil

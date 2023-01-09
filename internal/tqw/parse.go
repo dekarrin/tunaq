@@ -10,8 +10,8 @@ import (
 )
 
 // these two are getting chucked into a char class so order matters
-const labelChars = `]A-Z0-9_!?#%^&*().,<>/+=[|{}:;-`
-const aliasChars = `]A-Z0-9_!?#%^&*().,<>/+=[|{}:; -`
+const labelChars = `A-Z0-9_`
+const aliasChars = `A-Z0-9_ `
 
 var (
 	labelRegexp             = regexp.MustCompile(fmt.Sprintf(`^[%s]+$`, labelChars))
@@ -36,6 +36,7 @@ type worldSymbols struct {
 	pronounLabels stringSet
 	npcLabels     stringSet
 	npcAliases    stringSet
+	flagLabels    stringSet
 }
 
 func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
@@ -46,6 +47,7 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 
 	world := WorldData{
 		Rooms: make(map[string]*game.Room),
+		Flags: make(map[string]string),
 	}
 
 	// first, get all of our game symbols so we can immediately check validity
@@ -137,6 +139,11 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 		world.Rooms[gameNPC.Start].NPCs[gameNPC.Label] = &gameNPC
 	}
 
+	// Flags were already checked in the symbol scan. Add them to world data
+	for _, fl := range tqw.Flags {
+		world.Flags[strings.ToUpper(fl.Label)] = fl.Default
+	}
+
 	return world, nil
 }
 
@@ -173,6 +180,7 @@ func scanSymbols(top topLevelWorldData) (symbols worldSymbols, err error) {
 
 		npcLabels:  make(stringSet),
 		npcAliases: make(stringSet),
+		flagLabels: make(stringSet),
 	}
 
 	// not doing egressAliases because that is not something that other things
@@ -227,6 +235,14 @@ func scanSymbols(top topLevelWorldData) (symbols worldSymbols, err error) {
 			}
 			syms.npcAliases[aliasUpper] = true
 		}
+	}
+
+	for _, fl := range top.Flags {
+		flUpper := strings.ToUpper(fl.Label)
+		if err := checkLabel(flUpper, symbols.flagLabels, "a flag"); err != nil {
+			return syms, fmt.Errorf("flag: %w", err)
+		}
+		syms.flagLabels[flUpper] = true
 	}
 
 	// end of getting global symbols
