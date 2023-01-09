@@ -154,6 +154,19 @@ func unmarshalWorldData(tomlData []byte) (topLevelWorldData, error) {
 		return tqw, fmt.Errorf("in header: 'type' must exist and be set to 'DATA'")
 	}
 
+	// BurntSushi/toml requires that we manually check for unparsed keys.
+	undecKeys := md.Undecoded()
+	undecErrMsg := ""
+	for i := range undecKeys {
+		tomlKey := undecKeys[i]
+		undecErrMsg += fmt.Sprintf("\nERR: unknown key %q", tomlKey)
+	}
+	if undecErrMsg != "" {
+		// strip off ending newline
+		undecErrMsg = undecErrMsg[:len(undecErrMsg)-1]
+		return tqw, fmt.Errorf(undecErrMsg)
+	}
+
 	// now we must decode the type-unknown TOML of the flags;
 	// they must either be string, int, or bool (which we will immediately
 	// convert to a string, but we accept all to make the file format easier)
@@ -184,7 +197,10 @@ func unmarshalWorldData(tomlData []byte) (topLevelWorldData, error) {
 // parse or check world data.
 func unmarshalManifest(tomlData []byte) (topLevelManifest, error) {
 	var tqw topLevelManifest
-	if tomlErr := toml.Unmarshal(tomlData, &tqw); tomlErr != nil {
+	strTOMLData := string(tomlData)
+
+	md, tomlErr := toml.Decode(strTOMLData, &tqw)
+	if tomlErr != nil {
 		return tqw, tomlErr
 	}
 
@@ -193,6 +209,19 @@ func unmarshalManifest(tomlData []byte) (topLevelManifest, error) {
 	}
 	if strings.ToUpper(tqw.Type) != "MANIFEST" {
 		return tqw, fmt.Errorf("in header: 'type' must exist and be set to 'MANIFEST'")
+	}
+
+	// BurntSushi/toml requires that we manually check for unparsed keys.
+	undecKeys := md.Undecoded()
+	undecErrMsg := ""
+	for i := range undecKeys {
+		tomlKey := undecKeys[i]
+		undecErrMsg += fmt.Sprintf("\nERR: unknown key %q", tomlKey)
+	}
+	if undecErrMsg != "" {
+		// strip off ending newline
+		undecErrMsg = undecErrMsg[:len(undecErrMsg)-1]
+		return tqw, fmt.Errorf(undecErrMsg)
 	}
 
 	return tqw, nil
