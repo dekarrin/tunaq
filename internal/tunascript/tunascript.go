@@ -2,6 +2,7 @@ package tunascript
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -38,6 +39,7 @@ type Flag struct {
 	Value
 }
 
+// Interpreter should not be used directly, use NewInterpreter.
 type Interpreter struct {
 	fn    map[string]Function
 	flags map[string]*Flag
@@ -69,7 +71,7 @@ func NewInterpreter(w WorldInterface) Interpreter {
 	inter.fn["ADD"] = Function{Name: "ADD", RequiredArgs: 2, Call: builtIn_Add}
 	inter.fn["SUB"] = Function{Name: "SUB", RequiredArgs: 2, Call: builtIn_Sub}
 	inter.fn["MULT"] = Function{Name: "MULT", RequiredArgs: 2, Call: builtIn_Mult}
-	inter.fn["DIV"] = Function{Name: "DIV", RequiredArgs: 2, Call: builtIn_Add}
+	inter.fn["DIV"] = Function{Name: "DIV", RequiredArgs: 2, Call: builtIn_Div}
 	inter.fn["OR"] = Function{Name: "OR", RequiredArgs: 2, Call: builtIn_Or}
 	inter.fn["AND"] = Function{Name: "AND", RequiredArgs: 2, Call: builtIn_And}
 	inter.fn["NOT"] = Function{Name: "NOT", RequiredArgs: 1, Call: builtIn_Not}
@@ -113,6 +115,25 @@ func (inter Interpreter) AddFlag(label string, val string) error {
 	return nil
 }
 
+func (inter Interpreter) Eval(s string) (string, error) {
+	ast, _, err := buildAST(s, nil)
+	if err != nil {
+		return "", fmt.Errorf("syntax error: %w", err)
+	}
+
+	vals, err := inter.evalExpr(ast)
+	if err != nil {
+		return "", fmt.Errorf("syntax error: %w", err)
+	}
+
+	strVals := make([]string, len(vals))
+	for i := range vals {
+		strVals[i] = vals[i].Str()
+	}
+
+	return strings.Join(strVals, " "), nil
+}
+
 type symbolType int
 
 const (
@@ -147,8 +168,6 @@ type astNode struct {
 	children []*astNode
 	sym      symbol
 	t        nodeType
-
-	forceType ValueType
 }
 
 type lexerState int
@@ -173,25 +192,6 @@ const (
 	evalDefault evalState = iota
 	evalDollar
 )
-
-func (inter Interpreter) Eval(s string) (string, error) {
-	ast, _, err := buildAST(s, nil)
-	if err != nil {
-		return "", fmt.Errorf("syntax error: %w", err)
-	}
-
-	vals, err := inter.evalExpr(ast)
-	if err != nil {
-		return "", fmt.Errorf("syntax error: %w", err)
-	}
-
-	strVals := make([]string, len(vals))
-	for i := range vals {
-		strVals[i] = vals[i].Str()
-	}
-
-	return strings.Join(strVals, " "), nil
-}
 
 // ParseText interprets the text in the abstract syntax tree and evaluates it.
 func (inter Interpreter) evalExpr(ast *astNode) ([]Value, error) {
@@ -283,7 +283,7 @@ func (inter Interpreter) evalExpr(ast *astNode) ([]Value, error) {
 				var v Value
 				flag, ok := inter.flags[flagName]
 				if ok {
-					v = NewStr(flag.Str())
+					v = flag.Value
 				} else {
 					v = NewStr("")
 				}
@@ -306,15 +306,22 @@ func (inter Interpreter) evalExpr(ast *astNode) ([]Value, error) {
 
 func parseUntypedValString(valStr string) Value {
 	srcUpper := strings.ToUpper(valStr)
-	var v Value
 	if srcUpper == "TRUE" || srcUpper == "YES" || srcUpper == "ON" {
-		v = NewBool(true)
+		return NewBool(true)
+	} else if srcUpper == "FALSE" || srcUpper == "NO" || srcUpper == "OFF" {
+		return NewBool(false)
 	}
-	return v
+
+	intVal, err := strconv.Atoi(valStr)
+	if err == nil {
+		return NewNum(intVal)
+	}
+
+	return NewStr(valStr)
 }
 
-// LexText lexes the text. Returns the AST, whether exiting on right paren, how
-// many bytes were consumed, and whether an error was encountered.
+// LexText lexes the text. Returns the AST, number of runes consumed
+// and whether an error was encountered.
 func buildAST(s string, parent *astNode) (*astNode, int, error) {
 	node := &astNode{children: make([]*astNode, 0)}
 	if parent == nil {
@@ -339,6 +346,8 @@ func buildAST(s string, parent *astNode) (*astNode, int, error) {
 	var buildingText string
 	for i := 0; i < len(sRunes); i++ {
 		ch := sRunes[i]
+		//chS := string(ch)
+		//fmt.Println(chS)
 
 		switch mode {
 		case lexIdent:
@@ -405,7 +414,7 @@ func buildAST(s string, parent *astNode) (*astNode, int, error) {
 				}
 				subNode.t = nodeGroup
 
-				node.children = append(node.children[:len(node.children)-1], subNode)
+				node.children = append(node.children, subNode)
 				i += consumed
 			} else if !escaping && ch == ',' {
 				if buildingText != "" {
@@ -438,7 +447,7 @@ func buildAST(s string, parent *astNode) (*astNode, int, error) {
 				}
 
 				// don't add it bc parent will
-				return node, sBytes[i], nil
+				return node, i + 1, nil
 			} else {
 				if escaping || !unicode.IsSpace(ch) {
 					buildingText += string(ch)
@@ -462,8 +471,13 @@ func buildAST(s string, parent *astNode) (*astNode, int, error) {
 			node.children = append(node.children, textNode)
 			buildingText = ""
 		}
-	}
-	if mode == lexStr {
+	} else if mode == lexIdent {
+		if buildingText != "" {
+			textNode := &astNode{root: node.root, sym: symbol{sType: symbolIdentifier, source: buildingText}}
+			node.children = append(node.children, textNode)
+			buildingText = ""
+		}
+	} else if mode == lexStr {
 		return nil, 0, fmt.Errorf("unexpected end of expression (unmatched string start \"|\")")
 	}
 

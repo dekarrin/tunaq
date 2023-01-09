@@ -92,15 +92,13 @@ func (v Value) Num() int {
 // Str returns the current value of v as a string. If it is not already a str
 // type, its result is cast to one first.
 func (v Value) Str() string {
-	var s string
-
 	switch v.Type() {
 	case Bool:
 		return fmt.Sprintf("%t", v.Bool())
 	case Num:
 		return fmt.Sprintf("%d", v.Num())
 	case Str:
-		return s
+		return v.v
 	default:
 		// should never happen
 		panic(fmt.Sprintf("unknown tunascript type: %v", v.Type()))
