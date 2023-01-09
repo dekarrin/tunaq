@@ -90,6 +90,28 @@ func NewInterpreter(w WorldInterface) Interpreter {
 	return inter
 }
 
+// AddFlag adds a flag to the interpreter's flag store, with an initial value.
+func (inter Interpreter) AddFlag(label string, val string) error {
+	label = strings.ToUpper(label)
+
+	if len(label) < 1 {
+		return fmt.Errorf("label %q does not match pattern /[A-Z0-9_]+/", label)
+	}
+
+	for _, ch := range label {
+		if !('A' <= ch && ch <= 'Z') && !('0' <= ch && ch <= '9') && ch != '_' {
+			return fmt.Errorf("label %q does not match pattern /[A-Z0-9_]+/", label)
+		}
+	}
+
+	inter.flags[label] = &Flag{
+		Name:  label,
+		Value: parseUntypedValString(val),
+	}
+
+	return nil
+}
+
 type symbolType int
 
 const (

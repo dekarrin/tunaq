@@ -16,6 +16,7 @@ var commandHelp = [][2]string{
 	{"DROP/PUT", "put down an object in the room"},
 	{"DEBUG NPC", "print info on all NPCs, or a single NPC with label LABEL if 'DEBUG NPC LABEL' is typed, or steps all NPCs if 'DEBUG NPC @STEP' is typed."},
 	{"DEBUG ROOM", "print info on the current room, or teleport to room with label LABEL if 'DEBUG ROOM LABEL' is typed."},
+	{"DEBUG EXEC [tunascript code]", "print what the tunascript code evaluates to"},
 	{"EXITS", "show the names of all exits from the room"},
 	{"GO/MOVE", "go to another room via one of the exits"},
 	{"INVENTORY/INVEN", "show your current inventory"},
@@ -208,6 +209,8 @@ func New(world map[string]*Room, startingRoom string, ioDev IODevice) (State, er
 	}
 
 	gs.scripts = tunascript.NewInterpreter(scriptInterface)
+	// lets give us somefin to play with
+	gs.scripts.AddFlag("GLUB", "20")
 
 	return gs, nil
 }
