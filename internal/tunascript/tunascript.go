@@ -156,10 +156,7 @@ func (inter Interpreter) GetFlag(label string) string {
 //   - literal $ signs can be included with a backslash. Thus the escape
 //     backslash will work.
 //   - literal backslashes can be included by escaping them.
-func (inter Interpreter) Expand(s string) (string, error) {
-	var expandedText strings.Builder
-	var possibleFlagOrIf strings.Builder
-
+func (inter Interpreter) ExpandText(s string) (string, error) {
 	sRunes := []rune{}
 	sBytes := []int{}
 	for b, ch := range s {
@@ -205,67 +202,89 @@ func (inter Interpreter) Expand(s string) (string, error) {
 				escaping = false
 			}
 		} else {
-			if !escaping && ch == '\\' {
-				if i+1 < len(sRunes) && unicode.IsSpace(sRunes[i+1]) {
-					i++
-				} else {
-					val := expandFlag(ident.String())
-					expanded.WriteString(val)
-					ident.Reset()
-					i-- // reparse in 'normal' mode
-				}
-			} else if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
+			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
 				ident.WriteRune(ch)
+			} else if ch == '(' {
+				// this is a func call, and the only allowed directly in text is $IF() and $ENDIF().
+				if ident.String() == "$IF" {
+					parenMatch, tsExpr, err := indexOfMatchingParen(s[sBytes[i]:])
+					if err != nil {
+						return "", fmt.Errorf("in $IF(): %w", err)
+					}
+					exprLen := parenMatch - 1
+
+					if exprLen < 1 {
+						return "", fmt.Errorf("in $IF: args cannot be empty")
+					}
+
+					tsResult, err := inter.evalExpr(tsExpr)
+					if err != nil {
+						return "", fmt.Errorf("in $IF(): %w", err)
+					}
+					if len(tsResult) > 1 {
+						return "", fmt.Errorf("in $IF(): $IF() takes one argument, received %d", len(tsResult))
+					}
+					ifResultStack = append(ifResultStack, tsResult[0].Bool())
+					expanded = strings.Builder{}
+					contentStack = append(contentStack, &expanded)
+					ident = strings.Builder{}
+					inIdent = false
+
+					i += parenMatch
+				} else if ident.String() == "$ENDIF" {
+					parenMatch, tsExpr, err := indexOfMatchingParen(s[sBytes[i]:])
+					if err != nil {
+						return "", fmt.Errorf("in $IF(): %w", err)
+					}
+					exprLen := parenMatch - 1
+
+					if exprLen != 0 {
+						return "", fmt.Errorf("in $ENDIF(): $ENDIF() takes zero arguments, received %d", len(tsExpr.children))
+					}
+
+					if len(ifResultStack) < 1 {
+						return "", fmt.Errorf("mismatched $ENDIF(); missing $IF() before it")
+					}
+
+					ifBlockContent := expanded.String()
+					contentStack = contentStack[:len(contentStack)-1]
+					expanded = *contentStack[len(contentStack)-1]
+					ifResult := ifResultStack[len(ifResultStack)-1]
+					ifResultStack = ifResultStack[:len(ifResultStack)-1]
+					if ifResult {
+						expanded.WriteString(ifBlockContent)
+					}
+					inIdent = false
+
+					i++ // for the extra paren
+				} else {
+					return "", fmt.Errorf("%s() is not a text function; only $IF() or $ENDIF() are allowed", ident.String())
+				}
+			} else {
+				varVal := expandFlag(ident.String())
+				expanded.WriteString(varVal)
+				ident = strings.Builder{}
+				inIdent = false
+
+				i-- // reparse 'normally'
 			}
 		}
 	}
-	// ident:
-	// 		[A-Za-z0-9_]: store to 'ident' buffer
-	//      unescaped (:
-	//			if ident buffer == "$IF": do paren match to find the other side
-	//				if no match: then error, mismatched parens
-	//              else: eval expression. push result onto end of ifResultStack, set expanded to new sb and push to end of contentStack. clear ident buffer. enter 'normal'
-	//          if ident buffer == "$ENDIF": do paren match to find the other side
-	//				if no match: then error, mismatched parens
-	//				else:
-	//					if: trimmed paren args != "": error, ENDIF does not take arg.
-	//                  else: ifContent = expanded.String(); pop off end of contentStack. set expanded to new end of contentStack. ifResult = pop off end of ifResultStack. enter 'normal'
-	//						if ifResult is true: add ifContent to expanded
-	//          else: expand 'ident' buffer as var, store in expanded. clear ident buffer. go back one char. enter normal.
-	//      backslash:
-	//			if next char is space: skip one char, continue
-	//			else: expand what is in 'ident' buffer, clear ident buffer, go back one char, enter normal
-	//		else: expand what is in 'ident' buffer, go back one char, enter normal
 
-	var readingIdent bool
-
-	for _, ch := range s {
-		if !escaping && ch == '\\' {
-			escaping = true
-		} else if !escaping && ch == '$' {
-			if readingIdent {
-				// then we need to break the current one and expand it
-				fullVar := possibleFlagOrIf.String()
-				val := expandFlag(fullVar)
-				expandedText.WriteString(val)
-				possibleFlagOrIf.Reset()
-			}
-			readingIdent = true
-			possibleFlagOrIf.WriteRune('$')
-		} else {
-			expandedText.WriteRune(ch)
-		}
-	}
-	if possibleFlagOrIf.Len() > 0 {
-		// then we need to break the current one and expand it
-		fullVar := possibleFlagOrIf.String()
-		val := expandFlag(fullVar)
-		expandedText.WriteString(val)
-		possibleFlagOrIf.Reset()
+	// done looping, do we have any ident left over?
+	// functions are look-ahaed analyzed as soon as opening paren is
+	// encountered, so if still inIdent its deffo a flag
+	if inIdent {
+		varVal := expandFlag(ident.String())
+		expanded.WriteString(varVal)
 	}
 
-	return expandedText.String(), nil
+	// check the stack, do we have mismatched ifs?
+	if len(ifResultStack) > 0 {
+		return "", fmt.Errorf("mismatched $IF(); missing $ENDIF() after it")
+	}
 
+	return expanded.String(), nil
 }
 
 // Eval interprets the tunaquest expression in the given string. If there is an
@@ -351,8 +370,8 @@ const (
 // Error is non-nil if there is malformed tunascript syntax between the parens,
 // of if s cannot be operated on.
 //
-// Slow; does a char-by-char analysis.
-func indexOfMatchingParen(s string) (int, error) {
+// Also returns the parsable AST of the analyzed expression as well.
+func indexOfMatchingParen(s string) (int, *astNode, error) {
 	// without a parent node on a paren scan, buildAST will produce an error.
 	dummyNode := &astNode{
 		children: make([]*astNode, 0),
@@ -367,11 +386,11 @@ func indexOfMatchingParen(s string) (int, error) {
 		} else {
 			errStr = string(sRunes)
 		}
-		return 0, fmt.Errorf("no opening paren at start of analysis string %q", errStr)
+		return 0, nil, fmt.Errorf("no opening paren at start of analysis string %q", errStr)
 	}
 
 	if len(sRunes) < 2 {
-		return 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
+		return 0, nil, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
 	}
 
 	gotFirstByte := false
@@ -387,15 +406,16 @@ func indexOfMatchingParen(s string) (int, error) {
 
 	if nextByteIdx == -1 {
 		// should never happen
-		return 0, fmt.Errorf("byte analysis on string failed to produce a next-char byte")
+		return 0, nil, fmt.Errorf("byte analysis on string failed to produce a next-char byte")
 	}
 
-	_, consumed, err := buildAST(s[nextByteIdx:], dummyNode)
+	exprNode, consumed, err := buildAST(s[nextByteIdx:], dummyNode)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
+	exprNode.t = nodeRoot
 
-	return consumed, nil
+	return consumed, exprNode, nil
 }
 
 // ParseText interprets the text in the abstract syntax tree and evaluates it.
