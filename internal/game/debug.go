@@ -47,7 +47,7 @@ func (gs *State) executeDebugNPC(npcLabel string) (string, error) {
 
 			output = fmt.Sprintf("Applied movement to %d NPC%s; %d moved, %d stayed", stayed+moved, pluralNPCs, moved, stayed)
 		} else {
-			return "", tqerrors.Interpreterf("There is no NPC DEBUG action called @%q; you can only use the @STEP action with NPCs")
+			return "", tqerrors.Interpreterf("There is no NPC DEBUG action called %q; you can only use the @STEP action with NPCs", npcLabel)
 		}
 	} else {
 		return gs.GetNPCInfo(npcLabel)

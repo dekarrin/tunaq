@@ -504,7 +504,7 @@ func (inter Interpreter) evalExpr(ast *astNode, queryOnly bool) ([]Value, error)
 
 				// restrict if requested
 				if queryOnly && fn.SideEffects {
-					return nil, fmt.Errorf("function $%s() will change game state")
+					return nil, fmt.Errorf("function $%s() will change game state", funcName)
 				}
 
 				args, err := inter.evalExpr(argsNode, queryOnly)
