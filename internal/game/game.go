@@ -490,6 +490,8 @@ func (gs *State) ExecuteCommandDebug(cmd command.Command) (string, error) {
 		return gs.executeDebugNPC(cmd.Instrument)
 	} else if cmd.Recipient == "EXEC" {
 		return gs.executeDebugExec(cmd.Instrument)
+	} else if cmd.Recipient == "EXPAND" {
+		return gs.executeDebugExpand(cmd.Instrument)
 	} else if cmd.Recipient == "FLAGS" {
 		return gs.executeDebugFlags()
 	} else {

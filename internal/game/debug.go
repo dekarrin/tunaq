@@ -60,6 +60,10 @@ func (gs *State) executeDebugExec(s string) (string, error) {
 	return gs.scripts.Eval(s)
 }
 
+func (gs *State) executeDebugExpand(s string) (string, error) {
+	return gs.scripts.ExpandText(s)
+}
+
 func (gs *State) executeDebugFlags() (string, error) {
 	output := gs.ListFlags()
 	return output, nil
