@@ -187,8 +187,6 @@ func (eng *Engine) RunUntilQuit(startCommands []string) error {
 
 	startCmdIdx := 0
 
-	fmt.Printf("%d STARTS\n", len(startCommands))
-
 	for eng.running {
 		var cmd command.Command
 		var err error
