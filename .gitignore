@@ -18,3 +18,7 @@
 # we are a go mod household tyvm
 /vendor
 
+# archives
+*.tar.gz
+*.zip
+
