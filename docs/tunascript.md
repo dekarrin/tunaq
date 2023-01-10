@@ -3,6 +3,8 @@ Tunascript Expression Language
 
 UPDATE: there is no untyped; it is always string by default
 
+this file is a major work in prog and should rly not be relied on at all.
+
 The tunascript expression language is the language used to update and read flags
 during particular points of gameplay to make the game more dynamic. It can be
 used to set whether someone has talked to a person, to record the number of
@@ -65,21 +67,21 @@ context that a tunascript expression is required.
 * `$or(x any, y any) bool`
 * `$and(x any, y any) bool`
 * `$not(x any) bool`
-* `$flagEnabled(flag str) bool`
-* `$flagDisabled(flag str) bool`
-* `$flagIs(flag str, val str) bool`
-* `$flagIsLessThan(flag str, val num) bool`
-* `$flagIsGreaterThan(flag str, val num) bool`
-* `$ininven(item str) bool`
+* `$flag_enabled(flag str) bool`
+* `$flag_disabled(flag str) bool`
+* `$flag_is(flag str, val str) bool`
+* `$flag_less_than(flag str, val num) bool`
+* `$flag_greater_than(flag str, val num) bool`
+* `$in_inven(item str) bool`
 
-The following functions have side-effects, and may not be used in `if` clauses.
+The following functions have side-effects, and may not be used in `if` clauses
+in text to be expanded:
 * `$enable(flag str) bool`
 * `$disable(flag str) bool`
 * `$toggle(flag str) bool`
 * `$inc(flag str[, amt int]) int`
 * `$dec(flag str[, amt int]) int`
 * `$set(flag str, val T) T`
-* `$crush/$kill/$destroy(label str)`
 * `$move(label str, to str)`
 * `$output(x any) empty-str`
 
