@@ -4,6 +4,17 @@ TunaQuest
 An engine for building text adventures and choose-your-own adventures. Set sail
 for adventure!
 
+TunaQuest allows text adventure creators to build worlds for their players using
+a simple TOML-based world-file format, along with the help of a restricted
+scripting language called 'tunascript'.
+
+This is an early release of TunaQuest. You can find the latest releases at
+the [TunaQuest GitHub Releases Page](https://github.com/dekarrin/tunaq/releases).
+Please note that some features will be completely broken, some will be partially
+implemented, and some will not work at all.
+
+## Usage
+
 ## Showcase
 todo: show some tunaquest logs
 

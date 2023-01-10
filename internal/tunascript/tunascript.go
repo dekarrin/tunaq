@@ -32,6 +32,11 @@ type Function struct {
 	// is guaranteed to receive RequiredArgs, and may receive up to OptionalArgs
 	// additional args.
 	Call FuncCall
+
+	// SideEffects tells whether the function has side-effects. Certain contexts
+	// such as within an $IF() may restrict the execution of side-effect
+	// functions.
+	SideEffects bool
 }
 
 // Flag is a variable in the engine.
@@ -83,14 +88,14 @@ func NewInterpreter(w WorldInterface) Interpreter {
 	inter.fn["FLAG_LESS_THAN"] = Function{Name: "FLAG_LESS_THAN", RequiredArgs: 2, Call: inter.builtIn_FlagLessThan}
 	inter.fn["FLAG_GREATER_THAN"] = Function{Name: "FLAG_GREATER_THAN", RequiredArgs: 2, Call: inter.builtIn_FlagGreaterThan}
 	inter.fn["IN_INVEN"] = Function{Name: "IN_INVEN", RequiredArgs: 1, Call: inter.builtIn_InInven}
-	inter.fn["ENABLE"] = Function{Name: "ENABLE", RequiredArgs: 1, Call: inter.builtIn_Enable}
-	inter.fn["DISABLE"] = Function{Name: "DISABLE", RequiredArgs: 1, Call: inter.builtIn_Disable}
-	inter.fn["TOGGLE"] = Function{Name: "DISABLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
-	inter.fn["INC"] = Function{Name: "INC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Inc}
-	inter.fn["DEC"] = Function{Name: "DEC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Dec}
-	inter.fn["SET"] = Function{Name: "SET", RequiredArgs: 2, Call: inter.builtIn_Set}
-	inter.fn["MOVE"] = Function{Name: "MOVE", RequiredArgs: 2, Call: inter.builtIn_Move}
-	inter.fn["OUTPUT"] = Function{Name: "OUTPUT", RequiredArgs: 1, Call: inter.builtIn_Output}
+	inter.fn["ENABLE"] = Function{Name: "ENABLE", RequiredArgs: 1, Call: inter.builtIn_Enable, SideEffects: true}
+	inter.fn["DISABLE"] = Function{Name: "DISABLE", RequiredArgs: 1, Call: inter.builtIn_Disable, SideEffects: true}
+	inter.fn["TOGGLE"] = Function{Name: "DISABLE", RequiredArgs: 1, Call: inter.builtIn_Toggle, SideEffects: true}
+	inter.fn["INC"] = Function{Name: "INC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Inc, SideEffects: true}
+	inter.fn["DEC"] = Function{Name: "DEC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Dec, SideEffects: true}
+	inter.fn["SET"] = Function{Name: "SET", RequiredArgs: 2, Call: inter.builtIn_Set, SideEffects: true}
+	inter.fn["MOVE"] = Function{Name: "MOVE", RequiredArgs: 2, Call: inter.builtIn_Move, SideEffects: true}
+	inter.fn["OUTPUT"] = Function{Name: "OUTPUT", RequiredArgs: 1, Call: inter.builtIn_Output, SideEffects: true}
 
 	return inter
 }
@@ -182,14 +187,15 @@ func (inter Interpreter) ExpandText(s string) (string, error) {
 
 	var contentStack []*strings.Builder
 	var ifResultStack []bool
-	var expanded strings.Builder
+	var expanded *strings.Builder
 	var ident strings.Builder
 
 	var inIdent bool
 	var escaping bool
 
-	contentStack = append(contentStack, &expanded)
-	for i := range sRunes {
+	expanded = &strings.Builder{}
+	contentStack = append(contentStack, expanded)
+	for i := 0; i < len(sRunes); i++ {
 		ch := sRunes[i]
 		if !inIdent {
 			if !escaping && ch == '\\' {
@@ -209,56 +215,82 @@ func (inter Interpreter) ExpandText(s string) (string, error) {
 				if ident.String() == "$IF" {
 					parenMatch, tsExpr, err := indexOfMatchingParen(s[sBytes[i]:])
 					if err != nil {
-						return "", fmt.Errorf("in $IF(): %w", err)
+						return "", fmt.Errorf("at char %d: %w", i, err)
 					}
 					exprLen := parenMatch - 1
 
 					if exprLen < 1 {
-						return "", fmt.Errorf("in $IF: args cannot be empty")
+						return "", fmt.Errorf("at char %d: args cannot be empty", i)
 					}
 
-					tsResult, err := inter.evalExpr(tsExpr)
+					tsResult, err := inter.evalExpr(tsExpr, true)
 					if err != nil {
-						return "", fmt.Errorf("in $IF(): %w", err)
+						return "", fmt.Errorf("at char %d: %w", i, err)
 					}
 					if len(tsResult) > 1 {
-						return "", fmt.Errorf("in $IF(): $IF() takes one argument, received %d", len(tsResult))
+						return "", fmt.Errorf("at char %d: $IF() takes one argument, received %d", i, len(tsResult))
 					}
 					ifResultStack = append(ifResultStack, tsResult[0].Bool())
-					expanded = strings.Builder{}
-					contentStack = append(contentStack, &expanded)
-					ident = strings.Builder{}
+					expanded = &strings.Builder{}
+					contentStack = append(contentStack, expanded)
+					ident.Reset()
 					inIdent = false
 
 					i += parenMatch
 				} else if ident.String() == "$ENDIF" {
 					parenMatch, tsExpr, err := indexOfMatchingParen(s[sBytes[i]:])
 					if err != nil {
-						return "", fmt.Errorf("in $IF(): %w", err)
+						return "", fmt.Errorf("at char %d: %w", i, err)
 					}
 					exprLen := parenMatch - 1
 
 					if exprLen != 0 {
-						return "", fmt.Errorf("in $ENDIF(): $ENDIF() takes zero arguments, received %d", len(tsExpr.children))
+						return "", fmt.Errorf("at char %d: $ENDIF() takes zero arguments, received %d", i, len(tsExpr.children))
 					}
 
 					if len(ifResultStack) < 1 {
-						return "", fmt.Errorf("mismatched $ENDIF(); missing $IF() before it")
+						return "", fmt.Errorf("at char %d: mismatched $ENDIF(); missing $IF() before it", i)
 					}
 
 					ifBlockContent := expanded.String()
 					contentStack = contentStack[:len(contentStack)-1]
-					expanded = *contentStack[len(contentStack)-1]
+					expanded = contentStack[len(contentStack)-1]
 					ifResult := ifResultStack[len(ifResultStack)-1]
 					ifResultStack = ifResultStack[:len(ifResultStack)-1]
 					if ifResult {
-						expanded.WriteString(ifBlockContent)
+						// trim all spaces from both sides
+						expanded.WriteString(strings.TrimSpace(ifBlockContent))
+					} else {
+						// remove the space prior to the if
+						oldBeforeIf := expanded.String()
+						// it appears iterating over the entire string is the
+						// only way to do this.
+						//
+						// Hey, no8ody said we had to 8e efficient about it!
+						//
+						// efishient* 383
+
+						finalCharByte := -1
+						for b := range oldBeforeIf {
+							finalCharByte = b
+						}
+
+						finalStr := []rune(oldBeforeIf[finalCharByte:])
+
+						if unicode.IsSpace(finalStr[0]) {
+							oldBeforeIf = oldBeforeIf[:finalCharByte]
+						}
+
+						expanded = &strings.Builder{}
+						expanded.WriteString(oldBeforeIf)
+						contentStack[len(contentStack)-1] = expanded
 					}
+					ident.Reset()
 					inIdent = false
 
 					i++ // for the extra paren
 				} else {
-					return "", fmt.Errorf("%s() is not a text function; only $IF() or $ENDIF() are allowed", ident.String())
+					return "", fmt.Errorf("at char %d: %s() is not a text function; only $IF() or $ENDIF() are allowed", i, ident.String())
 				}
 			} else {
 				varVal := expandFlag(ident.String())
@@ -281,7 +313,7 @@ func (inter Interpreter) ExpandText(s string) (string, error) {
 
 	// check the stack, do we have mismatched ifs?
 	if len(ifResultStack) > 0 {
-		return "", fmt.Errorf("mismatched $IF(); missing $ENDIF() after it")
+		return "", fmt.Errorf("at end: mismatched $IF(); missing $ENDIF() after it")
 	}
 
 	return expanded.String(), nil
@@ -296,7 +328,7 @@ func (inter Interpreter) Eval(s string) (string, error) {
 		return "", fmt.Errorf("syntax error: %w", err)
 	}
 
-	vals, err := inter.evalExpr(ast)
+	vals, err := inter.evalExpr(ast, false)
 	if err != nil {
 		return "", fmt.Errorf("syntax error: %w", err)
 	}
@@ -419,7 +451,7 @@ func indexOfMatchingParen(s string) (int, *astNode, error) {
 }
 
 // ParseText interprets the text in the abstract syntax tree and evaluates it.
-func (inter Interpreter) evalExpr(ast *astNode) ([]Value, error) {
+func (inter Interpreter) evalExpr(ast *astNode, queryOnly bool) ([]Value, error) {
 	if ast.t != nodeRoot && ast.t != nodeGroup {
 		return nil, fmt.Errorf("cannot parse AST anywhere besides root of the tree")
 	}
@@ -470,7 +502,12 @@ func (inter Interpreter) evalExpr(ast *astNode) ([]Value, error) {
 					return nil, fmt.Errorf("function $%s() does not exist", funcName)
 				}
 
-				args, err := inter.evalExpr(argsNode)
+				// restrict if requested
+				if queryOnly && fn.SideEffects {
+					return nil, fmt.Errorf("function $%s() will change game state")
+				}
+
+				args, err := inter.evalExpr(argsNode, queryOnly)
 				if err != nil {
 					return nil, err
 				}

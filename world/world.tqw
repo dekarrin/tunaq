@@ -8,3 +8,7 @@ start = "YOUR_ROOM"
 [[flag]]
 label = "GLUB_IS_GOOD"
 default = true
+
+[[flag]]
+label = "fish"
+default = "shark"
