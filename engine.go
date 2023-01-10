@@ -161,7 +161,9 @@ func (eng *Engine) Close() error {
 
 // RunUntilQuit begins reading commands from the streams and applying them to
 // the game until the QUIT command is received.
-func (eng *Engine) RunUntilQuit() error {
+//
+// startCommands, if non nil, is commands to run as soon as it starts.
+func (eng *Engine) RunUntilQuit(startCommands []string) error {
 	introMsg := "Welcome to TunaQuest Engine\n"
 	if eng.forceDirect {
 		introMsg += "(direct input mode)\n"
@@ -183,10 +185,30 @@ func (eng *Engine) RunUntilQuit() error {
 		eng.running = false
 	}()
 
+	startCmdIdx := 0
+
 	for eng.running {
-		cmd, err := command.Get(eng.in, eng.out)
-		if err != nil {
-			return fmt.Errorf("get user command: %w", err)
+		var cmd command.Command
+		var err error
+
+		if startCmdIdx+1 <= len(startCommands) {
+			cmd, err = command.Parse(startCommands[startCmdIdx])
+			if err != nil {
+				consoleMessage := tqerrors.GameMessage(err)
+				consoleMessage = rosed.Edit(consoleMessage).Wrap(consoleOutputWidth).String()
+				if _, err := eng.out.WriteString(consoleMessage + "\n"); err != nil {
+					return fmt.Errorf("could not write output: %w", err)
+				}
+				if err := eng.out.Flush(); err != nil {
+					return fmt.Errorf("could not flush output: %w", err)
+				}
+			}
+			startCmdIdx++
+		} else {
+			cmd, err = command.Get(eng.in, eng.out)
+			if err != nil {
+				return fmt.Errorf("get user command: %w", err)
+			}
 		}
 
 		// special check: actual game will not use the QUIT command, only a

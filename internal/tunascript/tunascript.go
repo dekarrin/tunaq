@@ -32,6 +32,11 @@ type Function struct {
 	// is guaranteed to receive RequiredArgs, and may receive up to OptionalArgs
 	// additional args.
 	Call FuncCall
+
+	// SideEffects tells whether the function has side-effects. Certain contexts
+	// such as within an $IF() may restrict the execution of side-effect
+	// functions.
+	SideEffects bool
 }
 
 // Flag is a variable in the engine.
@@ -83,14 +88,14 @@ func NewInterpreter(w WorldInterface) Interpreter {
 	inter.fn["FLAG_LESS_THAN"] = Function{Name: "FLAG_LESS_THAN", RequiredArgs: 2, Call: inter.builtIn_FlagLessThan}
 	inter.fn["FLAG_GREATER_THAN"] = Function{Name: "FLAG_GREATER_THAN", RequiredArgs: 2, Call: inter.builtIn_FlagGreaterThan}
 	inter.fn["IN_INVEN"] = Function{Name: "IN_INVEN", RequiredArgs: 1, Call: inter.builtIn_InInven}
-	inter.fn["ENABLE"] = Function{Name: "ENABLE", RequiredArgs: 1, Call: inter.builtIn_Enable}
-	inter.fn["DISABLE"] = Function{Name: "DISABLE", RequiredArgs: 1, Call: inter.builtIn_Disable}
-	inter.fn["TOGGLE"] = Function{Name: "DISABLE", RequiredArgs: 1, Call: inter.builtIn_Toggle}
-	inter.fn["INC"] = Function{Name: "INC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Inc}
-	inter.fn["DEC"] = Function{Name: "DEC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Dec}
-	inter.fn["SET"] = Function{Name: "SET", RequiredArgs: 2, Call: inter.builtIn_Set}
-	inter.fn["MOVE"] = Function{Name: "MOVE", RequiredArgs: 2, Call: inter.builtIn_Move}
-	inter.fn["OUTPUT"] = Function{Name: "OUTPUT", RequiredArgs: 1, Call: inter.builtIn_Output}
+	inter.fn["ENABLE"] = Function{Name: "ENABLE", RequiredArgs: 1, Call: inter.builtIn_Enable, SideEffects: true}
+	inter.fn["DISABLE"] = Function{Name: "DISABLE", RequiredArgs: 1, Call: inter.builtIn_Disable, SideEffects: true}
+	inter.fn["TOGGLE"] = Function{Name: "DISABLE", RequiredArgs: 1, Call: inter.builtIn_Toggle, SideEffects: true}
+	inter.fn["INC"] = Function{Name: "INC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Inc, SideEffects: true}
+	inter.fn["DEC"] = Function{Name: "DEC", RequiredArgs: 1, OptionalArgs: 1, Call: inter.builtIn_Dec, SideEffects: true}
+	inter.fn["SET"] = Function{Name: "SET", RequiredArgs: 2, Call: inter.builtIn_Set, SideEffects: true}
+	inter.fn["MOVE"] = Function{Name: "MOVE", RequiredArgs: 2, Call: inter.builtIn_Move, SideEffects: true}
+	inter.fn["OUTPUT"] = Function{Name: "OUTPUT", RequiredArgs: 1, Call: inter.builtIn_Output, SideEffects: true}
 
 	return inter
 }
@@ -140,13 +145,190 @@ func (inter Interpreter) GetFlag(label string) string {
 	return flag.String()
 }
 
+// Expand applies expansion on the given text. Expansion will expand the
+// following constructs:
+//
+//   - any flag reference with the $ will be expanded to its full value.
+//   - any $IF() ... $ENDIF() block will be evaluated and included in the output
+//     text only if the tunaquest expression inside the $IF evaluates to true.
+//   - function calls are not allowed outside of the tunascript expression in an
+//     $IF. If they are there, they will be interpreted as a variable expansion,
+//     and if there is no value matching that one, it will be expanded to an
+//     empty string. E.g. "$ADD()" in the body text would evaluate to value of
+//     flag called "ADD" (probably ""), followed by literal parenthesis.
+//   - bare dollar signs are evaluated as literal. This will only happen if they
+//     are not immediately followed by identifier chars.
+//   - literal $ signs can be included with a backslash. Thus the escape
+//     backslash will work.
+//   - literal backslashes can be included by escaping them.
+func (inter Interpreter) ExpandText(s string) (string, error) {
+	sRunes := []rune{}
+	sBytes := []int{}
+	for b, ch := range s {
+		sRunes = append(sRunes, ch)
+		sBytes = append(sBytes, b)
+	}
+
+	expandFlag := func(fullFlagToken string) string {
+		flagName := fullFlagToken[1:]
+		if flagName == "" {
+			// bare dollarsign, go add it to expanded
+			return "$"
+		} else {
+			// it is a full var name
+			flagName = strings.ToUpper(flagName)
+			flag, ok := inter.flags[flagName]
+			if !ok {
+				return ""
+			}
+			return flag.Value.String()
+		}
+	}
+
+	var contentStack []*strings.Builder
+	var ifResultStack []bool
+	var expanded *strings.Builder
+	var ident strings.Builder
+
+	var inIdent bool
+	var escaping bool
+
+	expanded = &strings.Builder{}
+	contentStack = append(contentStack, expanded)
+	for i := 0; i < len(sRunes); i++ {
+		ch := sRunes[i]
+		if !inIdent {
+			if !escaping && ch == '\\' {
+				escaping = true
+			} else if !escaping && ch == '$' {
+				ident.WriteRune('$')
+				inIdent = true
+			} else {
+				expanded.WriteRune(ch)
+				escaping = false
+			}
+		} else {
+			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
+				ident.WriteRune(ch)
+			} else if ch == '(' {
+				// this is a func call, and the only allowed directly in text is $IF() and $ENDIF().
+				if ident.String() == "$IF" {
+					parenMatch, tsExpr, err := indexOfMatchingParen(s[sBytes[i]:])
+					if err != nil {
+						return "", fmt.Errorf("at char %d: %w", i, err)
+					}
+					exprLen := parenMatch - 1
+
+					if exprLen < 1 {
+						return "", fmt.Errorf("at char %d: args cannot be empty", i)
+					}
+
+					tsResult, err := inter.evalExpr(tsExpr, true)
+					if err != nil {
+						return "", fmt.Errorf("at char %d: %w", i, err)
+					}
+					if len(tsResult) > 1 {
+						return "", fmt.Errorf("at char %d: $IF() takes one argument, received %d", i, len(tsResult))
+					}
+					ifResultStack = append(ifResultStack, tsResult[0].Bool())
+					expanded = &strings.Builder{}
+					contentStack = append(contentStack, expanded)
+					ident.Reset()
+					inIdent = false
+
+					i += parenMatch
+				} else if ident.String() == "$ENDIF" {
+					parenMatch, tsExpr, err := indexOfMatchingParen(s[sBytes[i]:])
+					if err != nil {
+						return "", fmt.Errorf("at char %d: %w", i, err)
+					}
+					exprLen := parenMatch - 1
+
+					if exprLen != 0 {
+						return "", fmt.Errorf("at char %d: $ENDIF() takes zero arguments, received %d", i, len(tsExpr.children))
+					}
+
+					if len(ifResultStack) < 1 {
+						return "", fmt.Errorf("at char %d: mismatched $ENDIF(); missing $IF() before it", i)
+					}
+
+					ifBlockContent := expanded.String()
+					contentStack = contentStack[:len(contentStack)-1]
+					expanded = contentStack[len(contentStack)-1]
+					ifResult := ifResultStack[len(ifResultStack)-1]
+					ifResultStack = ifResultStack[:len(ifResultStack)-1]
+					if ifResult {
+						// trim all spaces from both sides
+						expanded.WriteString(strings.TrimSpace(ifBlockContent))
+					} else {
+						// remove the space prior to the if
+						oldBeforeIf := expanded.String()
+						// it appears iterating over the entire string is the
+						// only way to do this.
+						//
+						// Hey, no8ody said we had to 8e efficient about it!
+						//
+						// efishient* 383
+
+						finalCharByte := -1
+						for b := range oldBeforeIf {
+							finalCharByte = b
+						}
+
+						finalStr := []rune(oldBeforeIf[finalCharByte:])
+
+						if unicode.IsSpace(finalStr[0]) {
+							oldBeforeIf = oldBeforeIf[:finalCharByte]
+						}
+
+						expanded = &strings.Builder{}
+						expanded.WriteString(oldBeforeIf)
+						contentStack[len(contentStack)-1] = expanded
+					}
+					ident.Reset()
+					inIdent = false
+
+					i++ // for the extra paren
+				} else {
+					return "", fmt.Errorf("at char %d: %s() is not a text function; only $IF() or $ENDIF() are allowed", i, ident.String())
+				}
+			} else {
+				varVal := expandFlag(ident.String())
+				expanded.WriteString(varVal)
+				ident = strings.Builder{}
+				inIdent = false
+
+				i-- // reparse 'normally'
+			}
+		}
+	}
+
+	// done looping, do we have any ident left over?
+	// functions are look-ahaed analyzed as soon as opening paren is
+	// encountered, so if still inIdent its deffo a flag
+	if inIdent {
+		varVal := expandFlag(ident.String())
+		expanded.WriteString(varVal)
+	}
+
+	// check the stack, do we have mismatched ifs?
+	if len(ifResultStack) > 0 {
+		return "", fmt.Errorf("at end: mismatched $IF(); missing $ENDIF() after it")
+	}
+
+	return expanded.String(), nil
+}
+
+// Eval interprets the tunaquest expression in the given string. If there is an
+// error in the code, it is returned as a non-nil error, otherwise the output of
+// evaluating the expression is returned as a string.
 func (inter Interpreter) Eval(s string) (string, error) {
 	ast, _, err := buildAST(s, nil)
 	if err != nil {
 		return "", fmt.Errorf("syntax error: %w", err)
 	}
 
-	vals, err := inter.evalExpr(ast)
+	vals, err := inter.evalExpr(ast, false)
 	if err != nil {
 		return "", fmt.Errorf("syntax error: %w", err)
 	}
@@ -211,8 +393,65 @@ const (
 	nodeRoot
 )
 
+// indexOfMatchingTunascriptParen takes the given string, which must start with
+// a parenthesis char "(", and returns the index of the ")" that matches it. Any
+// text in between is analyzed for other parenthesis and if they are there, they
+// must be matched as well.
+//
+// Index will be -1 if it does not have a match.
+// Error is non-nil if there is malformed tunascript syntax between the parens,
+// of if s cannot be operated on.
+//
+// Also returns the parsable AST of the analyzed expression as well.
+func indexOfMatchingParen(s string) (int, *astNode, error) {
+	// without a parent node on a paren scan, buildAST will produce an error.
+	dummyNode := &astNode{
+		children: make([]*astNode, 0),
+	}
+	dummyNode.root = dummyNode
+
+	sRunes := []rune(s)
+	if sRunes[0] != '(' {
+		var errStr string
+		if len(sRunes) > 50 {
+			errStr = string(sRunes[:50]) + "..."
+		} else {
+			errStr = string(sRunes)
+		}
+		return 0, nil, fmt.Errorf("no opening paren at start of analysis string %q", errStr)
+	}
+
+	if len(sRunes) < 2 {
+		return 0, nil, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
+	}
+
+	gotFirstByte := false
+	nextByteIdx := -1
+	for b := range s {
+		if !gotFirstByte {
+			gotFirstByte = true
+		} else {
+			nextByteIdx = b
+			break
+		}
+	}
+
+	if nextByteIdx == -1 {
+		// should never happen
+		return 0, nil, fmt.Errorf("byte analysis on string failed to produce a next-char byte")
+	}
+
+	exprNode, consumed, err := buildAST(s[nextByteIdx:], dummyNode)
+	if err != nil {
+		return 0, nil, err
+	}
+	exprNode.t = nodeRoot
+
+	return consumed, exprNode, nil
+}
+
 // ParseText interprets the text in the abstract syntax tree and evaluates it.
-func (inter Interpreter) evalExpr(ast *astNode) ([]Value, error) {
+func (inter Interpreter) evalExpr(ast *astNode, queryOnly bool) ([]Value, error) {
 	if ast.t != nodeRoot && ast.t != nodeGroup {
 		return nil, fmt.Errorf("cannot parse AST anywhere besides root of the tree")
 	}
@@ -263,7 +502,12 @@ func (inter Interpreter) evalExpr(ast *astNode) ([]Value, error) {
 					return nil, fmt.Errorf("function $%s() does not exist", funcName)
 				}
 
-				args, err := inter.evalExpr(argsNode)
+				// restrict if requested
+				if queryOnly && fn.SideEffects {
+					return nil, fmt.Errorf("function $%s() will change game state")
+				}
+
+				args, err := inter.evalExpr(argsNode, queryOnly)
 				if err != nil {
 					return nil, err
 				}
@@ -470,7 +714,8 @@ func buildAST(s string, parent *astNode) (*astNode, int, error) {
 					buildingText = ""
 				}
 
-				// don't add it bc parent will
+				// don't add it as a node, it's not relevant
+
 				return node, i + 1, nil
 			} else if escaping && ch == 'n' {
 				buildingText += "\n"

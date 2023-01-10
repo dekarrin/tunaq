@@ -78,7 +78,7 @@ func FindFirstReserved(s string) string {
 //
 // If an empty string or a string composed only of whitespace is passed in, nil
 // error is returned and a zero value for Command will be returned.
-func ParseCommand(toParse string) (Command, error) {
+func parseCommand(toParse string) (Command, error) {
 	var parsedCmd Command
 
 	// make entire input upper case to make matching easy
@@ -224,6 +224,15 @@ func ParseCommand(toParse string) (Command, error) {
 			parsedCmd.Recipient = "EXEC"
 			if len(tokens) < 3 {
 				return parsedCmd, tqerrors.Interpreterf("I don't know what you want me to EXEC.")
+			}
+			casedTokens := strings.Fields(toParse)
+
+			// we need to respect case for our arg
+			parsedCmd.Instrument = strings.TrimSpace(strings.Join(casedTokens[2:], " "))
+		} else if tokens[1] == "EXPAND" {
+			parsedCmd.Recipient = "EXPAND"
+			if len(tokens) < 3 {
+				return parsedCmd, tqerrors.Interpreterf("I don't know what you want me to EXPAND.")
 			}
 			casedTokens := strings.Fields(toParse)
 

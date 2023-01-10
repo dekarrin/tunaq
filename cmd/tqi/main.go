@@ -25,6 +25,10 @@ The flags are:
 		based routines for reading command input even if launched in a tty with
 		stdin and stdout.
 
+	-c/--command
+		Immediately run the given command(s) at start. Can be multiple commands
+		separated by the ";" character.
+
 Once a session has started, the user input will be parsed for TunaQuest
 commands. For an explanation of the commands, type "HELP" once in a session. To
 exit the interpreter, type "QUIT".
@@ -35,6 +39,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/dekarrin/tunaq"
 	"github.com/dekarrin/tunaq/internal/version"
@@ -55,10 +60,11 @@ const (
 )
 
 var (
-	returnCode  int   = ExitSuccess
-	flagVersion *bool = flag.Bool("version", false, "Gives the version info")
-	worldFile   string
-	forceDirect bool
+	returnCode   int   = ExitSuccess
+	flagVersion  *bool = flag.Bool("version", false, "Gives the version info")
+	worldFile    string
+	forceDirect  bool
+	startCommand string
 )
 
 func init() {
@@ -66,11 +72,14 @@ func init() {
 		defaultWorldFile = "world.tqw"
 		worldUsage       = "the TQW world data or manifest file that contains the definition of the world"
 		forceDirectUsage = "force reading directly from stdin instead of going through GNU readline where possible"
+		commandUsage     = "execute the given player commands immediately at start and leave the interpreter open"
 	)
 	flag.StringVar(&worldFile, "world", defaultWorldFile, worldUsage)
 	flag.StringVar(&worldFile, "w", defaultWorldFile, worldUsage+" (shorthand)")
 	flag.BoolVar(&forceDirect, "direct", false, forceDirectUsage)
 	flag.BoolVar(&forceDirect, "d", false, forceDirectUsage+" (shorthand)")
+	flag.StringVar(&startCommand, "command", "", commandUsage)
+	flag.StringVar(&startCommand, "c", "", commandUsage+" (shorthand)")
 }
 
 func main() {
@@ -91,6 +100,11 @@ func main() {
 		return
 	}
 
+	var startCommands []string
+	if startCommand != "" {
+		startCommands = strings.Split(startCommand, ";")
+	}
+
 	gameEng, initErr := tunaq.New(os.Stdin, os.Stdout, worldFile, forceDirect)
 	if initErr != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", initErr.Error())
@@ -99,7 +113,7 @@ func main() {
 	}
 	defer gameEng.Close()
 
-	err := gameEng.RunUntilQuit()
+	err := gameEng.RunUntilQuit(startCommands)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
 		returnCode = ExitGameError
