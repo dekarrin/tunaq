@@ -160,7 +160,12 @@ func (inter Interpreter) Expand(s string) (string, error) {
 	var expandedText strings.Builder
 	var possibleFlagOrIf strings.Builder
 
-	var escaping bool
+	sRunes := []rune{}
+	sBytes := []int{}
+	for b, ch := range s {
+		sRunes = append(sRunes, ch)
+		sBytes = append(sBytes, b)
+	}
 
 	expandFlag := func(fullFlagToken string) string {
 		flagName := fullFlagToken[1:]
@@ -178,17 +183,74 @@ func (inter Interpreter) Expand(s string) (string, error) {
 		}
 	}
 
+	var contentStack []*strings.Builder
+	var ifResultStack []bool
+	var expanded strings.Builder
+	var ident strings.Builder
+
+	var inIdent bool
+	var escaping bool
+
+	contentStack = append(contentStack, &expanded)
+	for i := range sRunes {
+		ch := sRunes[i]
+		if !inIdent {
+			if !escaping && ch == '\\' {
+				escaping = true
+			} else if !escaping && ch == '$' {
+				ident.WriteRune('$')
+				inIdent = true
+			} else {
+				expanded.WriteRune(ch)
+				escaping = false
+			}
+		} else {
+			if !escaping && ch == '\\' {
+				if i+1 < len(sRunes) && unicode.IsSpace(sRunes[i+1]) {
+					i++
+				} else {
+					val := expandFlag(ident.String())
+					expanded.WriteString(val)
+					ident.Reset()
+					i-- // reparse in 'normal' mode
+				}
+			} else if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
+				ident.WriteRune(ch)
+			}
+		}
+	}
+	// ident:
+	// 		[A-Za-z0-9_]: store to 'ident' buffer
+	//      unescaped (:
+	//			if ident buffer == "$IF": do paren match to find the other side
+	//				if no match: then error, mismatched parens
+	//              else: eval expression. push result onto end of ifResultStack, set expanded to new sb and push to end of contentStack. clear ident buffer. enter 'normal'
+	//          if ident buffer == "$ENDIF": do paren match to find the other side
+	//				if no match: then error, mismatched parens
+	//				else:
+	//					if: trimmed paren args != "": error, ENDIF does not take arg.
+	//                  else: ifContent = expanded.String(); pop off end of contentStack. set expanded to new end of contentStack. ifResult = pop off end of ifResultStack. enter 'normal'
+	//						if ifResult is true: add ifContent to expanded
+	//          else: expand 'ident' buffer as var, store in expanded. clear ident buffer. go back one char. enter normal.
+	//      backslash:
+	//			if next char is space: skip one char, continue
+	//			else: expand what is in 'ident' buffer, clear ident buffer, go back one char, enter normal
+	//		else: expand what is in 'ident' buffer, go back one char, enter normal
+
+	var readingIdent bool
+
 	for _, ch := range s {
 		if !escaping && ch == '\\' {
 			escaping = true
 		} else if !escaping && ch == '$' {
-			if possibleFlagOrIf.Len() > 0 {
+			if readingIdent {
 				// then we need to break the current one and expand it
 				fullVar := possibleFlagOrIf.String()
 				val := expandFlag(fullVar)
 				expandedText.WriteString(val)
 				possibleFlagOrIf.Reset()
 			}
+			readingIdent = true
 			possibleFlagOrIf.WriteRune('$')
 		} else {
 			expandedText.WriteRune(ch)
@@ -279,6 +341,62 @@ const (
 	nodeGroup
 	nodeRoot
 )
+
+// indexOfMatchingTunascriptParen takes the given string, which must start with
+// a parenthesis char "(", and returns the index of the ")" that matches it. Any
+// text in between is analyzed for other parenthesis and if they are there, they
+// must be matched as well.
+//
+// Index will be -1 if it does not have a match.
+// Error is non-nil if there is malformed tunascript syntax between the parens,
+// of if s cannot be operated on.
+//
+// Slow; does a char-by-char analysis.
+func indexOfMatchingParen(s string) (int, error) {
+	// without a parent node on a paren scan, buildAST will produce an error.
+	dummyNode := &astNode{
+		children: make([]*astNode, 0),
+	}
+	dummyNode.root = dummyNode
+
+	sRunes := []rune(s)
+	if sRunes[0] == '(' {
+		var errStr string
+		if len(sRunes) > 50 {
+			errStr = string(sRunes[:50]) + "..."
+		} else {
+			errStr = string(sRunes)
+		}
+		return 0, fmt.Errorf("no opening paren at start of analysis string %q", errStr)
+	}
+
+	if len(sRunes) < 2 {
+		return 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
+	}
+
+	gotFirstByte := false
+	nextByteIdx := -1
+	for b := range s {
+		if !gotFirstByte {
+			gotFirstByte = true
+		} else {
+			nextByteIdx = b
+			break
+		}
+	}
+
+	if nextByteIdx == -1 {
+		// should never happen
+		return 0, fmt.Errorf("byte analysis on string failed to produce a next-char byte")
+	}
+
+	_, consumed, err := buildAST(s[nextByteIdx:], dummyNode)
+	if err != nil {
+		return 0, err
+	}
+
+	return consumed, nil
+}
 
 // ParseText interprets the text in the abstract syntax tree and evaluates it.
 func (inter Interpreter) evalExpr(ast *astNode) ([]Value, error) {
@@ -539,7 +657,8 @@ func buildAST(s string, parent *astNode) (*astNode, int, error) {
 					buildingText = ""
 				}
 
-				// don't add it bc parent will
+				// don't add it as a node, it's not relevant
+
 				return node, i + 1, nil
 			} else if escaping && ch == 'n' {
 				buildingText += "\n"
