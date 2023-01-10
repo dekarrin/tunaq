@@ -61,7 +61,7 @@ func Get(cmdStream Reader, ostream *bufio.Writer) (Command, error) {
 		}
 
 		// now attempt to parse the input
-		cmd, err = ParseCommand(input)
+		cmd, err = Parse(input)
 		if err != nil {
 			consoleMessage := tqerrors.GameMessage(err)
 			errMsg := fmt.Sprintf("%v\nTry HELP for valid commands\n", consoleMessage)
@@ -78,4 +78,13 @@ func Get(cmdStream Reader, ostream *bufio.Writer) (Command, error) {
 	}
 
 	return cmd, nil
+}
+
+// Parse parses a command from the given text. If it cannot, a non-nil
+// error is returned. ostream is a stream to write error messages to.
+//
+// If an empty string or a string composed only of whitespace is passed in, nil
+// error is returned and a zero value for Command will be returned.
+func Parse(input string) (Command, error) {
+	return parseCommand(input)
 }

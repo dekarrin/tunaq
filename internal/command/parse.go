@@ -78,7 +78,7 @@ func FindFirstReserved(s string) string {
 //
 // If an empty string or a string composed only of whitespace is passed in, nil
 // error is returned and a zero value for Command will be returned.
-func ParseCommand(toParse string) (Command, error) {
+func parseCommand(toParse string) (Command, error) {
 	var parsedCmd Command
 
 	// make entire input upper case to make matching easy

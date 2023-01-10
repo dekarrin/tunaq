@@ -379,7 +379,7 @@ func indexOfMatchingParen(s string) (int, *astNode, error) {
 	dummyNode.root = dummyNode
 
 	sRunes := []rune(s)
-	if sRunes[0] == '(' {
+	if sRunes[0] != '(' {
 		var errStr string
 		if len(sRunes) > 50 {
 			errStr = string(sRunes[:50]) + "..."
