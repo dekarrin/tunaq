@@ -19,6 +19,7 @@ fi
 
 BINARY_NAME="tqi"
 MAIN_SOURCE_FILE="cmd/tqi/main.go"
+ARCHIVE_NAME="tunaquest"
 
 tar_cmd=tar
 if [ "$(uname -s)" = "Darwin" ]
@@ -48,7 +49,7 @@ then
 	exit 1
 fi
 
-echo "Creating distributions for $BINARY_NAME version $version"
+echo "Creating distributions for $ARCHIVE_NAME version $version"
 
 rm -rf "$BINARY_NAME" "$BINARY_NAME.exe"
 rm -rf "source.tar.gz"
@@ -70,7 +71,7 @@ else
   echo "Skipping tests due to --skip-tests flag; make sure they are executed elsewhere"
 fi
 
-source_dir="$BINARY_NAME-$version-source"
+source_dir="$ARCHIVE_NAME-$version-source"
 git archive --format=tar --prefix="$source_dir/" HEAD | tar xf -
 "$tar_cmd" czf "source.tar.gz" "$source_dir"
 rm -rf "$source_dir"
@@ -84,22 +85,24 @@ do
   dist_bin_name="$BINARY_NAME"
   if [ "$current_os" = "windows" ]
   then
-    dist_bin_name="${BINARY_NAME}cmd.exe"
+    dist_bin_name="${BINARY_NAME}.exe"
   fi
 
   go clean
   env CGO_ENABLED=0 GOOS="$current_os" GOARCH="$current_arch" go build -o "$dist_bin_name" "$MAIN_SOURCE_FILE" || { echo "build failed; abort" >&2 ; exit 1 ; }
 
-  dist_versioned_name="$BINARY_NAME-$version-$current_arch-$current_os"
-  dist_latest_name="$BINARY_NAME-latest-$current_arch-$current_os"
+  dist_versioned_name="$ARCHIVE_NAME-$version-$current_os-$current_arch"
+  dist_latest_name="$ARCHIVE_NAME-latest-$current_os-$current_arch"
 
   distfolder="$dist_versioned_name"
   rm -rf "$distfolder" "$dist_latest_name.tar.gz" "$dist_versioned_name.tar.gz"
   mkdir "$distfolder"
   mkdir "$distfolder/docs"
-  cp README.md source.tar.gz "$distfolder"
+  mkdir "$distfolder/world"
+  cp README.md source.tar.gz world.tqw "$distfolder"
   cp docs/tunascript.md "$distfolder/docs/"
   cp docs/tqwformat.md "$distfolder/docs/"
+  cp -R world/* "$distfolder/world/"
   
   if [ "$current_os" != "windows" ]
   then
