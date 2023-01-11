@@ -115,6 +115,9 @@ type Room struct {
 
 	// NPCs is the non-player characters currently in the world.
 	NPCs map[string]*NPC
+
+	// Details is the details that the player can look at in the room.
+	Details []Detail
 }
 
 // Copy returns a deeply-copied Room.
@@ -126,6 +129,7 @@ func (room Room) Copy() Room {
 		Exits:       make([]Egress, len(room.Exits)),
 		Items:       make([]Item, len(room.Items)),
 		NPCs:        make(map[string]*NPC, len(room.NPCs)),
+		Details:     make([]Detail, len(room.Details)),
 	}
 
 	for i := range room.Exits {
@@ -141,6 +145,10 @@ func (room Room) Copy() Room {
 		rCopy.NPCs[k] = &copiedNPC
 	}
 
+	for i := range room.Details {
+		rCopy.Details[i] = room.Details[i].Copy()
+	}
+
 	return rCopy
 }
 
@@ -152,6 +160,50 @@ func (room Room) String() string {
 	exitsStr := strings.Join(exits, ", ")
 
 	return fmt.Sprintf("Room<%s %q EXITS: %s>", room.Label, room.Name, exitsStr)
+}
+
+// GetTargetable returns the first Targetable game object (Egress, Item, NPC,
+// or Detail) from the room that is referred to by the given alias. If no
+// Targetable has that alias, the returned Targetable will be nil.
+func (room Room) GetTargetable(alias string) (t Targetable) {
+	if det := room.GetDetailByAlias(alias); det != nil {
+		return det
+	}
+	if eg := room.GetEgressByAlias(alias); eg != nil {
+		return eg
+	}
+	if it := room.GetItemByAlias(alias); it != nil {
+		return it
+	}
+	if npc := room.GetNPCByAlias(alias); npc != nil {
+		return npc
+	}
+
+	return nil
+}
+
+// GetDetailByAlias returns the Detail from the room that is referred to by the
+// given alias. If no Detail has that alias, the returned *Detail will be nil.
+func (room Room) GetDetailByAlias(alias string) *Detail {
+	foundIdx := -1
+
+	for dIdx, d := range room.Details {
+		for _, al := range d.Aliases {
+			if al == alias {
+				foundIdx = dIdx
+				break
+			}
+		}
+		if foundIdx != -1 {
+			break
+		}
+	}
+
+	var foundDetail *Detail
+	if foundIdx != -1 {
+		foundDetail = &room.Details[foundIdx]
+	}
+	return foundDetail
 }
 
 // GetNPCByAlias returns the NPC from the room that is referred to by the given
