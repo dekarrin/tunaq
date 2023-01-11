@@ -153,3 +153,11 @@ func (npc NPC) Copy() NPC {
 func (npc NPC) String() string {
 	return fmt.Sprintf("NPC<%q>", npc.Name)
 }
+
+func (npc NPC) GetAliases() []string {
+	return npc.Aliases
+}
+
+func (npc NPC) GetDescription() string {
+	return npc.Description
+}

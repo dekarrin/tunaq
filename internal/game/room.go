@@ -9,6 +9,43 @@ import (
 	"strings"
 )
 
+// Detail is an additional piece of detail in a room that the user is allowed to
+// look at and/or target as objects of commands. If targeted by something that
+// it cannot handle, player would not be allowed to do that with it. Every
+// detail at minimum can be LOOKed at.
+type Detail struct {
+	// Aliases is the aliases that the player can use to target the detail.
+	Aliases []string
+
+	// Description is the long description of the detail, shown when the player
+	// LOOKs at it.
+	Description string
+}
+
+func (d Detail) GetAliases() []string {
+	return d.Aliases
+}
+
+func (d Detail) GetDescription() string {
+	return d.Description
+}
+
+func (d Detail) String() string {
+	return fmt.Sprintf("Detail<%s>", d.Aliases)
+}
+
+// Copy returns a deeply-copied Egress.
+func (d Detail) Copy() Detail {
+	dCopy := Detail{
+		Aliases:     make([]string, len(d.Aliases)),
+		Description: d.Description,
+	}
+
+	copy(dCopy.Aliases, d.Aliases)
+
+	return dCopy
+}
+
 // Egress is an egress point from a room. It contains both a description and the
 // label it points to.
 type Egress struct {
@@ -44,6 +81,14 @@ func (egress Egress) Copy() Egress {
 	copy(eCopy.Aliases, egress.Aliases)
 
 	return eCopy
+}
+
+func (egress Egress) GetAliases() []string {
+	return egress.Aliases
+}
+
+func (egress Egress) GetDescription() string {
+	return egress.Description
 }
 
 // Room is a scene in the game. It contains a series of exits that lead to other

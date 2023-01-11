@@ -78,3 +78,11 @@ func (item Item) Copy() Item {
 
 	return iCopy
 }
+
+func (item Item) GetAliases() []string {
+	return item.Aliases
+}
+
+func (item Item) GetDescription() string {
+	return item.Description
+}
