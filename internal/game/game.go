@@ -245,34 +245,48 @@ func (gs *State) MoveNPCs() {
 	gs.npcLocations = newLocs
 }
 
+// Expand expands the given text using tunascript engine expansion rules. In
+// this context, $IF() and $ENDIF() become allowable functions, and mutation
+// functions are not allowed in the expression inside $IF.
+//
+// The parameter what is the thing that is being described. It is only used in
+// error output. If what is blank and there is an error, a generic string will
+// be used.
+//
+// If there is an error with the expanded text, the returned string will contain
+// the error followed by the unexpanded text.
+func (gs *State) Expand(s string, what string) string {
+	if what == "" {
+		what = "TEXT"
+	}
+
+	expanded, err := gs.scripts.ExpandText(s)
+	if err != nil {
+		msg := "TUNAQUEST SYSTEM WARNING: DIPFISH AND DARNATION!\n"
+		msg += fmt.Sprintf("TUNASCRIPT ERROR EXPANDING %s:\n\n", what)
+		msg += "TELL THE AUTHOR OF YOUR GAME ABOUT THIS SO THEY CAN FIX IT\n\n"
+		return msg + s
+	}
+
+	return expanded
+}
+
 // Look gets the look description as a single long string. It returns non-nil
 // error if there are issues retrieving it. If alias is empty, the room is
 // looked at. The returned string is not formatted except that any seperate
-// listings (such as items or NPCs in a room) will be separated by "\n\n".
+// listings (such as items or NPCs in a room) will be separated by "\n\n". The
+// returned string will be expanded using tunascript expansion.
 func (gs *State) Look(alias string) (string, error) {
 	var desc string
-	var err error
 	if alias != "" {
 		lookTarget := gs.CurrentRoom.GetTargetable(alias)
 		if lookTarget == nil {
 			return "", tqerrors.Interpreterf("I don't see any %q here", alias)
 		}
 
-		desc, err = gs.scripts.ExpandText(lookTarget.GetDescription())
-		if err != nil {
-			msg := "TUNAQUEST SYSTEM WARNING: DIPFISH AND DARNATION!\n"
-			msg += fmt.Sprintf("TUNASCRIPT ERROR EXPANDING DESCRIPTION TEXT FOR %q:\n\n", alias)
-			msg += "TELL THE AUTHOR OF YOUR GAME ABOUT THIS SO THEY CAN FIX IT\n\n"
-			desc = msg + lookTarget.GetDescription()
-		}
+		desc = gs.Expand(lookTarget.GetDescription(), fmt.Sprintf("DESCRIPTION FOR %q", alias))
 	} else {
-		desc, err = gs.scripts.ExpandText(gs.CurrentRoom.Description)
-		if err != nil {
-			msg := "TUNAQUEST SYSTEM WARNING: DIPFISH AND DARNATION!\n"
-			msg += fmt.Sprintf("TUNASCRIPT ERROR EXPANDING DESCRIPTION TEXT FOR ROOM %q:\n\n", gs.CurrentRoom.Label)
-			msg += "TELL THE AUTHOR OF YOUR GAME ABOUT THIS SO THEY CAN FIX IT\n\n"
-			desc = msg + gs.CurrentRoom.Description
-		}
+		desc = gs.Expand(gs.CurrentRoom.Description, fmt.Sprintf("DESCRIPTION FOR ROOM %q", gs.CurrentRoom.Label))
 
 		if len(gs.CurrentRoom.Items) > 0 {
 			var itemNames []string
@@ -381,7 +395,9 @@ func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
 		return "", err
 	}
 
-	output := rosed.Edit(egress.TravelMessage).WithOptions(textFormatOptions).
+	expanded := gs.Expand(egress.TravelMessage, fmt.Sprintf("Exit travel message for %q", cmd.Recipient))
+
+	output := rosed.Edit(expanded).WithOptions(textFormatOptions).
 		Wrap(gs.io.Width).
 		Insert(rosed.End, "\n\n").
 		CharsFrom(rosed.End).
@@ -405,7 +421,8 @@ func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
 			CharsFrom(rosed.End)
 
 		for _, eg := range gs.CurrentRoom.Exits {
-			ed = ed.Insert(rosed.End, "XX* "+eg.Aliases[0]+": "+eg.Description+"\n")
+			expanded := gs.Expand(eg.Description, fmt.Sprintf("DESCRIPTION FOR %q", eg.Aliases[0]))
+			ed = ed.Insert(rosed.End, "XX* "+eg.Aliases[0]+": "+expanded+"\n")
 		}
 
 		// from prior CharsEnd, this should only apply to the list of exits.
