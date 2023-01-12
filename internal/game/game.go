@@ -473,7 +473,7 @@ func (gs *State) ExecuteCommandLook(cmd command.Command) (string, error) {
 
 	ed := rosed.Edit("").WithOptions(textFormatOptions)
 
-	if cmd.Recipient != "" {
+	if cmd.Recipient == "" {
 		ed = ed.Insert(rosed.End, "You check your surroundings.\n\n")
 	} else {
 		// is this an NPC? don't use 'the' with them
@@ -535,7 +535,7 @@ func (gs *State) ExecuteCommandTalk(cmd command.Command) (string, error) {
 		return "", err
 	}
 
-	output := fmt.Sprintf("\nYou stop talking to %s.", strings.ToLower(npc.Pronouns.Objective))
+	output := fmt.Sprintf("You stop talking to %s.", strings.ToLower(npc.Pronouns.Objective))
 	return output, nil
 }
 
@@ -561,15 +561,12 @@ func (gs *State) ExecuteCommandDebug(cmd command.Command) (string, error) {
 // ExecuteCommandHelp executes the HELP command with the arguments in the
 // provided Command and returns the output.
 func (gs *State) ExecuteCommandHelp(cmd command.Command) (string, error) {
-	var output string
-
-	ed := rosed.
-		Edit("").
-		WithOptions(rosed.Options{ParagraphSeparator: "\n"}).
-		InsertDefinitionsTable(0, commandHelp, 80)
-	output = ed.
-		Insert(0, "Here are the commands you can use (WIP commands do not yet work fully):\n").
-		String()
+	output := rosed.Edit("").WithOptions(
+		textFormatOptions.
+			WithParagraphSeparator("\n").
+			WithNoTrailingLineSeparators(true)).
+		Insert(rosed.End, "Here are the commands you can use (WIP commands do not yet work fully):\n").
+		InsertDefinitionsTable(rosed.End, commandHelp, gs.io.Width).String()
 
 	return output, nil
 }

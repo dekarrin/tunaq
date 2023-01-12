@@ -193,11 +193,15 @@ func (gs *State) RunConversation(npc *NPC) error {
 		if npc.Pronouns.Plural {
 			doesNot = "don't"
 		}
-		if err := gs.io.Output("%s %s have much to say.\n", nomPro, doesNot); err != nil {
+		if err := gs.io.Output("\n%s %s have much to say.\n", nomPro, doesNot); err != nil {
 			return err
 		}
 		return nil
 	} else {
+		nomObj := strings.ToLower(npc.Pronouns.Objective)
+
+		gs.io.Output("\nYou start talking to %s.\n", nomObj)
+
 		for {
 			step := npc.Convo.NextStep()
 			switch step.Action {

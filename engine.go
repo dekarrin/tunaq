@@ -196,7 +196,7 @@ func (eng *Engine) RunUntilQuit(startCommands []string) error {
 			if err != nil {
 				consoleMessage := tqerrors.GameMessage(err)
 				consoleMessage = rosed.Edit(consoleMessage).Wrap(consoleOutputWidth).String()
-				if _, err := eng.out.WriteString(consoleMessage + "\n"); err != nil {
+				if _, err := eng.out.WriteString("\n" + consoleMessage + "\n\n"); err != nil {
 					return fmt.Errorf("could not write output: %w", err)
 				}
 				if err := eng.out.Flush(); err != nil {
@@ -222,7 +222,7 @@ func (eng *Engine) RunUntilQuit(startCommands []string) error {
 		if err != nil {
 			consoleMessage := tqerrors.GameMessage(err)
 			consoleMessage = rosed.Edit(consoleMessage).Wrap(consoleOutputWidth).String()
-			if _, err := eng.out.WriteString(consoleMessage + "\n"); err != nil {
+			if _, err := eng.out.WriteString("\n" + consoleMessage + "\n\n"); err != nil {
 				return fmt.Errorf("could not write output: %w", err)
 			}
 			if err := eng.out.Flush(); err != nil {

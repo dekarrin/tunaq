@@ -54,7 +54,9 @@ func MakeTextList(items []string, articles bool) string {
 }
 
 // ArticleFor returns the article for the given string. It will be capitalized
-// the same as the string.
+// the same as the string. If definite is true, the returned value will be "the"
+// capitalized as described; otherwise, it will be "a"/"an" capitalized as
+// described.
 func ArticleFor(s string, definite bool) string {
 	sRunes := []rune(s)
 
