@@ -231,7 +231,7 @@ func (eng *Engine) RunUntilQuit(startCommands []string) error {
 		}
 	}
 
-	if _, err := eng.out.WriteString("Goodbye\n"); err != nil {
+	if _, err := eng.out.WriteString("\nGoodbye\n"); err != nil {
 		return fmt.Errorf("could not write output: %w", err)
 	}
 	if err := eng.out.Flush(); err != nil {
