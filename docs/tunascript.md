@@ -213,6 +213,11 @@ Returns whether it successfully printed.
 
 ### Low-Priority: Operators
 
+either this would make it so parser needs to consider associativity instead of
+mandatory paren matching, complicate parser. maybe somefin like, an external
+first-pass parser that converts these all to their func calls, then parse w the
+tunascript internal parser
+
 FOR FUTURE:
 ```
 There are operations, which result in built-in funcs being called:

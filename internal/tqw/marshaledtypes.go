@@ -235,11 +235,30 @@ func (te egress) toGameEgress() game.Egress {
 	return eg
 }
 
+type detail struct {
+	Aliases     []string `toml:"aliases"`
+	Description string   `toml:"description"`
+}
+
+func (td detail) toGameDetail() game.Detail {
+	det := game.Detail{
+		Aliases:     make([]string, len(td.Aliases)),
+		Description: td.Description,
+	}
+
+	for i := range det.Aliases {
+		det.Aliases[i] = strings.ToUpper(td.Aliases[i])
+	}
+
+	return det
+}
+
 type room struct {
 	Label       string   `toml:"label"`
 	Name        string   `toml:"name"`
 	Description string   `toml:"description"`
 	Exits       []egress `toml:"exit"`
+	Details     []detail `toml:"detail"`
 }
 
 func (tr room) toGameRoom() game.Room {
@@ -249,10 +268,15 @@ func (tr room) toGameRoom() game.Room {
 		Description: tr.Description,
 		Exits:       make([]game.Egress, len(tr.Exits)),
 		NPCs:        make(map[string]*game.NPC),
+		Details:     make([]game.Detail, len(tr.Details)),
 	}
 
 	for i := range tr.Exits {
 		r.Exits[i] = tr.Exits[i].toGameEgress()
+	}
+
+	for i := range tr.Details {
+		r.Details[i] = tr.Details[i].toGameDetail()
 	}
 
 	return r

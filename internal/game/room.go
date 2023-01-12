@@ -9,6 +9,43 @@ import (
 	"strings"
 )
 
+// Detail is an additional piece of detail in a room that the user is allowed to
+// look at and/or target as objects of commands. If targeted by something that
+// it cannot handle, player would not be allowed to do that with it. Every
+// detail at minimum can be LOOKed at.
+type Detail struct {
+	// Aliases is the aliases that the player can use to target the detail.
+	Aliases []string
+
+	// Description is the long description of the detail, shown when the player
+	// LOOKs at it.
+	Description string
+}
+
+func (d Detail) GetAliases() []string {
+	return d.Aliases
+}
+
+func (d Detail) GetDescription() string {
+	return d.Description
+}
+
+func (d Detail) String() string {
+	return fmt.Sprintf("Detail<%s>", d.Aliases)
+}
+
+// Copy returns a deeply-copied Egress.
+func (d Detail) Copy() Detail {
+	dCopy := Detail{
+		Aliases:     make([]string, len(d.Aliases)),
+		Description: d.Description,
+	}
+
+	copy(dCopy.Aliases, d.Aliases)
+
+	return dCopy
+}
+
 // Egress is an egress point from a room. It contains both a description and the
 // label it points to.
 type Egress struct {
@@ -46,6 +83,14 @@ func (egress Egress) Copy() Egress {
 	return eCopy
 }
 
+func (egress Egress) GetAliases() []string {
+	return egress.Aliases
+}
+
+func (egress Egress) GetDescription() string {
+	return egress.Description
+}
+
 // Room is a scene in the game. It contains a series of exits that lead to other
 // rooms and a description. They also contain a list of the interactables at
 // game start (or will in the future).
@@ -70,6 +115,9 @@ type Room struct {
 
 	// NPCs is the non-player characters currently in the world.
 	NPCs map[string]*NPC
+
+	// Details is the details that the player can look at in the room.
+	Details []Detail
 }
 
 // Copy returns a deeply-copied Room.
@@ -81,6 +129,7 @@ func (room Room) Copy() Room {
 		Exits:       make([]Egress, len(room.Exits)),
 		Items:       make([]Item, len(room.Items)),
 		NPCs:        make(map[string]*NPC, len(room.NPCs)),
+		Details:     make([]Detail, len(room.Details)),
 	}
 
 	for i := range room.Exits {
@@ -96,6 +145,10 @@ func (room Room) Copy() Room {
 		rCopy.NPCs[k] = &copiedNPC
 	}
 
+	for i := range room.Details {
+		rCopy.Details[i] = room.Details[i].Copy()
+	}
+
 	return rCopy
 }
 
@@ -107,6 +160,50 @@ func (room Room) String() string {
 	exitsStr := strings.Join(exits, ", ")
 
 	return fmt.Sprintf("Room<%s %q EXITS: %s>", room.Label, room.Name, exitsStr)
+}
+
+// GetTargetable returns the first Targetable game object (Egress, Item, NPC,
+// or Detail) from the room that is referred to by the given alias. If no
+// Targetable has that alias, the returned Targetable will be nil.
+func (room Room) GetTargetable(alias string) (t Targetable) {
+	if det := room.GetDetailByAlias(alias); det != nil {
+		return det
+	}
+	if eg := room.GetEgressByAlias(alias); eg != nil {
+		return eg
+	}
+	if it := room.GetItemByAlias(alias); it != nil {
+		return it
+	}
+	if npc := room.GetNPCByAlias(alias); npc != nil {
+		return npc
+	}
+
+	return nil
+}
+
+// GetDetailByAlias returns the Detail from the room that is referred to by the
+// given alias. If no Detail has that alias, the returned *Detail will be nil.
+func (room Room) GetDetailByAlias(alias string) *Detail {
+	foundIdx := -1
+
+	for dIdx, d := range room.Details {
+		for _, al := range d.Aliases {
+			if al == alias {
+				foundIdx = dIdx
+				break
+			}
+		}
+		if foundIdx != -1 {
+			break
+		}
+	}
+
+	var foundDetail *Detail
+	if foundIdx != -1 {
+		foundDetail = &room.Details[foundIdx]
+	}
+	return foundDetail
 }
 
 // GetNPCByAlias returns the NPC from the room that is referred to by the given
