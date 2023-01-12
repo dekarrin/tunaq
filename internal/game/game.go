@@ -249,49 +249,69 @@ func (gs *State) MoveNPCs() {
 // looked at. The returned string is not formatted except that any seperate
 // listings (such as items or NPCs in a room) will be separated by "\n\n".
 func (gs *State) Look(alias string) (string, error) {
+	var desc string
+	var err error
 	if alias != "" {
-		return "", tqerrors.Interpreterf("I can't LOOK at particular things yet")
-	}
-
-	output := gs.CurrentRoom.Description
-	if len(gs.CurrentRoom.Items) > 0 {
-		var itemNames []string
-
-		for _, it := range gs.CurrentRoom.Items {
-			itemNames = append(itemNames, it.Name)
+		lookTarget := gs.CurrentRoom.GetTargetable(alias)
+		if lookTarget == nil {
+			return "", tqerrors.Interpreterf("I don't see any %q here", alias)
 		}
 
-		output += "\n\n"
-		output += "On the ground, you can see "
-
-		output += util.MakeTextList(itemNames) + "."
-	}
-
-	if len(gs.CurrentRoom.NPCs) > 0 {
-		var npcNames []string
-
-		for _, npc := range gs.CurrentRoom.NPCs {
-			npcNames = append(npcNames, npc.Name)
+		desc, err = gs.scripts.ExpandText(lookTarget.GetDescription())
+		if err != nil {
+			msg := "TUNAQUEST SYSTEM WARNING: DIPFISH AND DARNATION!\n"
+			msg += fmt.Sprintf("TUNASCRIPT ERROR EXPANDING DESCRIPTION TEXT FOR %q:\n\n", alias)
+			msg += "TELL THE AUTHOR OF YOUR GAME ABOUT THIS SO THEY CAN FIX IT\n\n"
+			desc = msg + lookTarget.GetDescription()
+		}
+	} else {
+		desc, err = gs.scripts.ExpandText(gs.CurrentRoom.Description)
+		if err != nil {
+			msg := "TUNAQUEST SYSTEM WARNING: DIPFISH AND DARNATION!\n"
+			msg += fmt.Sprintf("TUNASCRIPT ERROR EXPANDING DESCRIPTION TEXT FOR ROOM %q:\n\n", gs.CurrentRoom.Label)
+			msg += "TELL THE AUTHOR OF YOUR GAME ABOUT THIS SO THEY CAN FIX IT\n\n"
+			desc = msg + gs.CurrentRoom.Description
 		}
 
-		// TODO: prop so npcs can be invisible to looks for static npcs that are
-		// mostly included in description.
-		if len(npcNames) > 0 {
-			output += "\n\nOh! "
+		if len(gs.CurrentRoom.Items) > 0 {
+			var itemNames []string
 
-			output += util.MakeTextList(npcNames)
-
-			if len(npcNames) == 1 {
-				output += " is "
-			} else {
-				output += " are "
+			for _, it := range gs.CurrentRoom.Items {
+				itemNames = append(itemNames, it.Name)
 			}
 
-			output += "here."
+			desc += "\n\n"
+			desc += "On the ground, you can see "
+
+			desc += util.MakeTextList(itemNames) + "."
+		}
+
+		if len(gs.CurrentRoom.NPCs) > 0 {
+			var npcNames []string
+
+			for _, npc := range gs.CurrentRoom.NPCs {
+				npcNames = append(npcNames, npc.Name)
+			}
+
+			// TODO: prop so npcs can be invisible to looks for static npcs that are
+			// mostly included in description.
+			if len(npcNames) > 0 {
+				desc += "\n\nOh! "
+
+				desc += util.MakeTextList(npcNames)
+
+				if len(npcNames) == 1 {
+					desc += " is "
+				} else {
+					desc += " are "
+				}
+
+				desc += "here."
+			}
 		}
 	}
 
-	return output, nil
+	return desc, nil
 }
 
 // Advance advances the game state based on the given command. If there is a
@@ -433,7 +453,7 @@ func (gs *State) ExecuteCommandLook(cmd command.Command) (string, error) {
 		return "", err
 	}
 
-	output = rosed.Edit(output).WrapOpts(gs.io.Width, textFormatOptions).String()
+	output = rosed.Edit(output).WithOptions(textFormatOptions).Wrap(gs.io.Width).Justify(gs.io.Width).String()
 	return output, nil
 }
 

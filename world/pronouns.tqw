@@ -3,9 +3,9 @@ type = "data"
 
 
 [[pronouns]]
-label = "joey"
-nominative = "JOEY"
-objective = "JOEY"
-possessive = ""
-determiner = "JOEY'S"
-reflexive = "JOEYSELF"
+label = "FAE"
+nominative = "FAE"
+objective = "FAER"
+possessive = "FAER"
+determiner = "FAERS"
+reflexive = "FAESELF"

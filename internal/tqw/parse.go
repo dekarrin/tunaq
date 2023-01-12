@@ -186,6 +186,8 @@ func scanSymbols(top topLevelWorldData) (symbols worldSymbols, err error) {
 	// not doing egressAliases because that is not something that other things
 	// can conflict with and passing item symbols to a room check should be
 	// sufficient to detect it
+	//
+	// same for detailAliases
 	for _, r := range top.Rooms {
 		rLabelUpper := strings.ToUpper(r.Label)
 		if err := checkLabel(rLabelUpper, syms.roomLabels, "a room"); err != nil {
@@ -248,6 +250,37 @@ func scanSymbols(top topLevelWorldData) (symbols worldSymbols, err error) {
 	// end of getting global symbols
 	// now check the non-global ones
 
+	// detail aliases (against each other, npc aliases, and item aliases)
+	for _, r := range top.Rooms {
+		detailAliasesInRoom := make(stringSet)
+		for detIdx, det := range r.Details {
+			for _, alias := range det.Aliases {
+				aliasUpper := strings.ToUpper(alias)
+
+				// check against other room aliases
+				if err := checkAlias(aliasUpper, detailAliasesInRoom); err != nil {
+					return syms, fmt.Errorf("room %q: detail %d: alias %q: %w", r.Label, detIdx, alias, err)
+				}
+
+				// check against item aliases
+				if err := checkAlias(aliasUpper, syms.itemLabels); err != nil {
+					// first check alias check would have caught invalid label,
+					// so if this failed it MUST be due to matching the conflict set
+					return syms, fmt.Errorf("room %q: detail %d: alias %q conflicts with item alias", r.Label, detIdx, alias)
+				}
+
+				// check against NPC aliases
+				if err := checkAlias(aliasUpper, syms.npcLabels); err != nil {
+					// first alias check would have caught invalid label,
+					// so if this failed it MUST be due to matching the conflict set
+					return syms, fmt.Errorf("room %q: detail %d: alias %q conflicts with NPC alias", r.Label, detIdx, alias)
+				}
+
+				detailAliasesInRoom[aliasUpper] = true
+			}
+		}
+	}
+
 	// egress aliases (against each other, npc aliases, and item aliases)
 	for _, r := range top.Rooms {
 		exitAliasesInRoom := make(stringSet)
@@ -275,6 +308,28 @@ func scanSymbols(top topLevelWorldData) (symbols worldSymbols, err error) {
 				}
 
 				exitAliasesInRoom[aliasUpper] = true
+			}
+		}
+	}
+
+	// check egress aliases against detail aliases
+	for _, r := range top.Rooms {
+		exitAliasesInRoom := make(stringSet)
+		for _, eg := range r.Exits {
+			for _, al := range eg.Aliases {
+				alUpper := strings.ToUpper(al)
+				exitAliasesInRoom[alUpper] = true
+			}
+		}
+
+		for detIdx, det := range r.Details {
+			for _, alias := range det.Aliases {
+				alUpper := strings.ToUpper(alias)
+				if err := checkAlias(alUpper, exitAliasesInRoom); err != nil {
+					// first alias check would have caught invalid label,
+					// so if this failed it MUST be due to matching the conflict set
+					return syms, fmt.Errorf("room %q: detail %d: alias %q conflicts with exit alias", r.Label, detIdx, alias)
+				}
 			}
 		}
 	}
@@ -569,6 +624,25 @@ func validateRoomDef(r room, syms worldSymbols) error {
 		if egressErr != nil {
 			return fmt.Errorf("exits[%d]: %w", idx, egressErr)
 		}
+	}
+
+	// validate details
+	for idx, det := range r.Details {
+		detErr := validateDetailDef(det)
+		if detErr != nil {
+			return fmt.Errorf("detail[%q]: %w", idx, detErr)
+		}
+	}
+
+	return nil
+}
+
+func validateDetailDef(det detail) error {
+	if det.Description == "" {
+		return fmt.Errorf("must have non-blank 'description' field")
+	}
+	if len(det.Aliases) < 1 {
+		return fmt.Errorf("must have a list of at least one alias in 'aliases' field")
 	}
 
 	return nil
