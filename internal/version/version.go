@@ -3,4 +3,4 @@
 package version
 
 // Current is the string representing the current version of TunaQuest.
-const Current = "0.1.0"
+const Current = "0.2.0rc"

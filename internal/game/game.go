@@ -16,21 +16,22 @@ var commandHelp = [][2]string{
 	{"DROP/PUT", "put down an object in the room"},
 	{"DEBUG NPC", "print info on all NPCs, or a single NPC with label LABEL if 'DEBUG NPC LABEL' is typed, or steps all NPCs if 'DEBUG NPC @STEP' is typed."},
 	{"DEBUG ROOM", "print info on the current room, or teleport to room with label LABEL if 'DEBUG ROOM LABEL' is typed."},
-	{"DEBUG EXEC [tunascript code]", "print what the tunascript code evaluates to"},
-	{"DEBUG EXPAND [text to expand]", "print the given text with tunascript $IFs and flags expanded"},
+	{"DEBUG EXEC [code]", "print what the tunascript code evaluates to"},
+	{"DEBUG EXPAND [text]", "print the given text with tunascript $IFs and flags expanded"},
 	{"DEBUG FLAGS", "print all flags and their values"},
 	{"EXITS", "show the names of all exits from the room"},
 	{"GO/MOVE", "go to another room via one of the exits"},
 	{"INVENTORY/INVEN", "show your current inventory"},
-	{"LOOK", "show the description of the room"},
+	{"LOOK [something]", "show the description of something, or the room with LOOK by itself"},
 	{"QUIT/BYE", "end the game"},
 	{"TAKE/GET", "pick up an object in the room"},
-	{"TALK/SPEAK", "talk to someone/something in the room [WIP]"},
+	{"TALK/SPEAK", "talk to someone/something in the room"},
 	{"USE", "use an object in your inventory [WIP]"},
 }
 
 var textFormatOptions = rosed.Options{
 	PreserveParagraphs: true,
+	IndentStr:          "  ",
 }
 
 // State is the game's entire state.
@@ -283,7 +284,7 @@ func (gs *State) Look(alias string) (string, error) {
 			desc += "\n\n"
 			desc += "On the ground, you can see "
 
-			desc += util.MakeTextList(itemNames) + "."
+			desc += util.MakeTextList(itemNames, true) + "."
 		}
 
 		if len(gs.CurrentRoom.NPCs) > 0 {
@@ -298,7 +299,7 @@ func (gs *State) Look(alias string) (string, error) {
 			if len(npcNames) > 0 {
 				desc += "\n\nOh! "
 
-				desc += util.MakeTextList(npcNames)
+				desc += util.MakeTextList(npcNames, false)
 
 				if len(npcNames) == 1 {
 					desc += " is "
@@ -360,7 +361,7 @@ func (gs *State) Advance(cmd command.Command) error {
 	}
 
 	// IO to give output:
-	return gs.io.Output(output + "\n\n")
+	return gs.io.Output("\n" + output + "\n\n")
 }
 
 // ExecuteCommandGo executes the GO command with the arguments in the provided
@@ -394,16 +395,33 @@ func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
 // ExecuteCommandExits executes the EXITS command with the arguments in the
 // provided Command and returns the output.
 func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
-	exitTable := ""
+	ed := rosed.Edit("You search for ways out of the room, ").WithOptions(textFormatOptions)
+	if len(gs.CurrentRoom.Exits) < 1 {
+		ed = ed.Insert(rosed.End, "but you can't seem to find any exits right now")
+	} else {
 
-	for _, eg := range gs.CurrentRoom.Exits {
-		exitTable += strings.Join(eg.Aliases, "/")
-		exitTable += " -> "
-		exitTable += eg.Description
-		exitTable += "\n"
+		ed = ed.
+			Insert(rosed.End, "and find:\n").
+			CharsFrom(rosed.End)
+
+		for _, eg := range gs.CurrentRoom.Exits {
+			ed = ed.Insert(rosed.End, "XX* "+eg.Aliases[0]+": "+eg.Description+"\n")
+		}
+
+		// from prior CharsEnd, this should only apply to the list of exits.
+		ed = ed.
+			WithOptions(ed.Options.WithParagraphSeparator("\n")).
+			Wrap(gs.io.Width).
+			ApplyParagraphs(func(_ int, para, _, _ string) []string {
+				// set first two chars to spaces
+				newPara := rosed.Edit(para).Overtype(0, "  ").String()
+				return []string{newPara}
+			}).
+			Commit().
+			Insert(rosed.End, "\n(You might be able to call them other things, too)")
 	}
 
-	return exitTable, nil
+	return ed.String(), nil
 }
 
 // ExecuteCommandTake executes the TAKE command with the arguments in the
@@ -422,7 +440,7 @@ func (gs *State) ExecuteCommandTake(cmd command.Command) (string, error) {
 
 	gs.itemLocations[item.Label] = "@INVEN"
 
-	output := fmt.Sprintf("You pick up the %s and add it to your inventory.", item.Name)
+	output := fmt.Sprintf("You pick up the %s and add it to your inventory", item.Name)
 	return output, nil
 }
 
@@ -453,7 +471,27 @@ func (gs *State) ExecuteCommandLook(cmd command.Command) (string, error) {
 		return "", err
 	}
 
-	output = rosed.Edit(output).WithOptions(textFormatOptions).Wrap(gs.io.Width).Justify(gs.io.Width).String()
+	ed := rosed.Edit("").WithOptions(textFormatOptions)
+
+	if cmd.Recipient == "" {
+		ed = ed.Insert(rosed.End, "You check your surroundings.\n\n")
+	} else {
+		// is this an NPC? don't use 'the' with them
+		tgt := gs.CurrentRoom.GetTargetable(cmd.Recipient)
+
+		theText := "the"
+		if IsNPC(tgt) {
+			theText = ""
+		}
+
+		ed = ed.Insert(rosed.End, fmt.Sprintf("You examine %s %s.\n\n", theText, cmd.Recipient))
+	}
+
+	output = ed.
+		Insert(rosed.End, output).
+		Wrap(gs.io.Width).
+		String()
+
 	return output, nil
 }
 
@@ -471,7 +509,7 @@ func (gs *State) ExecuteCommandInventory(cmd command.Command) (string, error) {
 		}
 
 		output = "You currently have the following items:\n"
-		output += util.MakeTextList(itemNames) + "."
+		output += util.MakeTextList(itemNames, true) + "."
 	}
 
 	output = rosed.Edit(output).WrapOpts(gs.io.Width, textFormatOptions).String()
@@ -497,7 +535,7 @@ func (gs *State) ExecuteCommandTalk(cmd command.Command) (string, error) {
 		return "", err
 	}
 
-	output := fmt.Sprintf("\nYou stop talking to %s.", strings.ToLower(npc.Pronouns.Objective))
+	output := fmt.Sprintf("You stop talking to %s.", strings.ToLower(npc.Pronouns.Objective))
 	return output, nil
 }
 
@@ -523,15 +561,12 @@ func (gs *State) ExecuteCommandDebug(cmd command.Command) (string, error) {
 // ExecuteCommandHelp executes the HELP command with the arguments in the
 // provided Command and returns the output.
 func (gs *State) ExecuteCommandHelp(cmd command.Command) (string, error) {
-	var output string
-
-	ed := rosed.
-		Edit("").
-		WithOptions(rosed.Options{ParagraphSeparator: "\n"}).
-		InsertDefinitionsTable(0, commandHelp, 80)
-	output = ed.
-		Insert(0, "Here are the commands you can use (WIP commands do not yet work fully):\n").
-		String()
+	output := rosed.Edit("").WithOptions(
+		textFormatOptions.
+			WithParagraphSeparator("\n").
+			WithNoTrailingLineSeparators(true)).
+		Insert(rosed.End, "Here are the commands you can use (WIP commands do not yet work fully):\n").
+		InsertDefinitionsTable(rosed.End, commandHelp, gs.io.Width).String()
 
 	return output, nil
 }

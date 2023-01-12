@@ -5,7 +5,7 @@ type = "data"
 [[item]]
 label = "POGO_HAMMER"
 aliases = ["HAMMER", "POGOHAMMER", "POGO", "POGO_HAMMER"]
-name = "a pogo hammer"
+name = "pogo hammer"
 description = '''
 A hammer combined with a pogo-stick. What could go wrong?
 '''

@@ -89,7 +89,8 @@ func (gs *State) ListFlags() string {
 	}
 
 	tableOpts := rosed.Options{
-		TableHeaders: true,
+		TableHeaders:             true,
+		NoTrailingLineSeparators: true,
 	}
 
 	output = rosed.Edit("").
@@ -230,7 +231,7 @@ func (gs *State) GetNPCInfo(label string) (string, error) {
 	// build at width + 2 then eliminate the left margin that
 	// InsertDefinitionsTable always adds to remove the 2 extra
 	// chars
-	tableOpts := rosed.Options{ParagraphSeparator: "\n"}
+	tableOpts := rosed.Options{ParagraphSeparator: "\n", NoTrailingLineSeparators: true}
 	output := rosed.Edit("NPC Info for "+npc.Label+"\n"+
 		"\n",
 	).
