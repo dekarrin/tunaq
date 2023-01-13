@@ -16,3 +16,19 @@ default = "shark"
 [[flag]]
 label = "WALK_STYLE"
 default = "run"
+
+[[flag]]
+label = "FANCY_BATHROOM_NAME"
+default = "washroom"
+
+[[flag]]
+label = "JOEY_PLAYER_REACTION"
+default = "That's a really weird name!"
+
+[[flag]]
+label = "JOEY_PLAYER_NAME"
+default = "SOME PLAYER"
+
+[[flag]]
+label = "JOEY_PLAYER_HELLO"
+default = "What's up"
