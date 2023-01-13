@@ -10,5 +10,9 @@ label = "GLUB_IS_GOOD"
 default = true
 
 [[flag]]
-label = "fish"
+label = "FISH"
 default = "shark"
+
+[[flag]]
+label = "WALK_STYLE"
+default = "run"

@@ -46,7 +46,7 @@ aliases = ["HALLWAY", "HALL", "OUT", "SOUTH"]
 dest = "HALLWAY"
 description = "the door to the hall"
 message = '''
-You shut the door behind you as you go into the hall.
+You shut the door behind you as you $WALK_STYLE into the hall.
 '''
 
 
