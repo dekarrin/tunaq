@@ -260,7 +260,7 @@ func (gs *State) Expand(s string, what string) string {
 		what = "TEXT"
 	}
 
-	expanded, err := gs.scripts.ExpandText(s)
+	expanded, err := gs.scripts.Expand(s)
 	if err != nil {
 		msg := "TUNAQUEST SYSTEM WARNING: DIPFISH AND DARNATION!\n"
 		msg += fmt.Sprintf("TUNASCRIPT ERROR EXPANDING %s:\n\n%v\n\n", what, err)

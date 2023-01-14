@@ -61,7 +61,7 @@ func (gs *State) executeDebugExec(s string) (string, error) {
 }
 
 func (gs *State) executeDebugExpand(s string) (string, error) {
-	return gs.scripts.ExpandText(s)
+	return gs.scripts.Expand(s)
 }
 
 func (gs *State) executeDebugFlags() (string, error) {

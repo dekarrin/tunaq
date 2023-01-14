@@ -72,14 +72,13 @@ const (
 // of if s cannot be operated on.
 //
 // Also returns the parsable AST of the analyzed expression as well.
-func indexOfMatchingParen(s string) (int, *AbstractSyntaxTree, error) {
+func indexOfMatchingParen(sRunes []rune) (int, *AbstractSyntaxTree, error) {
 	// without a parent node on a paren scan, buildAST will produce an error.
 	dummyNode := &AbstractSyntaxTree{
 		children: make([]*AbstractSyntaxTree, 0),
 	}
 	dummyNode.root = dummyNode
 
-	sRunes := []rune(s)
 	if sRunes[0] != '(' {
 		var errStr string
 		if len(sRunes) > 50 {
@@ -94,23 +93,7 @@ func indexOfMatchingParen(s string) (int, *AbstractSyntaxTree, error) {
 		return 0, nil, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
 	}
 
-	gotFirstByte := false
-	nextByteIdx := -1
-	for b := range s {
-		if !gotFirstByte {
-			gotFirstByte = true
-		} else {
-			nextByteIdx = b
-			break
-		}
-	}
-
-	if nextByteIdx == -1 {
-		// should never happen
-		return 0, nil, fmt.Errorf("byte analysis on string failed to produce a next-char byte")
-	}
-
-	exprNode, consumed, err := buildAST(s[nextByteIdx:], dummyNode)
+	exprNode, consumed, err := buildAST(string(sRunes[1:]), dummyNode)
 	if err != nil {
 		return 0, nil, err
 	}

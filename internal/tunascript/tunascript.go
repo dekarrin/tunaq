@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"unicode"
 )
 
 // tunascript execution engine
@@ -144,45 +143,36 @@ func (inter Interpreter) GetFlag(label string) string {
 	return flag.String()
 }
 
-// ExpansionTree is a parsed (but not interpreted) block of text containing
+// ExpansionAnalysis is a lexed (and somewhat parsed) block of text containing
 // both tunascript expansion-legal expressions and regular text. The zero-value
 // of a ParsedExpansion is not suitable for use and they should only be created
-// by calls to ParseExpansion.
-type ExpansionTree struct {
+// by calls to AnalyzeExpansion.
+type ExpansionAST struct {
 	nodes []expTreeNode
 }
 
 type expTreeNode struct {
-	t   *string             // if not nil its a text node
-	ast *AbstractSyntaxTree // if not nil its a code node
+	// can be a text node or a conditional node. Conditional nodes hold a series
+	// of ifs
+	text   *string        // if not nil its a text node
+	branch *expBranchNode // if not nil its a branch node
+	flag   *string        // if not nil its a flag node
 }
 
-// Expand applies expansion on the given text. Expansion will expand the
-// following constructs:
-//
-//   - any flag reference with the $ will be expanded to its full value.
-//   - any $IF() ... $ENDIF() block will be evaluated and included in the output
-//     text only if the tunaquest expression inside the $IF evaluates to true.
-//   - function calls are not allowed outside of the tunascript expression in an
-//     $IF. If they are there, they will be interpreted as a variable expansion,
-//     and if there is no value matching that one, it will be expanded to an
-//     empty string. E.g. "$ADD()" in the body text would evaluate to value of
-//     flag called "ADD" (probably ""), followed by literal parenthesis.
-//   - bare dollar signs are evaluated as literal. This will only happen if they
-//     are not immediately followed by identifier chars.
-//   - literal $ signs can be included with a backslash. Thus the escape
-//     backslash will work.
-//   - literal backslashes can be included by escaping them.
-func (inter Interpreter) ExpandText(s string) (string, error) {
-	tree := ExpansionTree{
-		nodes: make([]expTreeNode, 0),
-	}
+type expBranchNode struct {
+	ifNode expCondNode
+	/*elseIfNodes []expCondNode
+	elseNode    *ExpansionAST*/
+}
 
-	sRunes := []rune{}
-	sBytes := []int{}
-	for b, ch := range s {
-		sRunes = append(sRunes, ch)
-		sBytes = append(sBytes, b)
+type expCondNode struct {
+	cond    *AbstractSyntaxTree
+	content *ExpansionAST
+}
+
+func (inter Interpreter) ExpandTree(ast *ExpansionAST) (string, error) {
+	if ast == nil {
+		return "", fmt.Errorf("nil ast")
 	}
 
 	expandFlag := func(fullFlagToken string) string {
@@ -201,138 +191,238 @@ func (inter Interpreter) ExpandText(s string) (string, error) {
 		}
 	}
 
-	var contentStack []*strings.Builder
-	var ifResultStack []bool
-	var expanded *strings.Builder
-	var ident strings.Builder
+	sb := strings.Builder{}
 
-	var inIdent bool
-	var escaping bool
+	for i := range ast.nodes {
+		n := ast.nodes[i]
 
-	expanded = &strings.Builder{}
-	contentStack = append(contentStack, expanded)
-	for i := 0; i < len(sRunes); i++ {
-		ch := sRunes[i]
-		if !inIdent {
-			if !escaping && ch == '\\' {
-				escaping = true
-			} else if !escaping && ch == '$' {
-				ident.WriteRune('$')
-				inIdent = true
-			} else {
-				expanded.WriteRune(ch)
-				escaping = false
+		if n.flag != nil {
+			flagVal := expandFlag(*n.flag)
+			sb.WriteString(flagVal)
+		} else if n.text != nil {
+			sb.WriteString(*n.text)
+		} else if n.branch != nil {
+			cond := n.branch.ifNode.cond
+			contentExpansionAST := n.branch.ifNode.content
+
+			conditionalValue, err := inter.evalExpr(cond, true)
+			if err != nil {
+				return "", fmt.Errorf("syntax error: %v", err)
 			}
-		} else {
-			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
-				ident.WriteRune(ch)
-			} else if ch == '(' {
-				// this is a func call, and the only allowed directly in text is $IF() and $ENDIF().
-				if ident.String() == "$IF" {
-					parenMatch, tsExpr, err := indexOfMatchingParen(s[sBytes[i]:])
-					if err != nil {
-						return "", fmt.Errorf("at char %d: %w", i, err)
-					}
-					exprLen := parenMatch - 1
+			if len(conditionalValue) != 1 {
+				return "", fmt.Errorf("incorrect number of arguments to $IF; must be exactly 1")
+			}
 
-					if exprLen < 1 {
-						return "", fmt.Errorf("at char %d: args cannot be empty", i)
-					}
-
-					tsResult, err := inter.evalExpr(tsExpr, true)
-					if err != nil {
-						return "", fmt.Errorf("at char %d: %w", i, err)
-					}
-					if len(tsResult) > 1 {
-						return "", fmt.Errorf("at char %d: $IF() takes one argument, received %d", i, len(tsResult))
-					}
-					ifResultStack = append(ifResultStack, tsResult[0].Bool())
-					expanded = &strings.Builder{}
-					contentStack = append(contentStack, expanded)
-					ident.Reset()
-					inIdent = false
-
-					i += parenMatch
-				} else if ident.String() == "$ENDIF" {
-					parenMatch, tsExpr, err := indexOfMatchingParen(s[sBytes[i]:])
-					if err != nil {
-						return "", fmt.Errorf("at char %d: %w", i, err)
-					}
-					exprLen := parenMatch - 1
-
-					if exprLen != 0 {
-						return "", fmt.Errorf("at char %d: $ENDIF() takes zero arguments, received %d", i, len(tsExpr.children))
-					}
-
-					if len(ifResultStack) < 1 {
-						return "", fmt.Errorf("at char %d: mismatched $ENDIF(); missing $IF() before it", i)
-					}
-
-					ifBlockContent := expanded.String()
-					contentStack = contentStack[:len(contentStack)-1]
-					expanded = contentStack[len(contentStack)-1]
-					ifResult := ifResultStack[len(ifResultStack)-1]
-					ifResultStack = ifResultStack[:len(ifResultStack)-1]
-					if ifResult {
-						// trim all spaces from both sides
-						expanded.WriteString(strings.TrimSpace(ifBlockContent))
-					} else {
-						// remove the space prior to the if
-						oldBeforeIf := expanded.String()
-						// it appears iterating over the entire string is the
-						// only way to do this.
-						//
-						// Hey, no8ody said we had to 8e efficient about it!
-						//
-						// efishient* 383
-
-						finalCharByte := -1
-						for b := range oldBeforeIf {
-							finalCharByte = b
-						}
-
-						finalStr := []rune(oldBeforeIf[finalCharByte:])
-
-						if unicode.IsSpace(finalStr[0]) {
-							oldBeforeIf = oldBeforeIf[:finalCharByte]
-						}
-
-						expanded = &strings.Builder{}
-						expanded.WriteString(oldBeforeIf)
-						contentStack[len(contentStack)-1] = expanded
-					}
-					ident.Reset()
-					inIdent = false
-
-					i++ // for the extra paren
-				} else {
-					return "", fmt.Errorf("at char %d: %s() is not a text function; only $IF() or $ENDIF() are allowed", i, ident.String())
+			if conditionalValue[0].Bool() {
+				expandedContent, err := inter.ExpandTree(contentExpansionAST)
+				if err != nil {
+					return "", err
 				}
-			} else {
-				varVal := expandFlag(ident.String())
-				expanded.WriteString(varVal)
-				ident = strings.Builder{}
-				inIdent = false
 
-				i-- // reparse 'normally'
+				sb.WriteString(expandedContent)
 			}
 		}
 	}
 
-	// done looping, do we have any ident left over?
-	// functions are look-ahaed analyzed as soon as opening paren is
-	// encountered, so if still inIdent its deffo a flag
-	if inIdent {
-		varVal := expandFlag(ident.String())
-		expanded.WriteString(varVal)
+	return sb.String(), nil
+}
+
+// ParseExpansion applies expansion analysis to the given text.
+//
+//   - any flag reference with the $ will be expanded to its full value.
+//   - any $IF() ... $ENDIF() block will be evaluated and included in the output
+//     text only if the tunaquest expression inside the $IF evaluates to true.
+//   - function calls are not allowed outside of the tunascript expression in an
+//     $IF. If they are there, they will be interpreted as a variable expansion,
+//     and if there is no value matching that one, it will be expanded to an
+//     empty string. E.g. "$ADD()" in the body text would evaluate to value of
+//     flag called "ADD" (probably ""), followed by literal parenthesis.
+//   - bare dollar signs are evaluated as literal. This will only happen if they
+//     are not immediately followed by identifier chars.
+//   - literal $ signs can be included with a backslash. Thus the escape
+//     backslash will work.
+//   - literal backslashes can be included by escaping them.
+func (inter Interpreter) ParseExpansion(s string) (*ExpansionAST, error) {
+	sRunes := []rune{}
+	sBytes := []int{}
+	for b, ch := range s {
+		sRunes = append(sRunes, ch)
+		sBytes = append(sBytes, b)
 	}
 
-	// check the stack, do we have mismatched ifs?
-	if len(ifResultStack) > 0 {
-		return "", fmt.Errorf("at end: mismatched $IF(); missing $ENDIF() after it")
+	ast, _, err := inter.parseExpansion(sRunes, sBytes, true)
+	return ast, err
+}
+
+func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bool) (*ExpansionAST, int, error) {
+	tree := &ExpansionAST{
+		nodes: make([]expTreeNode, 0),
 	}
 
-	return expanded.String(), nil
+	const (
+		modeText = iota
+		modeIdent
+	)
+
+	var ident strings.Builder
+
+	var escaping bool
+
+	curText := strings.Builder{}
+	mode := modeText
+
+	for i := 0; i < len(sRunes); i++ {
+		ch := sRunes[i]
+		switch mode {
+		case modeText:
+			if !escaping && ch == '\\' {
+				escaping = true
+			} else if !escaping && ch == '$' {
+				if curText.Len() > 0 {
+					lastText := curText.String()
+					tree.nodes = append(tree.nodes, expTreeNode{
+						text: &lastText,
+					})
+					curText.Reset()
+				}
+
+				ident.WriteRune('$')
+				mode = modeText
+			} else {
+				curText.WriteRune(ch)
+			}
+		case modeIdent:
+			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
+				ident.WriteRune(ch)
+			} else if ch == '(' {
+				fnName := ident.String()
+
+				if fnName == "$IF" {
+					// we've encountered an IF block, recurse.
+					parenMatch, tsExpr, err := indexOfMatchingParen(sRunes[i:])
+					if err != nil {
+						return tree, 0, fmt.Errorf("at char %d: %w", i, err)
+					}
+					exprLen := parenMatch - 1
+
+					if exprLen < 1 {
+						return tree, 0, fmt.Errorf("at char %d: args cannot be empty", i)
+					}
+
+					branch := expBranchNode{
+						ifNode: expCondNode{
+							cond: tsExpr,
+						},
+					}
+
+					i += parenMatch
+
+					if i+1 >= len(sRunes) {
+						return nil, 0, fmt.Errorf("unexpected end of text (unmatched $IF)")
+					}
+
+					ast, consumed, err := inter.parseExpansion(sRunes[i+1:], sBytes[i+1:], false)
+					if err != nil {
+						return nil, 0, err
+					}
+
+					branch.ifNode.content = ast
+
+					tree.nodes = append(tree.nodes, expTreeNode{
+						branch: &branch,
+					})
+
+					i += consumed
+
+					ident.Reset()
+					mode = modeText
+				} else if fnName == "$ENDIF" {
+					parenMatch, tsExpr, err := indexOfMatchingParen(sRunes[i:])
+					if err != nil {
+						return nil, 0, fmt.Errorf("at char %d: %w", i, err)
+					}
+					exprLen := parenMatch - 1
+
+					if exprLen != 0 {
+						return nil, 0, fmt.Errorf("at char %d: $ENDIF() takes zero arguments, received %d", i, len(tsExpr.children))
+					}
+					i += parenMatch
+
+					if topLevel {
+						return nil, 0, fmt.Errorf("unexpected end of text (unmatched $ENDIF)")
+					}
+
+					return tree, i, nil
+				} else {
+					return nil, 0, fmt.Errorf("at char %d: %s() is not a text function; only $IF() or $ENDIF() are allowed", i, ident.String())
+				}
+			} else {
+				flagName := ident.String()
+
+				tree.nodes = append(tree.nodes, expTreeNode{
+					flag: &flagName,
+				})
+
+				mode = modeText
+				i-- // reparse 'normally'
+			}
+		default:
+			// should never happen
+			return nil, 0, fmt.Errorf("unknown parser mode: %v", mode)
+		}
+	}
+
+	if !topLevel {
+		return nil, 0, fmt.Errorf("unexpected end of text (unmatched $IF)")
+	}
+
+	if curText.Len() > 0 {
+		lastText := curText.String()
+		tree.nodes = append(tree.nodes, expTreeNode{
+			text: &lastText,
+		})
+		curText.Reset()
+	}
+
+	if ident.Len() > 0 {
+		flagName := ident.String()
+
+		tree.nodes = append(tree.nodes, expTreeNode{
+			flag: &flagName,
+		})
+	}
+
+	return tree, len(sRunes), nil
+}
+
+// Expand applies expansion on the given text. Expansion will expand the
+// following constructs:
+//
+//   - any flag reference with the $ will be expanded to its full value.
+//   - any $IF() ... $ENDIF() block will be evaluated and included in the output
+//     text only if the tunaquest expression inside the $IF evaluates to true.
+//   - function calls are not allowed outside of the tunascript expression in an
+//     $IF. If they are there, they will be interpreted as a variable expansion,
+//     and if there is no value matching that one, it will be expanded to an
+//     empty string. E.g. "$ADD()" in the body text would evaluate to value of
+//     flag called "ADD" (probably ""), followed by literal parenthesis.
+//   - bare dollar signs are evaluated as literal. This will only happen if they
+//     are not immediately followed by identifier chars.
+//   - literal $ signs can be included with a backslash. Thus the escape
+//     backslash will work.
+//   - literal backslashes can be included by escaping them.
+func (inter Interpreter) Expand(s string) (string, error) {
+	expAST, err := inter.ParseExpansion(s)
+	if err != nil {
+		return "", err
+	}
+
+	expanded, err := inter.ExpandTree(expAST)
+	if err != nil {
+		return "", err
+	}
+
+	return expanded, nil
 }
 
 // Eval interprets the tunaquest expression in the given string. If there is an
