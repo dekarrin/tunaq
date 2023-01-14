@@ -145,43 +145,6 @@ func (inter Interpreter) GetFlag(label string) string {
 	return flag.String()
 }
 
-// ExpansionAnalysis is a lexed (and somewhat parsed) block of text containing
-// both tunascript expansion-legal expressions and regular text. The zero-value
-// of a ParsedExpansion is not suitable for use and they should only be created
-// by calls to AnalyzeExpansion.
-type ExpansionAST struct {
-	nodes []expTreeNode
-}
-
-type expTreeNode struct {
-	// can be a text node or a conditional node. Conditional nodes hold a series
-	// of ifs
-	text   *expTextNode   // if not nil its a text node
-	branch *expBranchNode // if not nil its a branch node
-	flag   *expFlagNode   // if not nil its a flag node
-}
-
-type expFlagNode struct {
-	name string
-}
-
-type expTextNode struct {
-	t                string
-	minusSpacePrefix *string
-	minusSpaceSuffix *string
-}
-
-type expBranchNode struct {
-	ifNode expCondNode
-	/*elseIfNodes []expCondNode
-	elseNode    *ExpansionAST*/
-}
-
-type expCondNode struct {
-	cond    *AbstractSyntaxTree
-	content *ExpansionAST
-}
-
 func (inter Interpreter) ExpandTree(ast *ExpansionAST) (string, error) {
 	if ast == nil {
 		return "", fmt.Errorf("nil ast")
@@ -226,7 +189,7 @@ func (inter Interpreter) ExpandTree(ast *ExpansionAST) (string, error) {
 			}
 
 			if conditionalValue[0].Bool() {
-				expandedContent, err := inter.ExpandAST(contentExpansionAST)
+				expandedContent, err := inter.ExpandTree(contentExpansionAST)
 				if err != nil {
 					return "", err
 				}
@@ -490,7 +453,7 @@ func (inter Interpreter) Expand(s string) (string, error) {
 		return "", err
 	}
 
-	expanded, err := inter.ExpandAST(expAST)
+	expanded, err := inter.ExpandTree(expAST)
 	if err != nil {
 		return "", err
 	}

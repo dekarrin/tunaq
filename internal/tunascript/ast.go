@@ -17,84 +17,6 @@ type AST struct {
 	t        nodeType
 }
 
-// NOTE: does NOT set root, caller needs to set that themself since cannot know
-func (ast AST) MarshalBinary() ([]byte, error) {
-	var data []byte
-
-	// children count
-	data = append(data, encBinaryInt(len(ast.children))...)
-
-	// each child
-	for i := range ast.children {
-		child := ast.children[i]
-		data = append(data, encBinaryAST(child)...)
-	}
-
-	// the symbol
-	data = append(data, encBinarySymbol(ast.sym)...)
-
-	// node type
-	data = append(data, encBinaryInt(int(ast.t))...)
-
-	return data, nil
-}
-
-func recursiveNodeSetRoot(ast *AST, root *AST) {
-	ast.root = root
-	for i := range ast.children {
-		child := ast.children[i]
-		recursiveNodeSetRoot(child, root)
-	}
-}
-
-// NOTE: does NOT set root, caller needs to set that themself since cannot know
-func (ast *AST) UnmarshalBinary(data []byte) error {
-	var err error
-	var readBytes int
-	var childCount int
-	var tVal int
-
-	// children count
-	childCount, readBytes, err = decBinaryInt(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-
-	// each child
-	for i := 0; i < childCount; i++ {
-		subAST, readBytes, err := decBinaryAST(data)
-		if err != nil {
-			return err
-		}
-		data = data[readBytes:]
-
-		// need to recursively tell all children who parent is
-
-		ast.children = append(ast.children, &subAST)
-	}
-
-	// the symbol
-	ast.sym, readBytes, err = decBinarySymbol(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-
-	// node type
-	tVal, readBytes, err = decBinaryInt(data)
-	if err != nil {
-		return err
-	}
-	ast.t = nodeType(tVal)
-
-	if ast.t != nodeGroup && ast.t != nodeItem && ast.t != nodeRoot {
-		return fmt.Errorf("unknown AST node type")
-	}
-
-	return nil
-}
-
 // ExpansionAnalysis is a lexed (and somewhat parsed) block of text containing
 // both tunascript expansion-legal expressions and regular text. The zero-value
 // of a ParsedExpansion is not suitable for use and they should only be created
@@ -103,129 +25,22 @@ type ExpansionAST struct {
 	nodes []expTreeNode
 }
 
-func (east ExpansionAST) MarshalBinary() ([]byte, error) {
-	var data []byte
-
-	// node count
-	data = append(data, encBinaryInt(len(east.nodes))...)
-
-	// each node
-	for i := range east.nodes {
-		data = append(data, encBinaryExpTreeNode(east.nodes[i]))
-	}
-
-	return data, nil
-}
-
-func (east *ExpansionAST) UnmarshalBinary(data []byte) error {
-	var err error
-	var readBytes int
-	var nodeCount int
-
-	// node count
-	nodeCount, readBytes, err = decBinaryInt(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-
-	// each node
-	for i := 0; i < nodeCount; i++ {
-		node, readBytes, err := decBinaryExpTreeNode(data)
-		if err != nil {
-			return err
-		}
-		data = data[readBytes:]
-
-		east.nodes = append(east.nodes, node)
-	}
-
-	return nil
-}
-
 type expTreeNode struct {
 	// can be a text node or a conditional node. Conditional nodes hold a series
 	// of ifs
-	text   *string        // if not nil its a text node
+	text   *expTextNode   // if not nil its a text node
 	branch *expBranchNode // if not nil its a branch node
-	flag   *string        // if not nil its a flag node
+	flag   *expFlagNode   // if not nil its a flag node
 }
 
-func (etn expTreeNode) MarshalBinary() ([]byte, error) {
-	var data []byte
-
-	// text ptr
-	if etn.text == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinaryString(*etn.text)...)
-	}
-
-	// branch ptr
-	if etn.branch == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinaryExpBranchNode(*etn.branch)...)
-	}
-
-	// flag ptr
-	if etn.flag == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinaryString(*etn.flag)...)
-	}
-
-	return data, nil
+type expFlagNode struct {
+	name string
 }
 
-func (etn *expTreeNode) UnmrshalBinary(data []byte) error {
-	var err error
-	var readBytes int
-	var isNil bool
-
-	// text ptr
-	isNil, readBytes, err = decBinaryBool(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-	if isNil {
-		etn.text = nil
-	} else {
-		textVal, readBytes, err := decBinaryExpBranchNode(data)
-		if err != nil {
-			return err
-		}
-		data = data[readBytes:]
-		ecn.cond = &condVal
-	}
-
-	// text ptr
-	if etn.text == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinaryString(*etn.text)...)
-	}
-
-	// branch ptr
-	if etn.branch == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinaryExpBranchNode(*etn.branch)...)
-	}
-
-	// flag ptr
-	if etn.flag == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinaryString(*etn.flag)...)
-	}
+type expTextNode struct {
+	t                string
+	minusSpacePrefix *string
+	minusSpaceSuffix *string
 }
 
 type expBranchNode struct {
@@ -233,97 +48,10 @@ type expBranchNode struct {
 	/*elseIfNodes []expCondNode
 	elseNode    *ExpansionAST*/
 }
-
-func (ebn expBranchNode) MarshalBinary() ([]byte, error) {
-	var data []byte
-
-	data = append(data, encBinaryCondNode(ebn.ifNode)...)
-
-	return data, nil
-}
-
-func (ebn *expBranchNode) UnmrshalBinary(data []byte) error {
-	var err error
-	var readBytes int
-
-	ebn.ifNode, readBytes, err = decBinaryCondNode(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-
-	return nil
-}
-
 type expCondNode struct {
 	cond    *AST
 	content *ExpansionAST
 }
-
-func (ecn expCondNode) MarshalBinary() ([]byte, error) {
-	var data []byte
-
-	// cond ptr
-	if ecn.cond == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinaryAST(*ecn.cond)...)
-	}
-
-	// content ptr
-	if ecn.content == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinaryEAST(*ecn.content)...)
-	}
-
-	return data, nil
-}
-
-func (ecn *expCondNode) UnmrshalBinary(data []byte) error {
-	var err error
-	var readBytes int
-	var isNil bool
-
-	// cond ptr
-	isNil, readBytes, err = decBinaryBool(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-	if isNil {
-		ecn.cond = nil
-	} else {
-		condVal, readBytes, err := decBinaryAST(data)
-		if err != nil {
-			return err
-		}
-		data = data[readBytes:]
-		ecn.cond = &condVal
-	}
-
-	// content ptr
-	isNil, readBytes, err = decBinaryBool(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-	if isNil {
-		ecn.content = nil
-	} else {
-		contentVal, readBytes, err := decBinaryEAST(data)
-		if err != nil {
-			return err
-		}
-		data = data[readBytes:]
-		ecn.content = &contentVal
-	}
-
-	return nil
-}
-
 type symbolType int
 
 const (
@@ -757,4 +485,403 @@ func buildAST(s string, parent *AST) (*AST, int, error) {
 	// - make the values not have double quotes but force to str type
 
 	return node, len(s), nil
+}
+
+// NOTE: does NOT set root, caller needs to set that themself since cannot know
+func (ast AST) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// children count
+	data = append(data, encBinaryInt(len(ast.children))...)
+
+	// each child
+	for i := range ast.children {
+		child := ast.children[i]
+		data = append(data, encBinary(*child)...)
+	}
+
+	// the symbol
+	data = append(data, encBinary(ast.sym)...)
+
+	// node type
+	data = append(data, encBinaryInt(int(ast.t))...)
+
+	return data, nil
+}
+
+func recursiveNodeSetRoot(ast *AST, root *AST) {
+	ast.root = root
+	for i := range ast.children {
+		child := ast.children[i]
+		recursiveNodeSetRoot(child, root)
+	}
+}
+
+// NOTE: does NOT set root, caller needs to set that themself since cannot know
+func (ast *AST) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var childCount int
+	var tVal int
+
+	// children count
+	childCount, readBytes, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// each child
+	for i := 0; i < childCount; i++ {
+		var subAST *AST
+		readBytes, err := decBinary(data, subAST)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		// need to recursively tell all children who parent is
+
+		ast.children = append(ast.children, subAST)
+	}
+
+	// the symbol
+	readBytes, err = decBinary(data, &ast.sym)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// node type
+	tVal, readBytes, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	ast.t = nodeType(tVal)
+
+	if ast.t != nodeGroup && ast.t != nodeItem && ast.t != nodeRoot {
+		return fmt.Errorf("unknown AST node type")
+	}
+
+	return nil
+}
+
+func (east ExpansionAST) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// node count
+	data = append(data, encBinaryInt(len(east.nodes))...)
+
+	// each node
+	for i := range east.nodes {
+		data = append(data, encBinary(east.nodes[i])...)
+	}
+
+	return data, nil
+}
+
+func (east *ExpansionAST) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var nodeCount int
+
+	// node count
+	nodeCount, readBytes, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// each node
+	for i := 0; i < nodeCount; i++ {
+		var node expTreeNode
+		readBytes, err := decBinary(data, &node)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		east.nodes = append(east.nodes, node)
+	}
+
+	return nil
+}
+
+func (ecn expCondNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// cond ptr
+	if ecn.cond == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinary(*ecn.cond)...)
+	}
+
+	// content ptr
+	if ecn.content == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinary(*ecn.content)...)
+	}
+
+	return data, nil
+}
+
+func (ecn *expCondNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var isNil bool
+
+	// cond ptr
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		ecn.cond = nil
+	} else {
+		var condVal *AST
+		readBytes, err := decBinary(data, condVal)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+		ecn.cond = condVal
+	}
+
+	// content ptr
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		ecn.content = nil
+	} else {
+		var contentVal *ExpansionAST
+		readBytes, err := decBinary(data, contentVal)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+		ecn.content = contentVal
+	}
+
+	return nil
+}
+
+func (etn expTreeNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// text ptr
+	if etn.text == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinary(*etn.text)...)
+	}
+
+	// branch ptr
+	if etn.branch == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinary(*etn.branch)...)
+	}
+
+	// flag ptr
+	if etn.flag == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinary(*etn.flag)...)
+	}
+
+	return data, nil
+}
+
+func (etn *expTreeNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var isNil bool
+
+	// text ptr
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		etn.text = nil
+	} else {
+		var textVal expTextNode
+		readBytes, err := decBinary(data, &textVal)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		etn.text = &textVal
+	}
+
+	// branch ptr
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		etn.branch = nil
+	} else {
+		var branchVal expBranchNode
+		readBytes, err := decBinary(data, &branchVal)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		etn.branch = &branchVal
+	}
+
+	// flag ptr
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		etn.flag = nil
+	} else {
+		var flagVal expFlagNode
+		readBytes, err := decBinary(data, &flagVal)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		etn.flag = &flagVal
+	}
+
+	return nil
+}
+
+func (efn expFlagNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(efn.name)...)
+
+	return data, nil
+}
+
+func (efn *expFlagNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+
+	efn.name, readBytes, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	return nil
+}
+
+func (etn expTextNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// main string
+	data = append(data, encBinaryString(etn.t)...)
+
+	// minus space prefix
+	if etn.minusSpacePrefix == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinaryString(*etn.minusSpacePrefix)...)
+	}
+
+	// minus space suffix
+	if etn.minusSpaceSuffix == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinaryString(*etn.minusSpaceSuffix)...)
+	}
+
+	return data, nil
+}
+
+func (etn *expTextNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var isNil bool
+
+	// main string
+	etn.t, readBytes, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// minus space prefix
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		etn.minusSpacePrefix = nil
+	} else {
+		mspVal, readBytes, err := decBinaryString(data)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		etn.minusSpacePrefix = &mspVal
+	}
+
+	// minus space suffix
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		etn.minusSpaceSuffix = nil
+	} else {
+		mssVal, readBytes, err := decBinaryString(data)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		etn.minusSpaceSuffix = &mssVal
+	}
+
+	return nil
+}
+
+func (ebn expBranchNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinary(ebn.ifNode)...)
+
+	return data, nil
+}
+
+func (ebn *expBranchNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+
+	readBytes, err = decBinary(data, &ebn.ifNode)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	return nil
 }

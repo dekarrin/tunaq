@@ -1,6 +1,7 @@
 package tunascript
 
 import (
+	"encoding"
 	"encoding/binary"
 	"fmt"
 	"strings"
@@ -19,15 +20,6 @@ func encBinaryBool(b bool) []byte {
 	}
 
 	return enc
-}
-
-func encBinarySymbol(sym symbol) []byte {
-	symBytes, _ := sym.MarshalBinary()
-
-	byteLen := len(symBytes)
-
-	enc := encBinaryInt(byteLen)
-	return append(enc, symBytes...)
 }
 
 func encBinaryString(s string) []byte {
@@ -50,6 +42,14 @@ func encBinaryString(s string) []byte {
 func encBinaryInt(i int) []byte {
 	enc := make([]byte, 8)
 	enc = binary.AppendVarint(enc, int64(i))
+	return enc
+}
+
+func encBinary(b encoding.BinaryMarshaler) []byte {
+	enc, _ := b.MarshalBinary()
+
+	enc = append(encBinaryInt(len(enc)), enc...)
+
 	return enc
 }
 
@@ -107,31 +107,6 @@ func decBinaryString(data []byte) (string, int, error) {
 	return sb.String(), readBytes, nil
 }
 
-func decBinarySymbol(data []byte) (symbol, int, error) {
-	var readBytes int
-	var byteLen int
-	var err error
-	var sym symbol
-
-	byteLen, readBytes, err = decBinaryInt(data)
-	if err != nil {
-		return sym, 0, err
-	}
-	data = data[readBytes:]
-
-	if len(data) < byteLen {
-		return sym, 0, fmt.Errorf("unexpected end of data")
-	}
-	symData := data[:byteLen]
-
-	err = (&sym).UnmarshalBinary(symData)
-	if err != nil {
-		return sym, 0, err
-	}
-
-	return sym, byteLen + readBytes, nil
-}
-
 // will always read 8 bytes but does return len
 func decBinaryInt(data []byte) (int, int, error) {
 	if len(data) < 8 {
@@ -145,4 +120,28 @@ func decBinaryInt(data []byte) (int, int, error) {
 		return 0, 0, fmt.Errorf("input buffer contains value larger than 64 bits, should never happen")
 	}
 	return int(val), 8, nil
+}
+
+func decBinary(data []byte, b encoding.BinaryUnmarshaler) (int, error) {
+	var readBytes int
+	var byteLen int
+	var err error
+
+	byteLen, readBytes, err = decBinaryInt(data)
+	if err != nil {
+		return 0, err
+	}
+	data = data[readBytes:]
+
+	if len(data) < byteLen {
+		return 0, fmt.Errorf("unexpected end of data")
+	}
+	binData := data[:byteLen]
+
+	err = b.UnmarshalBinary(binData)
+	if err != nil {
+		return 0, err
+	}
+
+	return byteLen + readBytes, nil
 }
