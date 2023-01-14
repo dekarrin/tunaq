@@ -226,7 +226,7 @@ func (inter Interpreter) ExpandTree(ast *ExpansionAST) (string, error) {
 			}
 
 			if conditionalValue[0].Bool() {
-				expandedContent, err := inter.ExpandTree(contentExpansionAST)
+				expandedContent, err := inter.ExpandAST(contentExpansionAST)
 				if err != nil {
 					return "", err
 				}
@@ -490,7 +490,7 @@ func (inter Interpreter) Expand(s string) (string, error) {
 		return "", err
 	}
 
-	expanded, err := inter.ExpandTree(expAST)
+	expanded, err := inter.ExpandAST(expAST)
 	if err != nil {
 		return "", err
 	}
