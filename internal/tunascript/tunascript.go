@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/dekarrin/tunaq/internal/util"
 )
 
 // tunascript execution engine
@@ -154,9 +156,19 @@ type ExpansionAST struct {
 type expTreeNode struct {
 	// can be a text node or a conditional node. Conditional nodes hold a series
 	// of ifs
-	text   *string        // if not nil its a text node
+	text   *expTextNode   // if not nil its a text node
 	branch *expBranchNode // if not nil its a branch node
-	flag   *string        // if not nil its a flag node
+	flag   *expFlagNode   // if not nil its a flag node
+}
+
+type expFlagNode struct {
+	name string
+}
+
+type expTextNode struct {
+	t                string
+	minusSpacePrefix *string
+	minusSpaceSuffix *string
 }
 
 type expBranchNode struct {
@@ -191,16 +203,16 @@ func (inter Interpreter) ExpandTree(ast *ExpansionAST) (string, error) {
 		}
 	}
 
-	sb := strings.Builder{}
+	usb := util.UndoableStringBuilder{}
 
 	for i := range ast.nodes {
 		n := ast.nodes[i]
 
 		if n.flag != nil {
-			flagVal := expandFlag(*n.flag)
-			sb.WriteString(flagVal)
+			flagVal := expandFlag(n.flag.name)
+			usb.WriteString(flagVal)
 		} else if n.text != nil {
-			sb.WriteString(*n.text)
+			usb.WriteString(n.text.t)
 		} else if n.branch != nil {
 			cond := n.branch.ifNode.cond
 			contentExpansionAST := n.branch.ifNode.content
@@ -219,12 +231,49 @@ func (inter Interpreter) ExpandTree(ast *ExpansionAST) (string, error) {
 					return "", err
 				}
 
-				sb.WriteString(expandedContent)
+				expandedContent = strings.TrimSpace(expandedContent)
+				usb.WriteString(expandedContent)
+			} else {
+				// get rid of extra space here if it's not still too slow
+
+				var prevTextHasSpace, nextTextHasSpace bool
+
+				// is there trailing space char in prior text block?
+				if i > 0 {
+					prevNode := ast.nodes[i-1]
+					if prevNode.text != nil {
+						textNode := prevNode.text
+						if textNode.minusSpaceSuffix != nil {
+							prevTextHasSpace = true
+						}
+					}
+				}
+
+				// is there a leading space char in next text block?
+				if i+1 < len(ast.nodes) {
+					nextNode := ast.nodes[i+1]
+					if nextNode.text != nil {
+						textNode := nextNode.text
+						if textNode.minusSpacePrefix != nil {
+							nextTextHasSpace = true
+						}
+					}
+				}
+
+				// if both have a space char, eliminate the prior one
+				if prevTextHasSpace && nextTextHasSpace {
+					usb.Undo()
+
+					prevText := ast.nodes[i-1].text.minusSpaceSuffix
+
+					usb.WriteString(*prevText)
+				}
 			}
 		}
 	}
 
-	return sb.String(), nil
+	str := usb.String()
+	return str, nil
 }
 
 // ParseExpansion applies expansion analysis to the given text.
@@ -271,6 +320,24 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 	curText := strings.Builder{}
 	mode := modeText
 
+	buildTextNode := func(s string) *expTextNode {
+		var noPre, noSuf *string
+		if strings.HasPrefix(s, " ") {
+			noPre = new(string)
+			*noPre = strings.TrimPrefix(s, " ")
+		}
+		if strings.HasSuffix(s, " ") {
+			noSuf = new(string)
+			*noSuf = strings.TrimSuffix(s, " ")
+		}
+		return &expTextNode{
+			t:                s,
+			minusSpacePrefix: noPre,
+			minusSpaceSuffix: noSuf,
+		}
+
+	}
+
 	for i := 0; i < len(sRunes); i++ {
 		ch := sRunes[i]
 		switch mode {
@@ -281,13 +348,13 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 				if curText.Len() > 0 {
 					lastText := curText.String()
 					tree.nodes = append(tree.nodes, expTreeNode{
-						text: &lastText,
+						text: buildTextNode(lastText),
 					})
 					curText.Reset()
 				}
 
 				ident.WriteRune('$')
-				mode = modeText
+				mode = modeIdent
 			} else {
 				curText.WriteRune(ch)
 			}
@@ -335,6 +402,8 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 					i += consumed
 
 					ident.Reset()
+
+					i++ // to skip the closing paren that the recursed call detected and returned on
 					mode = modeText
 				} else if fnName == "$ENDIF" {
 					parenMatch, tsExpr, err := indexOfMatchingParen(sRunes[i:])
@@ -360,7 +429,9 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 				flagName := ident.String()
 
 				tree.nodes = append(tree.nodes, expTreeNode{
-					flag: &flagName,
+					flag: &expFlagNode{
+						name: flagName,
+					},
 				})
 
 				mode = modeText
@@ -379,7 +450,7 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 	if curText.Len() > 0 {
 		lastText := curText.String()
 		tree.nodes = append(tree.nodes, expTreeNode{
-			text: &lastText,
+			text: buildTextNode(lastText),
 		})
 		curText.Reset()
 	}
@@ -388,7 +459,9 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 		flagName := ident.String()
 
 		tree.nodes = append(tree.nodes, expTreeNode{
-			flag: &flagName,
+			flag: &expFlagNode{
+				name: flagName,
+			},
 		})
 	}
 
