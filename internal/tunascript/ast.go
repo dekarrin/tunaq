@@ -7,14 +7,321 @@ import (
 	"unicode"
 )
 
-// AbstractSyntaxTree is an AST of parsed (but not interpreted) block of
-// Tunascript code. The zero-value of an AbstractSyntaxTree is not suitable for
+// AST is an AST of parsed (but not interpreted) block of
+// Tunascript code. The zero-value of an AST is not suitable for
 // use, and they should only be created by calls to ParseExpression.
-type AbstractSyntaxTree struct {
-	root     *AbstractSyntaxTree
-	children []*AbstractSyntaxTree
+type AST struct {
+	root     *AST
+	children []*AST
 	sym      symbol
 	t        nodeType
+}
+
+// NOTE: does NOT set root, caller needs to set that themself since cannot know
+func (ast AST) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// children count
+	data = append(data, encBinaryInt(len(ast.children))...)
+
+	// each child
+	for i := range ast.children {
+		child := ast.children[i]
+		data = append(data, encBinaryAST(child)...)
+	}
+
+	// the symbol
+	data = append(data, encBinarySymbol(ast.sym)...)
+
+	// node type
+	data = append(data, encBinaryInt(int(ast.t))...)
+
+	return data, nil
+}
+
+func recursiveNodeSetRoot(ast *AST, root *AST) {
+	ast.root = root
+	for i := range ast.children {
+		child := ast.children[i]
+		recursiveNodeSetRoot(child, root)
+	}
+}
+
+// NOTE: does NOT set root, caller needs to set that themself since cannot know
+func (ast *AST) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var childCount int
+	var tVal int
+
+	// children count
+	childCount, readBytes, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// each child
+	for i := 0; i < childCount; i++ {
+		subAST, readBytes, err := decBinaryAST(data)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		// need to recursively tell all children who parent is
+
+		ast.children = append(ast.children, &subAST)
+	}
+
+	// the symbol
+	ast.sym, readBytes, err = decBinarySymbol(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// node type
+	tVal, readBytes, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	ast.t = nodeType(tVal)
+
+	if ast.t != nodeGroup && ast.t != nodeItem && ast.t != nodeRoot {
+		return fmt.Errorf("unknown AST node type")
+	}
+
+	return nil
+}
+
+// ExpansionAnalysis is a lexed (and somewhat parsed) block of text containing
+// both tunascript expansion-legal expressions and regular text. The zero-value
+// of a ParsedExpansion is not suitable for use and they should only be created
+// by calls to AnalyzeExpansion.
+type ExpansionAST struct {
+	nodes []expTreeNode
+}
+
+func (east ExpansionAST) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// node count
+	data = append(data, encBinaryInt(len(east.nodes))...)
+
+	// each node
+	for i := range east.nodes {
+		data = append(data, encBinaryExpTreeNode(east.nodes[i]))
+	}
+
+	return data, nil
+}
+
+func (east *ExpansionAST) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var nodeCount int
+
+	// node count
+	nodeCount, readBytes, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// each node
+	for i := 0; i < nodeCount; i++ {
+		node, readBytes, err := decBinaryExpTreeNode(data)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		east.nodes = append(east.nodes, node)
+	}
+
+	return nil
+}
+
+type expTreeNode struct {
+	// can be a text node or a conditional node. Conditional nodes hold a series
+	// of ifs
+	text   *string        // if not nil its a text node
+	branch *expBranchNode // if not nil its a branch node
+	flag   *string        // if not nil its a flag node
+}
+
+func (etn expTreeNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// text ptr
+	if etn.text == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinaryString(*etn.text)...)
+	}
+
+	// branch ptr
+	if etn.branch == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinaryExpBranchNode(*etn.branch)...)
+	}
+
+	// flag ptr
+	if etn.flag == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinaryString(*etn.flag)...)
+	}
+
+	return data, nil
+}
+
+func (etn *expTreeNode) UnmrshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var isNil bool
+
+	// text ptr
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		etn.text = nil
+	} else {
+		textVal, readBytes, err := decBinaryExpBranchNode(data)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+		ecn.cond = &condVal
+	}
+
+	// text ptr
+	if etn.text == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinaryString(*etn.text)...)
+	}
+
+	// branch ptr
+	if etn.branch == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinaryExpBranchNode(*etn.branch)...)
+	}
+
+	// flag ptr
+	if etn.flag == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinaryString(*etn.flag)...)
+	}
+}
+
+type expBranchNode struct {
+	ifNode expCondNode
+	/*elseIfNodes []expCondNode
+	elseNode    *ExpansionAST*/
+}
+
+func (ebn expBranchNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryCondNode(ebn.ifNode)...)
+
+	return data, nil
+}
+
+func (ebn *expBranchNode) UnmrshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+
+	ebn.ifNode, readBytes, err = decBinaryCondNode(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	return nil
+}
+
+type expCondNode struct {
+	cond    *AST
+	content *ExpansionAST
+}
+
+func (ecn expCondNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// cond ptr
+	if ecn.cond == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinaryAST(*ecn.cond)...)
+	}
+
+	// content ptr
+	if ecn.content == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinaryEAST(*ecn.content)...)
+	}
+
+	return data, nil
+}
+
+func (ecn *expCondNode) UnmrshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var isNil bool
+
+	// cond ptr
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		ecn.cond = nil
+	} else {
+		condVal, readBytes, err := decBinaryAST(data)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+		ecn.cond = &condVal
+	}
+
+	// content ptr
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		ecn.content = nil
+	} else {
+		contentVal, readBytes, err := decBinaryEAST(data)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+		ecn.content = &contentVal
+	}
+
+	return nil
 }
 
 type symbolType int
@@ -46,6 +353,44 @@ type symbol struct {
 	forceStr bool
 }
 
+// MarshalBinary always returns a nil error.
+func (sym symbol) MarshalBinary() ([]byte, error) {
+	data := encBinaryInt(int(sym.sType))                // 8
+	data = append(data, encBinaryString(sym.source)...) // 8+
+	data = append(data, encBinaryBool(sym.forceStr)...) // 1
+	return data, nil
+}
+
+func (sym *symbol) UnmarshalBinary(data []byte) error {
+	var err error
+	var iVal int
+	var readBytes int
+
+	iVal, readBytes, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	sym.sType = symbolType(iVal)
+	if sym.sType != symbolDollar && sym.sType != symbolIdentifier && sym.sType != symbolValue {
+		return fmt.Errorf("bad symbol type")
+	}
+	data = data[readBytes:]
+
+	sym.source, readBytes, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	sym.forceStr, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	return nil
+}
+
 type lexerState int
 
 const (
@@ -72,10 +417,10 @@ const (
 // of if s cannot be operated on.
 //
 // Also returns the parsable AST of the analyzed expression as well.
-func indexOfMatchingParen(sRunes []rune) (int, *AbstractSyntaxTree, error) {
+func indexOfMatchingParen(sRunes []rune) (int, *AST, error) {
 	// without a parent node on a paren scan, buildAST will produce an error.
-	dummyNode := &AbstractSyntaxTree{
-		children: make([]*AbstractSyntaxTree, 0),
+	dummyNode := &AST{
+		children: make([]*AST, 0),
 	}
 	dummyNode.root = dummyNode
 
@@ -103,7 +448,7 @@ func indexOfMatchingParen(sRunes []rune) (int, *AbstractSyntaxTree, error) {
 }
 
 // ParseText interprets the text in the abstract syntax tree and evaluates it.
-func (inter Interpreter) evalExpr(ast *AbstractSyntaxTree, queryOnly bool) ([]Value, error) {
+func (inter Interpreter) evalExpr(ast *AST, queryOnly bool) ([]Value, error) {
 	if ast.t != nodeRoot && ast.t != nodeGroup {
 		return nil, fmt.Errorf("cannot parse AST anywhere besides root of the tree")
 	}
@@ -236,8 +581,8 @@ func parseUntypedValString(valStr string) Value {
 
 // LexText lexes the text. Returns the AST, number of runes consumed
 // and whether an error was encountered.
-func buildAST(s string, parent *AbstractSyntaxTree) (*AbstractSyntaxTree, int, error) {
-	node := &AbstractSyntaxTree{children: make([]*AbstractSyntaxTree, 0)}
+func buildAST(s string, parent *AST) (*AST, int, error) {
+	node := &AST{children: make([]*AST, 0)}
 	if parent == nil {
 		node.root = node
 	} else {
@@ -268,7 +613,7 @@ func buildAST(s string, parent *AbstractSyntaxTree) (*AbstractSyntaxTree, int, e
 			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
 				buildingText += string(ch)
 			} else {
-				idNode := &AbstractSyntaxTree{
+				idNode := &AST{
 					root: node.root,
 					sym:  symbol{sType: symbolIdentifier, source: buildingText},
 				}
@@ -288,7 +633,7 @@ func buildAST(s string, parent *AbstractSyntaxTree) (*AbstractSyntaxTree, int, e
 				buildingText += "\t"
 				escaping = false
 			} else if !escaping && ch == '|' {
-				symNode := &AbstractSyntaxTree{
+				symNode := &AST{
 					root: node.root,
 					sym:  symbol{sType: symbolValue, source: buildingText, forceStr: true},
 				}
@@ -305,12 +650,12 @@ func buildAST(s string, parent *AbstractSyntaxTree) (*AbstractSyntaxTree, int, e
 				escaping = true
 			} else if !escaping && ch == '$' {
 				if buildingText != "" {
-					textNode := &AbstractSyntaxTree{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
 
-				dNode := &AbstractSyntaxTree{
+				dNode := &AST{
 					root: node.root,
 					sym:  symbol{sType: symbolDollar, source: "$"},
 				}
@@ -318,7 +663,7 @@ func buildAST(s string, parent *AbstractSyntaxTree) (*AbstractSyntaxTree, int, e
 				mode = lexIdent
 			} else if !escaping && ch == '(' {
 				if buildingText != "" {
-					textNode := &AbstractSyntaxTree{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
@@ -338,7 +683,7 @@ func buildAST(s string, parent *AbstractSyntaxTree) (*AbstractSyntaxTree, int, e
 				i += consumed
 			} else if !escaping && ch == ',' {
 				if buildingText != "" {
-					textNode := &AbstractSyntaxTree{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
@@ -346,7 +691,7 @@ func buildAST(s string, parent *AbstractSyntaxTree) (*AbstractSyntaxTree, int, e
 				// comma breaks up values but doesn't actually need to be its own node
 			} else if !escaping && ch == '|' {
 				if buildingText != "" {
-					textNode := &AbstractSyntaxTree{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
@@ -361,7 +706,7 @@ func buildAST(s string, parent *AbstractSyntaxTree) (*AbstractSyntaxTree, int, e
 				}
 
 				if buildingText != "" {
-					textNode := &AbstractSyntaxTree{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
@@ -394,13 +739,13 @@ func buildAST(s string, parent *AbstractSyntaxTree) (*AbstractSyntaxTree, int, e
 
 	if mode == lexDefault {
 		if buildingText != "" {
-			textNode := &AbstractSyntaxTree{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+			textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
 			node.children = append(node.children, textNode)
 			buildingText = ""
 		}
 	} else if mode == lexIdent {
 		if buildingText != "" {
-			textNode := &AbstractSyntaxTree{root: node.root, sym: symbol{sType: symbolIdentifier, source: buildingText}}
+			textNode := &AST{root: node.root, sym: symbol{sType: symbolIdentifier, source: buildingText}}
 			node.children = append(node.children, textNode)
 			buildingText = ""
 		}
