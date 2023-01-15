@@ -145,6 +145,54 @@ func (inter Interpreter) GetFlag(label string) string {
 	return flag.String()
 }
 
+// SyntaxCheckTree executes every branch of the tree without giving output to
+// ensure that every branch can be parsed. If this function does not return an
+// an error, the same tree passed to ExpandTree should never return an error.
+//
+// If checkFlags, This also ensures every flag reference in the tree refers
+// to an existing flag.
+func (inter Interpreter) SyntaxCheckTree(ast *ExpansionAST, checkFlags bool) error {
+	if ast == nil {
+		return fmt.Errorf("nil ast")
+	}
+
+	for i := range ast.nodes {
+		n := ast.nodes[i]
+
+		if n.flag != nil {
+			// if flag is not
+			if checkFlags {
+				flUpper := strings.ToUpper(n.flag.name)
+				_, ok := inter.flags[flUpper]
+				if !ok {
+					return fmt.Errorf("%q is not a defined flag", flUpper)
+				}
+			}
+		} else if n.text != nil {
+			// do no checking, we dont care about looking at raw text
+		} else if n.branch != nil {
+			cond := n.branch.ifNode.cond
+			contentExpansionAST := n.branch.ifNode.content
+
+			conditionalValue, err := inter.evalExpr(cond, true)
+			if err != nil {
+				return fmt.Errorf("syntax error: %v", err)
+			}
+			if len(conditionalValue) != 1 {
+				return fmt.Errorf("incorrect number of arguments to $IF; must be exactly 1")
+			}
+
+			// regardless of value of conditional, do every branch
+			_, err = inter.ExpandTree(contentExpansionAST)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func (inter Interpreter) ExpandTree(ast *ExpansionAST) (string, error) {
 	if ast == nil {
 		return "", fmt.Errorf("nil ast")

@@ -3,6 +3,8 @@ package game
 import (
 	"fmt"
 	"strings"
+
+	"github.com/dekarrin/tunaq/internal/tunascript"
 )
 
 // File item.go holds symbols related to items and inventory
@@ -59,6 +61,11 @@ type Item struct {
 	// world it is in. It does not include Label by default, this must be
 	// explicitly given.
 	Aliases []string
+
+	// tsDescription is the precomputed tunascript Expansion AST for the
+	// description text. It must generally be filled in with the game engine,
+	// and will not be present directly when loaded from disk.
+	tsDescription *tunascript.ExpansionAST
 }
 
 func (item Item) String() string {
@@ -72,6 +79,8 @@ func (item Item) Copy() Item {
 		Name:        item.Name,
 		Description: item.Description,
 		Aliases:     make([]string, len(item.Aliases)),
+
+		tsDescription: item.tsDescription,
 	}
 
 	copy(iCopy.Aliases, item.Aliases)
@@ -83,6 +92,6 @@ func (item Item) GetAliases() []string {
 	return item.Aliases
 }
 
-func (item Item) GetDescription() string {
-	return item.Description
+func (item Item) GetDescription() *tunascript.ExpansionAST {
+	return item.tsDescription
 }

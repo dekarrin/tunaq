@@ -17,6 +17,15 @@ type AST struct {
 	t        nodeType
 }
 
+/*
+// TunascriptString converts the AST into Tunascript source code. The returned
+// source is guaranteed to be syntactically identical to the code that the AST
+// was parsed from (i.e. parsing will return an identical AST), but it may not
+// be exactly the same string; coding style is not preserved.
+func (ast AST) TunascriptString() string {
+	var tsCode strings.Builder
+}*/
+
 // ExpansionAnalysis is a lexed (and somewhat parsed) block of text containing
 // both tunascript expansion-legal expressions and regular text. The zero-value
 // of a ParsedExpansion is not suitable for use and they should only be created

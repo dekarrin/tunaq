@@ -3,6 +3,8 @@ package game
 import (
 	"fmt"
 	"math/rand"
+
+	"github.com/dekarrin/tunaq/internal/tunascript"
 )
 
 // This file contains structs and routines related to NPCs.
@@ -47,6 +49,11 @@ type NPC struct {
 	// for NPCs with a path movement route, routeCur gives the step it is
 	// currently on.
 	routeCur *int
+
+	// tsDescription is the precomputed tunascript Expansion AST for the
+	// description text. It must generally be filled in with the game engine,
+	// and will not be present directly when loaded from disk.
+	tsDescription *tunascript.ExpansionAST
 }
 
 // ResetRoute resets the route of the NPC. It should always be called before
@@ -126,6 +133,8 @@ func (npc NPC) Copy() NPC {
 		Movement:    npc.Movement.Copy(),
 		Dialog:      make([]DialogStep, len(npc.Dialog)),
 		Aliases:     make([]string, len(npc.Aliases)),
+
+		tsDescription: npc.tsDescription,
 	}
 
 	for i := range npc.Dialog {
@@ -158,6 +167,6 @@ func (npc NPC) GetAliases() []string {
 	return npc.Aliases
 }
 
-func (npc NPC) GetDescription() string {
-	return npc.Description
+func (npc NPC) GetDescription() *tunascript.ExpansionAST {
+	return npc.tsDescription
 }
