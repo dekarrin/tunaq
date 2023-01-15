@@ -11,10 +11,33 @@ import (
 // Tunascript code. The zero-value of an AST is not suitable for
 // use, and they should only be created by calls to ParseExpression.
 type AST struct {
-	root     *AST
 	children []*AST
 	sym      symbol
 	t        nodeType
+}
+
+type NewAST struct {
+	nodes []astNode
+}
+
+type astNode struct {
+	fn    *fnNode
+	flag  *flagNode
+	value *valueNode
+}
+
+type fnNode struct {
+	name string
+	args []*NewAST
+}
+
+type flagNode struct {
+	name string
+}
+
+type valueNode struct {
+	source   string
+	forceStr bool
 }
 
 /*
@@ -159,7 +182,6 @@ func indexOfMatchingParen(sRunes []rune) (int, *AST, error) {
 	dummyNode := &AST{
 		children: make([]*AST, 0),
 	}
-	dummyNode.root = dummyNode
 
 	if sRunes[0] != '(' {
 		var errStr string
@@ -320,11 +342,6 @@ func parseUntypedValString(valStr string) Value {
 // and whether an error was encountered.
 func buildAST(s string, parent *AST) (*AST, int, error) {
 	node := &AST{children: make([]*AST, 0)}
-	if parent == nil {
-		node.root = node
-	} else {
-		node.root = parent.root
-	}
 
 	escaping := false
 	mode := lexDefault
@@ -351,8 +368,7 @@ func buildAST(s string, parent *AST) (*AST, int, error) {
 				buildingText += string(ch)
 			} else {
 				idNode := &AST{
-					root: node.root,
-					sym:  symbol{sType: symbolIdentifier, source: buildingText},
+					sym: symbol{sType: symbolIdentifier, source: buildingText},
 				}
 				node.children = append(node.children, idNode)
 				buildingText = ""
@@ -371,8 +387,7 @@ func buildAST(s string, parent *AST) (*AST, int, error) {
 				escaping = false
 			} else if !escaping && ch == '|' {
 				symNode := &AST{
-					root: node.root,
-					sym:  symbol{sType: symbolValue, source: buildingText, forceStr: true},
+					sym: symbol{sType: symbolValue, source: buildingText, forceStr: true},
 				}
 				node.children = append(node.children, symNode)
 				buildingText = ""
@@ -387,20 +402,19 @@ func buildAST(s string, parent *AST) (*AST, int, error) {
 				escaping = true
 			} else if !escaping && ch == '$' {
 				if buildingText != "" {
-					textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
 
 				dNode := &AST{
-					root: node.root,
-					sym:  symbol{sType: symbolDollar, source: "$"},
+					sym: symbol{sType: symbolDollar, source: "$"},
 				}
 				node.children = append(node.children, dNode)
 				mode = lexIdent
 			} else if !escaping && ch == '(' {
 				if buildingText != "" {
-					textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
@@ -420,7 +434,7 @@ func buildAST(s string, parent *AST) (*AST, int, error) {
 				i += consumed
 			} else if !escaping && ch == ',' {
 				if buildingText != "" {
-					textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
@@ -428,7 +442,7 @@ func buildAST(s string, parent *AST) (*AST, int, error) {
 				// comma breaks up values but doesn't actually need to be its own node
 			} else if !escaping && ch == '|' {
 				if buildingText != "" {
-					textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
@@ -443,7 +457,7 @@ func buildAST(s string, parent *AST) (*AST, int, error) {
 				}
 
 				if buildingText != "" {
-					textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+					textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
 					node.children = append(node.children, textNode)
 					buildingText = ""
 				}
@@ -476,13 +490,13 @@ func buildAST(s string, parent *AST) (*AST, int, error) {
 
 	if mode == lexDefault {
 		if buildingText != "" {
-			textNode := &AST{root: node.root, sym: symbol{sType: symbolValue, source: buildingText}}
+			textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
 			node.children = append(node.children, textNode)
 			buildingText = ""
 		}
 	} else if mode == lexIdent {
 		if buildingText != "" {
-			textNode := &AST{root: node.root, sym: symbol{sType: symbolIdentifier, source: buildingText}}
+			textNode := &AST{sym: symbol{sType: symbolIdentifier, source: buildingText}}
 			node.children = append(node.children, textNode)
 			buildingText = ""
 		}
@@ -516,14 +530,6 @@ func (ast AST) MarshalBinary() ([]byte, error) {
 	data = append(data, encBinaryInt(int(ast.t))...)
 
 	return data, nil
-}
-
-func recursiveNodeSetRoot(ast *AST, root *AST) {
-	ast.root = root
-	for i := range ast.children {
-		child := ast.children[i]
-		recursiveNodeSetRoot(child, root)
-	}
 }
 
 // NOTE: does NOT set root, caller needs to set that themself since cannot know
@@ -891,6 +897,235 @@ func (ebn *expBranchNode) UnmarshalBinary(data []byte) error {
 		return err
 	}
 	//data = data[readBytes:]
+
+	return nil
+}
+
+func (ast NewAST) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// count
+	data = append(data, encBinaryInt(len(ast.nodes))...)
+	for i := range ast.nodes {
+		data = append(data, encBinary(ast.nodes[i])...)
+	}
+
+	return data, nil
+}
+
+func (ast *NewAST) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var nodeCount int
+
+	// get count
+	nodeCount, readBytes, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// get each arg
+	for i := 0; i < nodeCount; i++ {
+		var n astNode
+		readBytes, err = decBinary(data, &n)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		ast.nodes = append(ast.nodes, n)
+	}
+
+	return nil
+}
+
+func (node astNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// fn ptr
+	if node.fn == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinary(*node.fn)...)
+	}
+
+	// flag ptr
+	if node.flag == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinary(*node.flag)...)
+	}
+
+	// value ptr
+	if node.value == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinary(*node.value)...)
+	}
+
+	return data, nil
+}
+
+func (node *astNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var isNil bool
+
+	// fn
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		node.fn = nil
+	} else {
+		var fnVal fnNode
+		readBytes, err := decBinary(data, &fnVal)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		node.fn = &fnVal
+	}
+
+	// flag
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		node.fn = nil
+	} else {
+		var flagVal flagNode
+		readBytes, err := decBinary(data, &flagVal)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		node.flag = &flagVal
+	}
+
+	// value
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		node.fn = nil
+	} else {
+		var valVal valueNode
+		_, err := decBinary(data, &valVal)
+		if err != nil {
+			return err
+		}
+		//data = data[readBytes:]
+
+		node.value = &valVal
+	}
+
+	return nil
+}
+
+func (node fnNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(node.name)...)
+
+	// count
+	data = append(data, encBinaryInt(len(node.args))...)
+	for i := range node.args {
+		data = append(data, encBinary(*node.args[i])...)
+	}
+
+	return data, nil
+}
+
+func (node *fnNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var argCount int
+
+	node.name, readBytes, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// get count
+	argCount, readBytes, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// get each arg
+	for i := 0; i < argCount; i++ {
+		var argNode NewAST
+		readBytes, err = decBinary(data, &argNode)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		node.args = append(node.args, &argNode)
+	}
+
+	return nil
+}
+
+func (node flagNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(node.name)...)
+
+	return data, nil
+}
+
+func (node *flagNode) UnmarshalBinary(data []byte) error {
+	var err error
+	//var readBytes int
+
+	node.name, _, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	//data = data[readBytes:]
+
+	return nil
+}
+
+func (node valueNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(node.source)...)
+	data = append(data, encBinaryBool(node.forceStr)...)
+
+	return data, nil
+}
+
+func (node *valueNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+
+	node.source, readBytes, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	node.forceStr, _, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
