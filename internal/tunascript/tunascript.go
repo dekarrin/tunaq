@@ -162,7 +162,7 @@ func (inter Interpreter) SyntaxCheckTree(ast *ExpansionAST, checkFlags bool) err
 		if n.flag != nil {
 			// if flag is not
 			if checkFlags {
-				flUpper := strings.ToUpper(n.flag.name)
+				flUpper := strings.ToUpper(n.flag.name[1:])
 				_, ok := inter.flags[flUpper]
 				if !ok {
 					return fmt.Errorf("%q is not a defined flag", flUpper)

@@ -245,7 +245,11 @@ func (gs *State) preComputeExp(toExpand string) (*tunascript.ExpansionAST, error
 }
 
 func (gs *State) preComputeAllTunascriptExpansions() error {
-	for _, r := range gs.World {
+	roomKeys := util.OrderedKeys(gs.World)
+
+	for _, rKey := range roomKeys {
+		r := gs.World[rKey]
+
 		// compute room desc
 		preComp, err := gs.preComputeExp(r.Description)
 		if err != nil {
@@ -299,7 +303,8 @@ func (gs *State) preComputeAllTunascriptExpansions() error {
 		}
 
 		// compute NPC descs
-		for npcLabel := range r.NPCs {
+		npcKeys := util.OrderedKeys(r.NPCs)
+		for _, npcLabel := range npcKeys {
 			npc := r.NPCs[npcLabel]
 
 			npcComp, err := gs.preComputeExp(npc.Description)

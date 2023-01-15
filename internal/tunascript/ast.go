@@ -119,11 +119,11 @@ func (sym *symbol) UnmarshalBinary(data []byte) error {
 	}
 	data = data[readBytes:]
 
-	sym.forceStr, readBytes, err = decBinaryBool(data)
+	sym.forceStr, _, err = decBinaryBool(data)
 	if err != nil {
 		return err
 	}
-	data = data[readBytes:]
+	//data = data[readBytes:]
 
 	return nil
 }
@@ -562,7 +562,7 @@ func (ast *AST) UnmarshalBinary(data []byte) error {
 	data = data[readBytes:]
 
 	// node type
-	tVal, readBytes, err = decBinaryInt(data)
+	tVal, _, err = decBinaryInt(data)
 	if err != nil {
 		return err
 	}
@@ -671,11 +671,11 @@ func (ecn *expCondNode) UnmarshalBinary(data []byte) error {
 		ecn.content = nil
 	} else {
 		var contentVal *ExpansionAST
-		readBytes, err := decBinary(data, contentVal)
+		_, err := decBinary(data, contentVal)
 		if err != nil {
 			return err
 		}
-		data = data[readBytes:]
+		//data = data[readBytes:]
 		ecn.content = contentVal
 	}
 
@@ -765,11 +765,11 @@ func (etn *expTreeNode) UnmarshalBinary(data []byte) error {
 		etn.flag = nil
 	} else {
 		var flagVal expFlagNode
-		readBytes, err := decBinary(data, &flagVal)
+		_, err := decBinary(data, &flagVal)
 		if err != nil {
 			return err
 		}
-		data = data[readBytes:]
+		//data = data[readBytes:]
 
 		etn.flag = &flagVal
 	}
@@ -787,13 +787,13 @@ func (efn expFlagNode) MarshalBinary() ([]byte, error) {
 
 func (efn *expFlagNode) UnmarshalBinary(data []byte) error {
 	var err error
-	var readBytes int
+	//var readBytes int
 
-	efn.name, readBytes, err = decBinaryString(data)
+	efn.name, _, err = decBinaryString(data)
 	if err != nil {
 		return err
 	}
-	data = data[readBytes:]
+	//data = data[readBytes:]
 
 	return nil
 }
@@ -862,11 +862,11 @@ func (etn *expTextNode) UnmarshalBinary(data []byte) error {
 	if isNil {
 		etn.minusSpaceSuffix = nil
 	} else {
-		mssVal, readBytes, err := decBinaryString(data)
+		mssVal, _, err := decBinaryString(data)
 		if err != nil {
 			return err
 		}
-		data = data[readBytes:]
+		//data = data[readBytes:]
 
 		etn.minusSpaceSuffix = &mssVal
 	}
@@ -884,13 +884,13 @@ func (ebn expBranchNode) MarshalBinary() ([]byte, error) {
 
 func (ebn *expBranchNode) UnmarshalBinary(data []byte) error {
 	var err error
-	var readBytes int
+	//var readBytes int
 
-	readBytes, err = decBinary(data, &ebn.ifNode)
+	_, err = decBinary(data, &ebn.ifNode)
 	if err != nil {
 		return err
 	}
-	data = data[readBytes:]
+	//data = data[readBytes:]
 
 	return nil
 }
