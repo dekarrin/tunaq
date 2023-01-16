@@ -5,6 +5,8 @@ UPDATE: there is no untyped; it is always string by default
 
 this file is a major work in prog and should rly not be relied on at all.
 
+----
+
 The tunascript expression language is the language used to update and read flags
 during particular points of gameplay to make the game more dynamic. It can be
 used to set whether someone has talked to a person, to record the number of

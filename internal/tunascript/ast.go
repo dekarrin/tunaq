@@ -163,7 +163,7 @@ func (inter Interpreter) evalExpr(ast *AST, queryOnly bool) ([]Value, error) {
 		} else if child.flag != nil {
 			// flag node
 			flagNode := child.flag
-			flagName := strings.ToUpper(flagNode.name[1:])
+			flagName := strings.ToUpper(flagNode.name)
 
 			var v Value
 			flag, ok := inter.flags[flagName]
@@ -380,7 +380,6 @@ func buildAST(sRunes []rune, hasParent bool) (*AST, int, error) {
 				escaping = true
 			} else if !escaping && ch == '$' {
 				flushPendingImplicitValueNode()
-				buildingText += "$"
 				mode = lexIdent
 			} else if !escaping && ch == '(' {
 				flushPendingImplicitValueNode()
