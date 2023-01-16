@@ -424,7 +424,7 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 					exprLen := parenMatch - 1
 
 					if exprLen != 0 {
-						return nil, 0, fmt.Errorf("at char %d: $ENDIF() takes zero arguments, received %d", i, len(tsExpr.children))
+						return nil, 0, fmt.Errorf("at char %d: $ENDIF() takes zero arguments, received %d", i, len(tsExpr.nodes))
 					}
 					i += parenMatch
 
@@ -513,7 +513,9 @@ func (inter Interpreter) Expand(s string) (string, error) {
 // error in the code, it is returned as a non-nil error, otherwise the output of
 // evaluating the expression is returned as a string.
 func (inter Interpreter) Eval(s string) (string, error) {
-	ast, _, err := buildAST(s, nil)
+	sRunes := []rune(s)
+
+	ast, _, err := buildAST(sRunes, false)
 	if err != nil {
 		return "", fmt.Errorf("syntax error: %w", err)
 	}

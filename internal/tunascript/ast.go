@@ -11,12 +11,6 @@ import (
 // Tunascript code. The zero-value of an AST is not suitable for
 // use, and they should only be created by calls to ParseExpression.
 type AST struct {
-	children []*AST
-	sym      symbol
-	t        nodeType
-}
-
-type NewAST struct {
 	nodes []astNode
 }
 
@@ -24,12 +18,12 @@ type astNode struct {
 	fn    *fnNode
 	flag  *flagNode
 	value *valueNode
-	group *NewAST
+	group *AST
 }
 
 type fnNode struct {
 	name string
-	args []*NewAST
+	args []*AST
 }
 
 type flagNode struct {
@@ -106,66 +100,12 @@ func (st symbolType) String() string {
 	}
 }
 
-type symbol struct {
-	sType  symbolType
-	source string
-
-	// only applies if sType is symbolValue
-	forceStr bool
-}
-
-// MarshalBinary always returns a nil error.
-func (sym symbol) MarshalBinary() ([]byte, error) {
-	data := encBinaryInt(int(sym.sType))                // 8
-	data = append(data, encBinaryString(sym.source)...) // 8+
-	data = append(data, encBinaryBool(sym.forceStr)...) // 1
-	return data, nil
-}
-
-func (sym *symbol) UnmarshalBinary(data []byte) error {
-	var err error
-	var iVal int
-	var readBytes int
-
-	iVal, readBytes, err = decBinaryInt(data)
-	if err != nil {
-		return err
-	}
-	sym.sType = symbolType(iVal)
-	if sym.sType != symbolDollar && sym.sType != symbolIdentifier && sym.sType != symbolValue {
-		return fmt.Errorf("bad symbol type")
-	}
-	data = data[readBytes:]
-
-	sym.source, readBytes, err = decBinaryString(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-
-	sym.forceStr, _, err = decBinaryBool(data)
-	if err != nil {
-		return err
-	}
-	//data = data[readBytes:]
-
-	return nil
-}
-
 type lexerState int
 
 const (
 	lexDefault lexerState = iota
 	lexIdent
 	lexStr
-)
-
-type nodeType int
-
-const (
-	nodeItem nodeType = iota
-	nodeGroup
-	nodeRoot
 )
 
 // indexOfMatchingTunascriptParen takes the given string, which must start with
@@ -179,11 +119,6 @@ const (
 //
 // Also returns the parsable AST of the analyzed expression as well.
 func indexOfMatchingParen(sRunes []rune) (int, *AST, error) {
-	// without a parent node on a paren scan, buildAST will produce an error.
-	dummyNode := &AST{
-		children: make([]*AST, 0),
-	}
-
 	if sRunes[0] != '(' {
 		var errStr string
 		if len(sRunes) > 50 {
@@ -198,17 +133,16 @@ func indexOfMatchingParen(sRunes []rune) (int, *AST, error) {
 		return 0, nil, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
 	}
 
-	exprNode, consumed, err := buildAST(string(sRunes[1:]), dummyNode)
+	exprNode, consumed, err := buildAST(sRunes[1:], true)
 	if err != nil {
 		return 0, nil, err
 	}
-	exprNode.t = nodeRoot
 
 	return consumed, exprNode, nil
 }
 
 // ParseText interprets the text in the abstract syntax tree and evaluates it.
-func (inter Interpreter) evalExprNew(ast *NewAST, queryOnly bool) ([]Value, error) {
+func (inter Interpreter) evalExpr(ast *AST, queryOnly bool) ([]Value, error) {
 	values := make([]Value, len(ast.nodes))
 
 	for i := 0; i < len(ast.nodes); i++ {
@@ -276,7 +210,7 @@ func (inter Interpreter) evalExprNew(ast *NewAST, queryOnly bool) ([]Value, erro
 			// evaluate args:
 			args := make([]Value, len(funcArgNodes))
 			for argIdx := range funcArgNodes {
-				argResult, err := inter.evalExprNew(funcArgNodes[argIdx], queryOnly)
+				argResult, err := inter.evalExpr(funcArgNodes[argIdx], queryOnly)
 				if err != nil {
 					return nil, err
 				}
@@ -315,7 +249,7 @@ func (inter Interpreter) evalExprNew(ast *NewAST, queryOnly bool) ([]Value, erro
 			}
 
 			var v Value
-			parsedVals, err := inter.evalExprNew(groupNode, queryOnly)
+			parsedVals, err := inter.evalExpr(groupNode, queryOnly)
 			if err != nil {
 				return nil, err
 			}
@@ -326,122 +260,6 @@ func (inter Interpreter) evalExprNew(ast *NewAST, queryOnly bool) ([]Value, erro
 		}
 	}
 
-	return values, nil
-}
-
-// ParseText interprets the text in the abstract syntax tree and evaluates it.
-func (inter Interpreter) evalExpr(ast *AST, queryOnly bool) ([]Value, error) {
-	if ast.t != nodeRoot && ast.t != nodeGroup {
-		return nil, fmt.Errorf("cannot parse AST anywhere besides root of the tree")
-	}
-
-	values := []Value{}
-
-	for i := 0; i < len(ast.children); i++ {
-		child := ast.children[i]
-		if child.t == nodeGroup {
-			return nil, fmt.Errorf("unexpected parenthesis group\n(to use \"(\" and \")\" as Str values, put them in between two \"|\" chars or\nescape them)")
-		}
-		if child.sym.sType == symbolIdentifier {
-			// TODO: move this into AST builder,
-			// for now just convert these here
-			// an identifier on its own is rly just a val.
-			child.sym.sType = symbolValue
-		}
-
-		if child.sym.sType == symbolDollar {
-			// okay, check ahead for an ident
-			if i+1 >= len(ast.children) {
-				return nil, fmt.Errorf("unexpected bare \"$\" character at end\n(to use \"$\" as a  Str value, put it in between two \"|\" chars or escape it)")
-			}
-			identNode := ast.children[i+1]
-			if identNode.t == nodeGroup {
-				return nil, fmt.Errorf("unexpected parenthesis group after \"$\" character, expected identifier")
-			}
-			if identNode.sym.sType != symbolIdentifier {
-				return nil, fmt.Errorf("unexpected %s after \"$\" character, expected identifier", identNode.sym.sType.String())
-			}
-
-			// we now have an identifier, but is this a var or function?
-			isFunc := false
-			if i+2 < len(ast.children) {
-				argsNode := ast.children[i+2]
-				if argsNode.t == nodeGroup {
-					isFunc = true
-				}
-			}
-
-			if isFunc {
-				// function call, gather args and call it
-				argsNode := ast.children[i+2]
-				funcName := strings.ToUpper(identNode.sym.source)
-
-				fn, ok := inter.fn[funcName]
-				if !ok {
-					return nil, fmt.Errorf("function $%s() does not exist", funcName)
-				}
-
-				// restrict if requested
-				if queryOnly && fn.SideEffects {
-					return nil, fmt.Errorf("function $%s() will change game state", funcName)
-				}
-
-				args, err := inter.evalExpr(argsNode, queryOnly)
-				if err != nil {
-					return nil, err
-				}
-
-				if len(args) < fn.RequiredArgs {
-					s := "s"
-					if fn.RequiredArgs == 1 {
-						s = ""
-					}
-					return nil, fmt.Errorf("function $%s() requires at least %d parameter%s; %d given", fn.Name, fn.RequiredArgs, s, len(args))
-				}
-
-				maxArgs := fn.RequiredArgs + fn.OptionalArgs
-				if len(args) > maxArgs {
-					s := "s"
-					if maxArgs == 1 {
-						s = ""
-					}
-					return nil, fmt.Errorf("function $%s() takes at most %d parameter%s; %d given", fn.Name, maxArgs, s, len(args))
-				}
-
-				// oh yeah. no error returned. you saw that right. the Call function is literally not allowed to fail.
-				// int 100 bbyyyyyyyyyyyyyyyyyyy
-				//
-				// Oh my gog ::::/
-				//
-				// i AM ur gog now >38D
-				v := fn.Call(args)
-				values = append(values, v)
-				i += 2
-			} else {
-				// flag substitution, read it in
-				flagName := strings.ToUpper(identNode.sym.source)
-
-				var v Value
-				flag, ok := inter.flags[flagName]
-				if ok {
-					v = flag.Value
-				} else {
-					v = NewStr("")
-				}
-				values = append(values, v)
-				i++
-			}
-		} else if child.sym.sType == symbolValue {
-			src := child.sym.source
-			var v Value
-			if child.sym.forceStr {
-				v = NewStr(src)
-			} else {
-				v = parseUntypedValString(src)
-			}
-			values = append(values, v)
-		}
-	}
 	return values, nil
 }
 
@@ -463,9 +281,9 @@ func parseUntypedValString(valStr string) Value {
 
 // LexText lexes the text. Returns the AST, number of runes consumed
 // and whether an error was encountered. If the input is a comma-separated list
-// of expressions, they will be returned as individual nodes of a single NewAST.
-func buildNewAST(sRunes []rune, hasParent bool) (*NewAST, int, error) {
-	tree := &NewAST{}
+// of expressions, they will be returned as individual nodes of a single AST.
+func buildAST(sRunes []rune, hasParent bool) (*AST, int, error) {
+	tree := &AST{}
 
 	escaping := false
 	mode := lexDefault
@@ -494,7 +312,7 @@ func buildNewAST(sRunes []rune, hasParent bool) (*NewAST, int, error) {
 				}
 
 				// build sub-tree from args
-				subTree, consumed, err := buildNewAST(sRunes[i+1:], true)
+				subTree, consumed, err := buildAST(sRunes[i+1:], true)
 				if err != nil {
 					return nil, 0, err
 				}
@@ -503,13 +321,13 @@ func buildNewAST(sRunes []rune, hasParent bool) (*NewAST, int, error) {
 				funcNode := astNode{
 					fn: &fnNode{
 						name: buildingText,
-						args: make([]*NewAST, len(subTree.nodes)),
+						args: make([]*AST, len(subTree.nodes)),
 					},
 				}
 				buildingText = ""
 
 				for subNodeIdx := range subTree.nodes {
-					funcNode.fn.args[subNodeIdx] = &NewAST{
+					funcNode.fn.args[subNodeIdx] = &AST{
 						nodes: []astNode{subTree.nodes[subNodeIdx]},
 					}
 				}
@@ -573,7 +391,7 @@ func buildNewAST(sRunes []rune, hasParent bool) (*NewAST, int, error) {
 				}
 
 				// build sub-tree from the group
-				subTree, consumed, err := buildNewAST(sRunes[i+1:], true)
+				subTree, consumed, err := buildAST(sRunes[i+1:], true)
 				if err != nil {
 					return nil, 0, err
 				}
@@ -648,249 +466,6 @@ func buildNewAST(sRunes []rune, hasParent bool) (*NewAST, int, error) {
 	}
 
 	return tree, len(sRunes), nil
-}
-
-// LexText lexes the text. Returns the AST, number of runes consumed
-// and whether an error was encountered.
-func buildAST(s string, parent *AST) (*AST, int, error) {
-	node := &AST{children: make([]*AST, 0)}
-
-	escaping := false
-	mode := lexDefault
-	node.t = nodeItem
-
-	s = strings.TrimSpace(s)
-	sRunes := []rune(s)
-	sBytes := make([]int, len(sRunes))
-	sBytesIdx := 0
-	for b := range s {
-		sBytes[sBytesIdx] = b
-		sBytesIdx++
-	}
-
-	var buildingText string
-	for i := 0; i < len(sRunes); i++ {
-		ch := sRunes[i]
-		//chS := string(ch)
-		//fmt.Println(chS)
-
-		switch mode {
-		case lexIdent:
-			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
-				buildingText += string(ch)
-			} else {
-				idNode := &AST{
-					sym: symbol{sType: symbolIdentifier, source: buildingText},
-				}
-				node.children = append(node.children, idNode)
-				buildingText = ""
-				i--
-				mode = lexDefault
-			}
-		case lexStr:
-			if !escaping && ch == '\\' {
-				// do not add a node for this
-				escaping = true
-			} else if escaping && ch == 'n' {
-				buildingText += "\n"
-				escaping = false
-			} else if escaping && ch == 't' {
-				buildingText += "\t"
-				escaping = false
-			} else if !escaping && ch == '|' {
-				symNode := &AST{
-					sym: symbol{sType: symbolValue, source: buildingText, forceStr: true},
-				}
-				node.children = append(node.children, symNode)
-				buildingText = ""
-				mode = lexDefault
-			} else {
-				buildingText += string(ch)
-				escaping = false
-			}
-		case lexDefault:
-			if !escaping && ch == '\\' {
-				// do not add a node for this
-				escaping = true
-			} else if !escaping && ch == '$' {
-				if buildingText != "" {
-					textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
-					node.children = append(node.children, textNode)
-					buildingText = ""
-				}
-
-				dNode := &AST{
-					sym: symbol{sType: symbolDollar, source: "$"},
-				}
-				node.children = append(node.children, dNode)
-				mode = lexIdent
-			} else if !escaping && ch == '(' {
-				if buildingText != "" {
-					textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
-					node.children = append(node.children, textNode)
-					buildingText = ""
-				}
-
-				if i+1 >= len(sRunes) {
-					return nil, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
-				}
-				nextByteIdx := sBytes[i+1]
-
-				subNode, consumed, err := buildAST(s[nextByteIdx:], node)
-				if err != nil {
-					return nil, 0, err
-				}
-				subNode.t = nodeGroup
-
-				node.children = append(node.children, subNode)
-				i += consumed
-			} else if !escaping && ch == ',' {
-				if buildingText != "" {
-					textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
-					node.children = append(node.children, textNode)
-					buildingText = ""
-				}
-
-				// comma breaks up values but doesn't actually need to be its own node
-			} else if !escaping && ch == '|' {
-				if buildingText != "" {
-					textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
-					node.children = append(node.children, textNode)
-					buildingText = ""
-				}
-
-				// string start
-				mode = lexStr
-			} else if !escaping && ch == ')' {
-				// we have reached the end of our parsing. if we are the PARENT,
-				// this is an error
-				if parent == nil {
-					return nil, 0, fmt.Errorf("unexpected end of expression (unmatched right-parenthesis)")
-				}
-
-				if buildingText != "" {
-					textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
-					node.children = append(node.children, textNode)
-					buildingText = ""
-				}
-
-				// don't add it as a node, it's not relevant
-
-				return node, i + 1, nil
-			} else if escaping && ch == 'n' {
-				buildingText += "\n"
-				escaping = false
-			} else if escaping && ch == 't' {
-				buildingText += "\t"
-				escaping = false
-			} else {
-				if escaping || !unicode.IsSpace(ch) {
-					buildingText += string(ch)
-				}
-				escaping = false
-			}
-		}
-
-	}
-
-	// if we get to the end but we are not the parent, we have a paren mismatch
-	if parent != nil {
-		return nil, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
-	}
-
-	node.t = nodeRoot
-
-	if mode == lexDefault {
-		if buildingText != "" {
-			textNode := &AST{sym: symbol{sType: symbolValue, source: buildingText}}
-			node.children = append(node.children, textNode)
-			buildingText = ""
-		}
-	} else if mode == lexIdent {
-		if buildingText != "" {
-			textNode := &AST{sym: symbol{sType: symbolIdentifier, source: buildingText}}
-			node.children = append(node.children, textNode)
-			buildingText = ""
-		}
-	} else if mode == lexStr {
-		return nil, 0, fmt.Errorf("unexpected end of expression (unmatched string start \"|\")")
-	}
-
-	// okay now go through and update
-	// - make the values not have double quotes but force to str type
-
-	return node, len(s), nil
-}
-
-// NOTE: does NOT set root, caller needs to set that themself since cannot know
-func (ast AST) MarshalBinary() ([]byte, error) {
-	var data []byte
-
-	// children count
-	data = append(data, encBinaryInt(len(ast.children))...)
-
-	// each child
-	for i := range ast.children {
-		child := ast.children[i]
-		data = append(data, encBinary(*child)...)
-	}
-
-	// the symbol
-	data = append(data, encBinary(ast.sym)...)
-
-	// node type
-	data = append(data, encBinaryInt(int(ast.t))...)
-
-	return data, nil
-}
-
-// NOTE: does NOT set root, caller needs to set that themself since cannot know
-func (ast *AST) UnmarshalBinary(data []byte) error {
-	var err error
-	var readBytes int
-	var childCount int
-	var tVal int
-
-	// children count
-	childCount, readBytes, err = decBinaryInt(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-
-	// each child
-	for i := 0; i < childCount; i++ {
-		var subAST *AST
-		readBytes, err := decBinary(data, subAST)
-		if err != nil {
-			return err
-		}
-		data = data[readBytes:]
-
-		// need to recursively tell all children who parent is
-
-		ast.children = append(ast.children, subAST)
-	}
-
-	// the symbol
-	readBytes, err = decBinary(data, &ast.sym)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-
-	// node type
-	tVal, _, err = decBinaryInt(data)
-	if err != nil {
-		return err
-	}
-	ast.t = nodeType(tVal)
-
-	if ast.t != nodeGroup && ast.t != nodeItem && ast.t != nodeRoot {
-		return fmt.Errorf("unknown AST node type")
-	}
-
-	return nil
 }
 
 func (east ExpansionAST) MarshalBinary() ([]byte, error) {
@@ -1213,7 +788,7 @@ func (ebn *expBranchNode) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-func (ast NewAST) MarshalBinary() ([]byte, error) {
+func (ast AST) MarshalBinary() ([]byte, error) {
 	var data []byte
 
 	// count
@@ -1225,7 +800,7 @@ func (ast NewAST) MarshalBinary() ([]byte, error) {
 	return data, nil
 }
 
-func (ast *NewAST) UnmarshalBinary(data []byte) error {
+func (ast *AST) UnmarshalBinary(data []byte) error {
 	var err error
 	var readBytes int
 	var nodeCount int
@@ -1361,7 +936,7 @@ func (node *astNode) UnmarshalBinary(data []byte) error {
 	if isNil {
 		node.fn = nil
 	} else {
-		var astVal NewAST
+		var astVal AST
 		_, err := decBinary(data, &astVal)
 		if err != nil {
 			return err
@@ -1408,7 +983,7 @@ func (node *fnNode) UnmarshalBinary(data []byte) error {
 
 	// get each arg
 	for i := 0; i < argCount; i++ {
-		var argNode NewAST
+		var argNode AST
 		readBytes, err = decBinary(data, &argNode)
 		if err != nil {
 			return err
