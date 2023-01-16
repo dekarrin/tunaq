@@ -24,6 +24,7 @@ type astNode struct {
 	fn    *fnNode
 	flag  *flagNode
 	value *valueNode
+	group *NewAST
 }
 
 type fnNode struct {
@@ -207,6 +208,128 @@ func indexOfMatchingParen(sRunes []rune) (int, *AST, error) {
 }
 
 // ParseText interprets the text in the abstract syntax tree and evaluates it.
+func (inter Interpreter) evalExprNew(ast *NewAST, queryOnly bool) ([]Value, error) {
+	values := make([]Value, len(ast.nodes))
+
+	for i := 0; i < len(ast.nodes); i++ {
+		child := ast.nodes[i]
+
+		// what kind of a node is it?
+		if child.value != nil {
+			// value node
+			valueNode := child.value
+
+			var v Value
+			if valueNode.forceStr {
+				v = NewStr(valueNode.source)
+			} else {
+				v = parseUntypedValString(valueNode.source)
+			}
+			values[i] = v
+		} else if child.flag != nil {
+			// flag node
+			flagNode := child.flag
+			flagName := strings.ToUpper(flagNode.name[1:])
+
+			var v Value
+			flag, ok := inter.flags[flagName]
+			if ok {
+				v = flag.Value
+			} else {
+				v = NewStr("")
+			}
+			values[i] = v
+		} else if child.fn != nil {
+			// function call node, gather args and call it
+			fnNode := child.fn
+
+			funcArgNodes := fnNode.args
+			funcName := strings.ToUpper(fnNode.name)
+
+			fn, ok := inter.fn[funcName]
+			if !ok {
+				return nil, fmt.Errorf("function $%s() does not exist", funcName)
+			}
+
+			// restrict if requested
+			if queryOnly && fn.SideEffects {
+				return nil, fmt.Errorf("function $%s() will change game state and is not allowed here", funcName)
+			}
+
+			if len(funcArgNodes) < fn.RequiredArgs {
+				s := "s"
+				if fn.RequiredArgs == 1 {
+					s = ""
+				}
+				return nil, fmt.Errorf("function $%s() requires at least %d parameter%s; %d given", fn.Name, fn.RequiredArgs, s, len(funcArgNodes))
+			}
+
+			maxArgs := fn.RequiredArgs + fn.OptionalArgs
+			if len(funcArgNodes) > maxArgs {
+				s := "s"
+				if maxArgs == 1 {
+					s = ""
+				}
+				return nil, fmt.Errorf("function $%s() takes at most %d parameter%s; %d given", fn.Name, maxArgs, s, len(funcArgNodes))
+			}
+
+			// evaluate args:
+			args := make([]Value, len(funcArgNodes))
+			for argIdx := range funcArgNodes {
+				argResult, err := inter.evalExprNew(funcArgNodes[argIdx], queryOnly)
+				if err != nil {
+					return nil, err
+				}
+
+				args[argIdx] = argResult[0]
+			}
+
+			// finally call the function
+
+			// oh yeah. no error returned. you saw that right. the Call function is literally not allowed to fail.
+			// int 100 bbyyyyyyyyyyyyyyyyyyy
+			//
+			// Oh my gog ::::/
+			//
+			// i AM ur gog now >38D
+			//
+			// This Is Later Than The Original Comment But I Must Say I Am Glad
+			// That This Portion Retained Some Use With The Redesign. If Past
+			// Info Is Needed Know That There Was A Prior Set Of Designs That
+			// Also Functioned Correctly So The History Of This File May Be
+			// Referred To.
+
+			v := fn.Call(args)
+			values[i] = v
+		} else if child.group != nil {
+			// group node, make shore there is exactly one node because more
+			// than that in an unqualified group is not allowed (don't know how
+			// to parse multi-value into single one).
+			//
+			// This grouping will make more sense when/if grouping parens and
+			// operators are added
+			groupNode := child.group
+
+			if len(groupNode.nodes) > 1 {
+				return nil, fmt.Errorf("multiple values between parenthesis but not in function call")
+			}
+
+			var v Value
+			parsedVals, err := inter.evalExprNew(groupNode, queryOnly)
+			if err != nil {
+				return nil, err
+			}
+			v = parsedVals[0]
+			values[i] = v
+		} else {
+			return nil, fmt.Errorf("empty AST node (should never happen)")
+		}
+	}
+
+	return values, nil
+}
+
+// ParseText interprets the text in the abstract syntax tree and evaluates it.
 func (inter Interpreter) evalExpr(ast *AST, queryOnly bool) ([]Value, error) {
 	if ast.t != nodeRoot && ast.t != nodeGroup {
 		return nil, fmt.Errorf("cannot parse AST anywhere besides root of the tree")
@@ -336,6 +459,195 @@ func parseUntypedValString(valStr string) Value {
 	}
 
 	return NewStr(valStr)
+}
+
+// LexText lexes the text. Returns the AST, number of runes consumed
+// and whether an error was encountered. If the input is a comma-separated list
+// of expressions, they will be returned as individual nodes of a single NewAST.
+func buildNewAST(sRunes []rune, hasParent bool) (*NewAST, int, error) {
+	tree := &NewAST{}
+
+	escaping := false
+	mode := lexDefault
+
+	var buildingText string // TODO: should probs be a strings.Builder
+
+	flushPendingImplicitValueNode := func() {
+		if buildingText != "" {
+			valNode := astNode{value: &valueNode{source: buildingText}}
+			tree.nodes = append(tree.nodes, valNode)
+			buildingText = ""
+		}
+	}
+
+	for i := 0; i < len(sRunes); i++ {
+		ch := sRunes[i]
+
+		switch mode {
+		case lexIdent:
+			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
+				buildingText += string(ch)
+			} else if ch == '(' {
+				// immediately after identifier, this is a list of args
+				if i+1 >= len(sRunes) {
+					return nil, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
+				}
+
+				// build sub-tree from args
+				subTree, consumed, err := buildNewAST(sRunes[i+1:], true)
+				if err != nil {
+					return nil, 0, err
+				}
+
+				// create function node and add all subtree nodes to this one
+				funcNode := astNode{
+					fn: &fnNode{
+						name: buildingText,
+						args: make([]*NewAST, len(subTree.nodes)),
+					},
+				}
+				buildingText = ""
+
+				for subNodeIdx := range subTree.nodes {
+					funcNode.fn.args[subNodeIdx] = &NewAST{
+						nodes: []astNode{subTree.nodes[subNodeIdx]},
+					}
+				}
+
+				tree.nodes = append(tree.nodes, funcNode)
+				i += consumed
+				mode = lexDefault
+			} else {
+				flNode := astNode{
+					flag: &flagNode{
+						name: buildingText,
+					},
+				}
+				buildingText = ""
+
+				tree.nodes = append(tree.nodes, flNode)
+				i--
+				mode = lexDefault
+			}
+		case lexStr:
+			if !escaping && ch == '\\' {
+				// do not add a node for this
+				escaping = true
+			} else if escaping && ch == 'n' {
+				buildingText += "\n"
+				escaping = false
+			} else if escaping && ch == 't' {
+				buildingText += "\t"
+				escaping = false
+			} else if !escaping && ch == '|' {
+				// this is an EXPLICIT text node, not implicit, so use custom
+				// behavior instead of func
+				valNode := astNode{
+					value: &valueNode{
+						source:   buildingText,
+						forceStr: true,
+					},
+				}
+
+				tree.nodes = append(tree.nodes, valNode)
+				buildingText = ""
+				mode = lexDefault
+			} else {
+				buildingText += string(ch)
+				escaping = false
+			}
+		case lexDefault:
+			if !escaping && ch == '\\' {
+				// do not add a node for this
+				escaping = true
+			} else if !escaping && ch == '$' {
+				flushPendingImplicitValueNode()
+				buildingText += "$"
+				mode = lexIdent
+			} else if !escaping && ch == '(' {
+				flushPendingImplicitValueNode()
+				// enter grouped expression
+
+				if i+1 >= len(sRunes) {
+					return nil, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
+				}
+
+				// build sub-tree from the group
+				subTree, consumed, err := buildNewAST(sRunes[i+1:], true)
+				if err != nil {
+					return nil, 0, err
+				}
+
+				// unlike func args, this subtree entirely encapsulates the group
+				// so we can add it directly
+				groupNode := astNode{
+					group: subTree,
+				}
+
+				tree.nodes = append(tree.nodes, groupNode)
+				i += consumed
+			} else if !escaping && ch == ',' {
+				flushPendingImplicitValueNode()
+				// comma breaks up values but doesn't actually need to be its own node
+			} else if !escaping && ch == '|' {
+				flushPendingImplicitValueNode()
+				// explicit (quoted) string start
+				mode = lexStr
+			} else if !escaping && ch == ')' {
+				flushPendingImplicitValueNode()
+
+				// we have reached the end of our parsing. if we are the ROOT,
+				// this is an error
+				if !hasParent {
+					return nil, 0, fmt.Errorf("unexpected end of expression (unmatched right-parenthesis)")
+				}
+
+				// don't add ")" as own node, it's not relevant and is inferred
+				// by fact that parent is about to put this either into an arg
+				// list or a group node
+				return tree, i + 1, nil
+			} else if escaping && ch == 'n' {
+				buildingText += "\n"
+				escaping = false
+			} else if escaping && ch == 't' {
+				buildingText += "\t"
+				escaping = false
+			} else {
+				if escaping || !unicode.IsSpace(ch) {
+					buildingText += string(ch)
+				}
+				escaping = false
+			}
+		}
+
+	}
+
+	// if we get to the end but we are not the root, we have a paren mismatch
+	if hasParent {
+		return nil, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
+	}
+
+	// check final pending text
+	if mode == lexDefault {
+		// in the middle of getting implicit value
+		flushPendingImplicitValueNode()
+	} else if mode == lexIdent {
+		// in the middle of getting flag
+		if buildingText != "" {
+			flNode := astNode{
+				flag: &flagNode{
+					name: buildingText,
+				},
+			}
+			buildingText = ""
+			tree.nodes = append(tree.nodes, flNode)
+		}
+	} else if mode == lexStr {
+		// in the middle of getting explicit text value, this is an error
+		return nil, 0, fmt.Errorf("unexpected end of expression (unmatched string start \"|\")")
+	}
+
+	return tree, len(sRunes), nil
 }
 
 // LexText lexes the text. Returns the AST, number of runes consumed
@@ -967,6 +1279,14 @@ func (node astNode) MarshalBinary() ([]byte, error) {
 		data = append(data, encBinary(*node.value)...)
 	}
 
+	// group ptr
+	if node.group == nil {
+		data = append(data, encBinaryBool(false)...)
+	} else {
+		data = append(data, encBinaryBool(true)...)
+		data = append(data, encBinary(*node.group)...)
+	}
+
 	return data, nil
 }
 
@@ -1023,13 +1343,32 @@ func (node *astNode) UnmarshalBinary(data []byte) error {
 		node.fn = nil
 	} else {
 		var valVal valueNode
-		_, err := decBinary(data, &valVal)
+		readBytes, err := decBinary(data, &valVal)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		node.value = &valVal
+	}
+
+	// group
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		node.fn = nil
+	} else {
+		var astVal NewAST
+		_, err := decBinary(data, &astVal)
 		if err != nil {
 			return err
 		}
 		//data = data[readBytes:]
 
-		node.value = &valVal
+		node.group = &astVal
 	}
 
 	return nil
