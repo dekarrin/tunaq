@@ -51,6 +51,6 @@ S                       ::= <expression>
                           | [ "f" "F" ] [ "a" "A" ] [ "l" "L" ] [ "s" "S" ] [ "e" "E" ]
 
 <string>                ::= E
-                          | 
+                          | [ ]
 
 <quoted_string>         ::= "|" <string> "|"
