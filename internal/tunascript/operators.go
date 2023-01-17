@@ -207,6 +207,7 @@ func InterpretOpText(s string) (string, error) {
 		return "", err
 	}
 
+	// TODO: need debug
 	ast, err := parseOpExpression(&lexed, 0)
 	if err != nil {
 		return "", err
@@ -617,28 +618,29 @@ func LexOperationText(s string) (tokenStream, error) {
 
 		if lexeme.token == opTokenUnparsedText || lexeme.token == opTokenQuotedString {
 			// build up a full lexeme by combining them all
-			fullText := ""
+			fullText := lexeme.value
 			startLine := lexeme.line
 			startPos := lexeme.pos
 
-			// should run at least once for the current lexeme
-			for j := 0; i+j < len(tokens); j++ {
+			// add all further consecutive ones
+			for j := 1; i+j < len(tokens); j++ {
 				peekedLexeme := tokens[i+j]
 				if peekedLexeme.token == opTokenUnparsedText || peekedLexeme.token == opTokenQuotedString {
 					fullText += peekedLexeme.value
 				} else {
-					combinedTokens = append(combinedTokens, opTokenizedLexeme{
-						value: fullText,
-						token: opTokenUnparsedText,
-						pos:   startPos,
-						line:  startLine,
-					})
-
-					// advance i by however many extra we added (cur value of j)
-					i += j
+					// advance i by however many extra we added
+					i += (j - 1)
 					break
 				}
 			}
+			combinedTokens = append(combinedTokens, opTokenizedLexeme{
+				value: fullText,
+				line:  startLine,
+				pos:   startPos,
+				token: opTokenUnparsedText,
+			})
+
+			// make sure we didnt just discard an end of stream one
 		} else {
 			combinedTokens = append(combinedTokens, lexeme)
 		}
