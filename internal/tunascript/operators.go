@@ -169,7 +169,7 @@ func (lex opTokenizedLexeme) nud() *opASTNode {
 func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNode, error) {
 	switch lex.token {
 	case opTokenAdd:
-		right, err := parseOpExpression(tokens, 10)
+		right, err := parseOpExpression(tokens, lex.lbp())
 		if err != nil {
 			return nil, err
 		}
@@ -177,6 +177,48 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 			opGroup: &opASTOperationGroupNode{
 				infixOp: &opASTBinaryOperatorGroupNode{
 					op:    "+",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenSub:
+		right, err := parseOpExpression(tokens, lex.lbp())
+		if err != nil {
+			return nil, err
+		}
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    "-",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenMult:
+		right, err := parseOpExpression(tokens, lex.lbp())
+		if err != nil {
+			return nil, err
+		}
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    "*",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenDiv:
+		right, err := parseOpExpression(tokens, lex.lbp())
+		if err != nil {
+			return nil, err
+		}
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    "/",
 					left:  left,
 					right: right,
 				},
@@ -195,6 +237,12 @@ func (lex opTokenizedLexeme) lbp() int {
 	switch lex.token {
 	case opTokenAdd:
 		return 10
+	case opTokenSub:
+		return 10
+	case opTokenDiv:
+		return 20
+	case opTokenMult:
+		return 20
 	default:
 		return 0
 	}
@@ -291,10 +339,10 @@ func executeOpTree(ast opAST) (string, error) {
 
 				sb.WriteString(opFunc)
 				sb.WriteRune('(')
-				sb.WriteString(leftInsert)
+				sb.WriteString(strings.TrimSpace(leftInsert))
 				sb.WriteRune(',')
 				sb.WriteRune(' ')
-				sb.WriteString(rightInsert)
+				sb.WriteString(strings.TrimSpace(rightInsert))
 				sb.WriteRune(')')
 			} else if node.opGroup.unaryOp != nil {
 				op := node.opGroup.unaryOp.op
@@ -348,7 +396,7 @@ func parseOpExpression(stream *tokenStream, rbp int) (*opASTNode, error) {
 		return nil, fmt.Errorf("%s cannot appear at start of expression", t.token.String())
 	}
 
-	for rbp < t.lbp() {
+	for rbp < stream.Peek().lbp() {
 		t = stream.Next()
 		left, err = t.led(left, stream)
 		if err != nil {
