@@ -73,6 +73,14 @@ func builtIn_Div(args []Value) Value {
 	return NewNum(retVal)
 }
 
+func builtIn_Neg(args []Value) Value {
+	x := args[0]
+
+	retVal := x.Num() * -1
+
+	return NewNum(retVal)
+}
+
 func builtIn_Or(args []Value) Value {
 	x := args[0]
 	y := args[1]

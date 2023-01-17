@@ -78,6 +78,7 @@ func NewInterpreter(w WorldInterface) Interpreter {
 	inter.fn["SUB"] = Function{Name: "SUB", RequiredArgs: 2, Call: builtIn_Sub}
 	inter.fn["MULT"] = Function{Name: "MULT", RequiredArgs: 2, Call: builtIn_Mult}
 	inter.fn["DIV"] = Function{Name: "DIV", RequiredArgs: 2, Call: builtIn_Div}
+	inter.fn["NEG"] = Function{Name: "NEG", RequiredArgs: 1, Call: builtIn_Neg}
 	inter.fn["OR"] = Function{Name: "OR", RequiredArgs: 2, Call: builtIn_Or}
 	inter.fn["AND"] = Function{Name: "AND", RequiredArgs: 2, Call: builtIn_And}
 	inter.fn["NOT"] = Function{Name: "NOT", RequiredArgs: 1, Call: builtIn_Not}
