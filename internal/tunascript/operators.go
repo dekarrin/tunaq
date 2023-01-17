@@ -11,7 +11,7 @@ import (
 // rest of the system.
 
 type opAST struct {
-	nodes []opASTNode
+	nodes []*opASTNode
 }
 
 type opASTNode struct {
@@ -81,9 +81,9 @@ type opToken int
 const (
 	opTokenUndefined opToken = iota
 	opTokenUnparsedText
-	opTokenQuotedString
-	opTokenAdd
-	opTokenSub
+	opTokenQuotedString // NOTE: the opTokenQuotedString token only exists in lexer pass 1.
+	opTokenAdd          // Pass 2 eliminates it and combines its body with any consecutive
+	opTokenSub          // quote strings and general unparsed TS to produce single opTokenUnparsedText
 	opTokenMult
 	opTokenDiv
 	opTokenInc
@@ -200,6 +200,30 @@ func (lex opTokenizedLexeme) lbp() int {
 	}
 }
 
+// InterpretOpText returns the interpreted TS op text.
+func InterpretOpText(s string) (string, error) {
+	lexed, err := LexOperationText(s)
+	if err != nil {
+		return "", err
+	}
+
+	ast, err := parseOpExpression(&lexed, 0)
+	if err != nil {
+		return "", err
+	}
+
+	fullTree := opAST{
+		nodes: []*opASTNode{ast},
+	}
+
+	output, err := executeOpTree(fullTree)
+	if err != nil {
+		return "", err
+	}
+
+	return output, nil
+}
+
 // just apply to the parse tree
 func executeOpTree(ast opAST) (string, error) {
 	var sb strings.Builder
@@ -209,12 +233,105 @@ func executeOpTree(ast opAST) (string, error) {
 
 		if node.value != nil {
 			if node.value.quotedString != nil {
+				// should never happen
+				// TODO: since lexer is designed for no distinction between unparsed text and quoted string
+				// eliminate this branch from the AST entirely
 				sb.WriteString(*node.value.quotedString)
 			} else if node.value.unparsedTunascript != nil {
 				sb.WriteString(*node.value.unparsedTunascript)
 			}
+		} else if node.group != nil {
+			sb.WriteRune('(')
+			toExec := opAST{
+				nodes: []*opASTNode{node.group.expr},
+			}
+			insert, err := executeOpTree(toExec)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString(insert)
+			sb.WriteRune(')')
+		} else if node.opGroup != nil {
+			if node.opGroup.infixOp != nil {
+				op := node.opGroup.infixOp.op
+				leftExec := opAST{
+					nodes: []*opASTNode{node.opGroup.infixOp.left},
+				}
+				rightExec := opAST{
+					nodes: []*opASTNode{node.opGroup.infixOp.right},
+				}
+
+				leftInsert, err := executeOpTree(leftExec)
+				if err != nil {
+					return "", err
+				}
+				rightInsert, err := executeOpTree(rightExec)
+				if err != nil {
+					return "", err
+				}
+
+				var opFunc string
+				if op == "+" {
+					opFunc = "ADD"
+				} else if op == "-" {
+					opFunc = "SUB"
+				} else if op == "/" {
+					opFunc = "DIV"
+				} else if op == "*" {
+					opFunc = "MULT"
+				} else if op == "&&" {
+					opFunc = "AND"
+				} else if op == "::" {
+					opFunc = "OR"
+				} else {
+					// should never happen
+					return "", fmt.Errorf("unknown binary operator %q", op)
+				}
+
+				sb.WriteString(opFunc)
+				sb.WriteRune('(')
+				sb.WriteString(leftInsert)
+				sb.WriteRune(',')
+				sb.WriteRune(' ')
+				sb.WriteString(rightInsert)
+				sb.WriteRune(')')
+			} else if node.opGroup.unaryOp != nil {
+				op := node.opGroup.unaryOp.op
+				toExec := opAST{
+					nodes: []*opASTNode{node.opGroup.unaryOp.operand},
+				}
+				toInsert, err := executeOpTree(toExec)
+				if err != nil {
+					return "", err
+				}
+
+				var opFunc string
+				if op == "!" {
+					opFunc = "NOT"
+				} else if op == "++" {
+					opFunc = "INC"
+				} else if op == "--" {
+					opFunc = "DEC"
+				} else {
+					// should never happen
+					return "", fmt.Errorf("unknown unary operator %q", op)
+				}
+
+				sb.WriteString(opFunc)
+				sb.WriteRune('(')
+				sb.WriteString(toInsert)
+				sb.WriteRune(')')
+			} else {
+				// should never happen
+				return "", fmt.Errorf("opGroup node in AST does not assign infix or unary")
+			}
+		} else {
+			// should never happen
+			return "", fmt.Errorf("empty AST node")
 		}
 	}
+
+	return sb.String(), nil
 }
 
 func parseOpExpression(stream *tokenStream, rbp int) (*opASTNode, error) {
@@ -492,15 +609,41 @@ func LexOperationText(s string) (tokenStream, error) {
 		tokens = append(tokens, curToken)
 	}
 
-	// 2nd pass, combine consecutive quoted string and unparsed ts nodes
+	// 2nd pass, combine consecutive quoted string and unparsed ts nodes as long
+	// as they are not interrupted by a grouping
 	var combinedTokens []opTokenizedLexeme
 	for i := 0; i < len(tokens); i++ {
 		lexeme := tokens[i]
 
 		if lexeme.token == opTokenUnparsedText || lexeme.token == opTokenQuotedString {
-			// build up a full lexeme by combining
+			// build up a full lexeme by combining them all
+			fullText := ""
+			startLine := lexeme.line
+			startPos := lexeme.pos
+
+			// should run at least once for the current lexeme
+			for j := 0; i+j < len(tokens); j++ {
+				peekedLexeme := tokens[i+j]
+				if peekedLexeme.token == opTokenUnparsedText || peekedLexeme.token == opTokenQuotedString {
+					fullText += peekedLexeme.value
+				} else {
+					combinedTokens = append(combinedTokens, opTokenizedLexeme{
+						value: fullText,
+						token: opTokenUnparsedText,
+						pos:   startPos,
+						line:  startLine,
+					})
+
+					// advance i by however many extra we added (cur value of j)
+					i += j
+					break
+				}
+			}
+		} else {
+			combinedTokens = append(combinedTokens, lexeme)
 		}
 	}
+	tokens = combinedTokens
 
 	// add special EOT token
 	tokens = append(tokens, opTokenizedLexeme{

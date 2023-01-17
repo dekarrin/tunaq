@@ -18,6 +18,7 @@ var commandHelp = [][2]string{
 	{"DEBUG ROOM", "print info on the current room, or teleport to room with label LABEL if 'DEBUG ROOM LABEL' is typed."},
 	{"DEBUG EXEC [code]", "print what the tunascript code evaluates to"},
 	{"DEBUG EXPAND [text]", "print the given text with tunascript $IFs and flags expanded"},
+	{"DEBUG OPS [text]", "REMINDER TO REMOVE THIS COMMAND WHEN DONE TESTING"},
 	{"DEBUG FLAGS", "print all flags and their values"},
 	{"EXITS", "show the names of all exits from the room"},
 	{"GO/MOVE", "go to another room via one of the exits"},
@@ -694,6 +695,8 @@ func (gs *State) ExecuteCommandDebug(cmd command.Command) (string, error) {
 		return gs.executeDebugExpand(cmd.Instrument)
 	} else if cmd.Recipient == "FLAGS" {
 		return gs.executeDebugFlags()
+	} else if cmd.Recipient == "OPS" {
+		return gs.executeDebugOps(cmd.Instrument)
 	} else {
 		return "", tqerrors.Interpreterf("I don't know how to debug %q", cmd.Recipient)
 	}

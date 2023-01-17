@@ -240,6 +240,16 @@ func parseCommand(toParse string) (Command, error) {
 			parsedCmd.Instrument = strings.TrimSpace(strings.Join(casedTokens[2:], " "))
 		} else if tokens[1] == "FLAGS" {
 			parsedCmd.Recipient = "FLAGS"
+		} else if tokens[1] == "OPS" {
+			// TODO: REMOVE THIS IT SHOULD BE PART OF EXEC WHEN DONE
+			parsedCmd.Recipient = "OPS"
+			if len(tokens) < 3 {
+				return parsedCmd, tqerrors.Interpreterf("I don't know what you want me to OPS.")
+			}
+			casedTokens := strings.Fields(toParse)
+
+			// we need to respect case for our arg
+			parsedCmd.Instrument = strings.TrimSpace(strings.Join(casedTokens[2:], " "))
 		} else {
 			return parsedCmd, tqerrors.Interpreterf("%q is not a valid thing to be debugged", tokens[1])
 		}
