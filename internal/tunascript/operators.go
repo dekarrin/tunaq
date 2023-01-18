@@ -159,7 +159,7 @@ func (tok opTokenType) String() string {
 // "represents end of text."
 func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 	switch lex.token {
-	case opTokenUnparsedText:
+	case opTokenUnquotedString:
 		return &opASTNode{
 			value: &opASTValueNode{
 				unparsedTunascript: &lex.value,
@@ -276,12 +276,13 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 
 			nextTok := tokens.Next()
 			if nextTok.token != opTokenRightParen {
-				return nil, fmt.Errorf("unexpected token %s; expected \")\"", n.token.String())
+				return nil, fmt.Errorf("unexpected token %s; expected \")\"", nextTok.token.String())
 			}
 		}
 	default:
 		return nil, nil
 	}
+	return nil, nil
 }
 
 // left binding power values for pratt parsing. higher vals = tighter binding
@@ -473,19 +474,22 @@ func LexOperationText(s string) (tokenStream, error) {
 	mode := lexDefault
 
 	flushCurrentPendingToken := func() {
-		curToken.value = sb.String()
-		sb.Reset()
+		if sb.Len() > 0 {
+			curToken.value = sb.String()
+			sb.Reset()
 
-		// is the cur token literally one of the bool values?
-		vUp := strings.ToUpper(curToken.value)
-		if vUp == "FALSE" || vUp == "OFF" || vUp == "NO" || vUp == "YES" || vUp == "ON" || vUp == "TRUE" {
-			curToken.token = opTokenBool
+			// is the cur token literally one of the bool values?
+			vUp := strings.ToUpper(curToken.value)
+			if patBool.MatchString(vUp) {
+				curToken.token = opTokenBool
+			}
+			if patNum.MatchString(vUp) {
+				curToken.token = opTokenNumber
+			}
+
+			tokens = append(tokens, curToken)
+			curToken = opTokenizedLexeme{}
 		}
-
-		// is the cur token a number?
-
-		tokens = append(tokens, curToken)
-		curToken = opTokenizedLexeme{}
 	}
 
 	for i := 0; i < len(sRunes); i++ {
@@ -506,9 +510,7 @@ func LexOperationText(s string) (tokenStream, error) {
 		case lexString:
 			if !escaping && ch == '|' {
 				sb.WriteRune('|')
-				curToken.value = sb.String()
-				tokens = append(tokens, curToken)
-				curToken = opTokenizedLexeme{}
+				flushCurrentPendingToken()
 				mode = lexDefault
 				sb.Reset()
 			} else if !escaping && ch == '\\' {
@@ -523,13 +525,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			}
 		case lexDefault:
 			if !escaping && ch == '|' {
-				if sb.Len() > 0 {
-					// save the current unparsed text
-					curToken.value = sb.String()
-					sb.Reset()
-					tokens = append(tokens, curToken)
-					curToken = opTokenizedLexeme{}
-				}
+				flushCurrentPendingToken()
 
 				// we are entering a string, set type and current position
 				// (value set on a deferred basis once string is complete)
@@ -539,13 +535,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				mode = lexString
 				sb.WriteRune('|')
 			} else if !escaping && ch == '$' {
-				if sb.Len() > 0 {
-					// save the current unparsed text
-					curToken.value = sb.String()
-					sb.Reset()
-					tokens = append(tokens, curToken)
-					curToken = opTokenizedLexeme{}
-				}
+				flushCurrentPendingToken()
 
 				// we are entering an identifier, set type and current position
 				// (value set on a deferred basis once identifier is complete)
@@ -560,13 +550,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				if escaping {
 					sb.WriteRune(',')
 				} else {
-					if sb.Len() > 0 {
-						// save the current unparsed text
-						curToken.value = sb.String()
-						sb.Reset()
-						tokens = append(tokens, curToken)
-						curToken = opTokenizedLexeme{}
-					}
+					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenSeparator, value: ","}
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
@@ -575,13 +559,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				if escaping {
 					sb.WriteRune('+')
 				} else {
-					if sb.Len() > 0 {
-						// save the current unparsed text
-						curToken.value = sb.String()
-						sb.Reset()
-						tokens = append(tokens, curToken)
-						curToken = opTokenizedLexeme{}
-					}
+					flushCurrentPendingToken()
 					if i+1 < len(sRunes) && sRunes[i+1] == '+' {
 						// it is double-plus
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenInc, value: "++"}
@@ -599,53 +577,28 @@ func LexOperationText(s string) (tokenStream, error) {
 				if escaping {
 					sb.WriteRune('-')
 				} else {
-					// do some lookahead to see if this should instead be interpreted as a
-					// negative number and thus be a part of 'unparsed text'
+					// unary binding will be handled by parsing, no need to lookahead
+					// at this time.
 
-					var partOfNumber bool
-					for j := i + 1; j < len(sRunes); j++ {
-						numCh := sRunes[j]
-						if unicode.IsSpace(numCh) {
-							continue // no info
-						} else if ('0' <= numCh && numCh <= '9') || numCh == '.' {
-							partOfNumber = true
-						} else {
-							break
-						}
-					}
-					if partOfNumber {
-						sb.WriteRune('-')
+					flushCurrentPendingToken()
+					if i+1 < len(sRunes) && sRunes[i+1] == '-' {
+						// it is double-minus
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenDec, value: "--"}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
+						i++
 					} else {
-						if sb.Len() > 0 {
-							curToken.value = sb.String()
-							sb.Reset()
-							tokens = append(tokens, curToken)
-							curToken = opTokenizedLexeme{}
-						}
-						if i+1 < len(sRunes) && sRunes[i+1] == '-' {
-							// it is double-minus
-							curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenDec, value: "--"}
-							tokens = append(tokens, curToken)
-							curToken = opTokenizedLexeme{}
-							i++
-						} else {
-							// it is a minus
-							curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenSub, value: "-"}
-							tokens = append(tokens, curToken)
-							curToken = opTokenizedLexeme{}
-						}
+						// it is a minus
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenSub, value: "-"}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
 					}
 				}
 			} else if ch == '/' {
 				if escaping {
 					sb.WriteRune('/')
 				} else {
-					if sb.Len() > 0 {
-						curToken.value = sb.String()
-						sb.Reset()
-						tokens = append(tokens, curToken)
-						curToken = opTokenizedLexeme{}
-					}
+					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenDiv, value: "/"}
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
@@ -668,12 +621,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				if escaping {
 					sb.WriteRune('!')
 				} else {
-					if sb.Len() > 0 {
-						curToken.value = sb.String()
-						sb.Reset()
-						tokens = append(tokens, curToken)
-						curToken = opTokenizedLexeme{}
-					}
+					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenNot, value: "!"}
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
@@ -682,12 +630,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				if escaping {
 					sb.WriteRune('(')
 				} else {
-					if sb.Len() > 0 {
-						curToken.value = sb.String()
-						sb.Reset()
-						tokens = append(tokens, curToken)
-						curToken = opTokenizedLexeme{}
-					}
+					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenLeftParen, value: "("}
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
@@ -696,12 +639,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				if escaping {
 					sb.WriteRune(')')
 				} else {
-					if sb.Len() > 0 {
-						curToken.value = sb.String()
-						sb.Reset()
-						tokens = append(tokens, curToken)
-						curToken = opTokenizedLexeme{}
-					}
+					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenRightParen, value: ")"}
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
@@ -710,12 +648,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				if escaping {
 					sb.WriteRune('&')
 				} else if i+1 < len(sRunes) && sRunes[i] == '&' {
-					if sb.Len() > 0 {
-						curToken.value = sb.String()
-						sb.Reset()
-						tokens = append(tokens, curToken)
-						curToken = opTokenizedLexeme{}
-					}
+					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenAnd, value: "&&"}
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
@@ -727,12 +660,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				if escaping {
 					sb.WriteRune(':')
 				} else if i+1 < len(sRunes) && sRunes[i] == ':' {
-					if sb.Len() > 0 {
-						curToken.value = sb.String()
-						sb.Reset()
-						tokens = append(tokens, curToken)
-						curToken = opTokenizedLexeme{}
-					}
+					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenOr, value: "::"}
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
@@ -741,20 +669,18 @@ func LexOperationText(s string) (tokenStream, error) {
 					sb.WriteRune(':')
 				}
 			} else {
-				// is this the first non empty char? set the props for unparsed
-				// tunascript
-				if sb.Len() == 0 {
-					curToken.line = curLine
-					curToken.pos = curLinePos
-					curToken.token = opTokenUnquotedString
+
+				// do not include whitespace unless it is escaped
+				if escaping || !unicode.IsSpace(ch) {
+					// is this the first non empty char? set the props for an unquoted string,
+					// the default.
+					if sb.Len() == 0 {
+						curToken.line = curLine
+						curToken.pos = curLinePos
+						curToken.token = opTokenUnquotedString
+					}
+					sb.WriteRune(ch)
 				}
-				// if we are escaping but it wasnt a tunascript operator lexeme,
-				// we should preserve the escape char so further passes can
-				// interpret it (WHAT further passes? this is one pass now)
-				if escaping {
-					sb.WriteRune('\\')
-				}
-				sb.WriteRune(ch)
 			}
 		}
 
@@ -772,10 +698,7 @@ func LexOperationText(s string) (tokenStream, error) {
 	}
 
 	// do we have leftover unparsed text? add it to the tokens list
-	if sb.Len() > 0 {
-		curToken.value = sb.String()
-		tokens = append(tokens, curToken)
-	}
+	flushCurrentPendingToken()
 
 	// add special EOT token
 	tokens = append(tokens, opTokenizedLexeme{
