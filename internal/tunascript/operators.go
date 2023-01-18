@@ -23,9 +23,14 @@ type opAST struct {
 type opASTNode struct {
 	value   *opASTValueNode
 	fn      *opASTFuncNode
+	flag    *opASTFlagNode
 	group   *opASTGroupNode
 	opGroup *opASTOperationGroupNode
 	source  opTokenizedLexeme
+}
+
+type opASTFlagNode struct {
+	name string
 }
 
 type opASTFuncNode struct {
@@ -34,8 +39,10 @@ type opASTFuncNode struct {
 }
 
 type opASTValueNode struct {
-	quotedString       *string
-	unparsedTunascript *string
+	quotedStringVal   *string
+	unquotedStringVal *string
+	numVal            *int
+	boolVal           *bool
 }
 
 type opASTGroupNode struct {
@@ -162,13 +169,13 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 	case opTokenUnquotedString:
 		return &opASTNode{
 			value: &opASTValueNode{
-				unparsedTunascript: &lex.value,
+				unquotedStringVal: &lex.value,
 			},
 		}, nil
 	case opTokenQuotedString:
 		return &opASTNode{
 			value: &opASTValueNode{
-				quotedString: &lex.value,
+				quotedStringVal: &lex.value,
 			},
 		}, nil
 	case opTokenLeftParen:
@@ -334,14 +341,39 @@ func executeOpTree(ast opAST) string {
 		node := ast.nodes[i]
 
 		if node.value != nil {
-			if node.value.quotedString != nil {
+			if node.value.quotedStringVal != nil {
 				// should never happen
 				// TODO: since lexer is designed for no distinction between unparsed text and quoted string
 				// eliminate this branch from the AST entirely
-				sb.WriteString(*node.value.quotedString)
-			} else if node.value.unparsedTunascript != nil {
-				sb.WriteString(*node.value.unparsedTunascript)
+				sb.WriteString(*node.value.quotedStringVal)
+			} else if node.value.unquotedStringVal != nil {
+				sb.WriteString(*node.value.unquotedStringVal)
+			} else if node.value.boolVal != nil {
+				sb.WriteString(fmt.Sprintf("%t", *node.value.boolVal))
+			} else if node.value.numVal != nil {
+				sb.WriteString(fmt.Sprintf("%d", *node.value.numVal))
+			} else {
+				panic("empty value node in AST")
 			}
+		} else if node.fn != nil {
+			sb.WriteString(node.fn.name)
+			sb.WriteRune('(')
+
+			for i := range node.fn.args {
+				toExec := opAST{
+					nodes: []*opASTNode{node.fn.args[i]},
+				}
+				insert := executeOpTree(toExec)
+				sb.WriteString(insert)
+				if i+1 < len(node.fn.args) {
+					sb.WriteRune(',')
+					sb.WriteRune(' ')
+				}
+			}
+
+			sb.WriteRune(')')
+		} else if node.flag != nil {
+			sb.WriteString(node.flag.name)
 		} else if node.group != nil {
 			sb.WriteRune('(')
 			toExec := opAST{
