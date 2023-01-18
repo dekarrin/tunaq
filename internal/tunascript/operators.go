@@ -3,6 +3,7 @@ package tunascript
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -155,6 +156,10 @@ func (tok opTokenType) String() string {
 		return "LEX_IDENTIFIER"
 	case opTokenEndOfText:
 		return "LEX_EOT"
+	case opTokenNumber:
+		return "LEX_NUMBER"
+	case opTokenBool:
+		return "LEX_BOOL"
 	default:
 		return fmt.Sprintf("LEX_UNKNOWN(%d)", int(tok))
 	}
@@ -176,6 +181,41 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 		return &opASTNode{
 			value: &opASTValueNode{
 				quotedStringVal: &lex.value,
+			},
+		}, nil
+	case opTokenNumber:
+		num, err := strconv.Atoi(lex.value)
+		if err != nil {
+			panic(fmt.Sprintf("got non-integer value %q in LEX_NUMBER token, should never happen", lex.value))
+		}
+		return &opASTNode{
+			value: &opASTValueNode{
+				numVal: &num,
+			},
+		}, nil
+	case opTokenBool:
+		vUp := strings.ToUpper(lex.value)
+
+		var boolVal bool
+
+		if vUp == "TRUE" || vUp == "ON" || vUp == "YES" {
+			boolVal = true
+		} else if vUp == "FALSE" || vUp == "OFF" || vUp == "NO" {
+			boolVal = false
+		} else {
+			panic(fmt.Sprintf("got non-bool value %q in LEX_BOOL token, should never happen", lex.value))
+		}
+
+		return &opASTNode{
+			value: &opASTValueNode{
+				boolVal: &boolVal,
+			},
+		}, nil
+	case opTokenIdentifier:
+		flagName := strings.ToUpper(lex.value)
+		return &opASTNode{
+			flag: &opASTFlagNode{
+				name: flagName,
 			},
 		}, nil
 	case opTokenLeftParen:
@@ -266,6 +306,11 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 	case opTokenLeftParen:
 		// binary op '(' binds to expr
 		callArgs := []*opASTNode{}
+
+		if left.flag == nil {
+			return nil, fmt.Errorf("unexpected \"(\" char")
+		}
+
 		if tokens.Peek().token != opTokenRightParen {
 			for {
 				arg, err := parseOpExpression(tokens, 0)
@@ -275,21 +320,27 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 				callArgs = append(callArgs, arg)
 
 				if tokens.Peek().token == opTokenSeparator {
-					tokens.Next() // toss of the separator and parse the next
+					tokens.Next() // toss off the separator and prep to parse the next one
 				} else {
 					break
 				}
 			}
-
-			nextTok := tokens.Next()
-			if nextTok.token != opTokenRightParen {
-				return nil, fmt.Errorf("unexpected token %s; expected \")\"", nextTok.token.String())
-			}
 		}
+
+		nextTok := tokens.Next()
+		if nextTok.token != opTokenRightParen {
+			return nil, fmt.Errorf("unexpected token %s; expected \")\"", nextTok.token.String())
+		}
+
+		return &opASTNode{
+			fn: &opASTFuncNode{
+				name: left.flag.name,
+				args: callArgs,
+			},
+		}, nil
 	default:
 		return nil, nil
 	}
-	return nil, nil
 }
 
 // left binding power values for pratt parsing. higher vals = tighter binding
@@ -639,12 +690,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				if escaping {
 					sb.WriteRune('*')
 				} else {
-					if sb.Len() > 0 {
-						curToken.value = sb.String()
-						sb.Reset()
-						tokens = append(tokens, curToken)
-						curToken = opTokenizedLexeme{}
-					}
+					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenMult, value: "*"}
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
