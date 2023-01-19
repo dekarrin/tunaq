@@ -122,6 +122,12 @@ func LexOperationText(s string) (tokenStream, error) {
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 						i++
+					} else if i+1 < len(sRunes) && sRunes[i+1] == '=' {
+						// it is inc-by
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenIncSet, value: "-="}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
+						i++
 					} else {
 						// it is a plus
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenAdd, value: "+"}
@@ -133,13 +139,16 @@ func LexOperationText(s string) (tokenStream, error) {
 				if escaping {
 					sb.WriteRune('-')
 				} else {
-					// unary binding will be handled by parsing, no need to lookahead
-					// at this time.
-
 					flushCurrentPendingToken()
 					if i+1 < len(sRunes) && sRunes[i+1] == '-' {
 						// it is double-minus
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenDec, value: "--"}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
+						i++
+					} else if i+1 < len(sRunes) && sRunes[i+1] == '=' {
+						// it is dec-by
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenDecSet, value: "-="}
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 						i++
@@ -173,9 +182,57 @@ func LexOperationText(s string) (tokenStream, error) {
 					sb.WriteRune('!')
 				} else {
 					flushCurrentPendingToken()
-					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenNot, value: "!"}
-					tokens = append(tokens, curToken)
-					curToken = opTokenizedLexeme{}
+
+					if i+1 < len(sRunes) && sRunes[i+1] == '=' {
+						// it is not-equal
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenIsNot, value: "!="}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
+						i++
+					} else {
+						// it is a negation
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenNot, value: "!"}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
+					}
+				}
+			} else if ch == '<' {
+				if escaping {
+					sb.WriteRune('<')
+				} else {
+					flushCurrentPendingToken()
+
+					if i+1 < len(sRunes) && sRunes[i+1] == '=' {
+						// it is lt/eq
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenLessThanIs, value: "<="}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
+						i++
+					} else {
+						// it is less-than
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenLessThan, value: "<"}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
+					}
+				}
+			} else if ch == '>' {
+				if escaping {
+					sb.WriteRune('>')
+				} else {
+					flushCurrentPendingToken()
+
+					if i+1 < len(sRunes) && sRunes[i+1] == '=' {
+						// it is gt/eq
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenGreaterThanIs, value: ">="}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
+						i++
+					} else {
+						// it is greater-than
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenGreaterThan, value: ">"}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
+					}
 				}
 			} else if ch == '(' {
 				if escaping {
@@ -198,7 +255,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '&' {
 				if escaping {
 					sb.WriteRune('&')
-				} else if i+1 < len(sRunes) && sRunes[i] == '&' {
+				} else if i+1 < len(sRunes) && sRunes[i+1] == '&' {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenAnd, value: "&&"}
 					tokens = append(tokens, curToken)
@@ -210,7 +267,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '|' {
 				if escaping {
 					sb.WriteRune('|')
-				} else if i+1 < len(sRunes) && sRunes[i] == '|' {
+				} else if i+1 < len(sRunes) && sRunes[i+1] == '|' {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenOr, value: "||"}
 					tokens = append(tokens, curToken)
@@ -218,6 +275,27 @@ func LexOperationText(s string) (tokenStream, error) {
 					i++
 				} else {
 					sb.WriteRune('|')
+				}
+			} else if ch == '=' {
+				if escaping {
+					sb.WriteRune('=')
+				} else {
+					// unary binding will be handled by parsing, no need to lookahead
+					// at this time.
+
+					flushCurrentPendingToken()
+					if i+1 < len(sRunes) && sRunes[i+1] == '=' {
+						// it is double-equals
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenIs, value: "=="}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
+						i++
+					} else {
+						// it is an equals
+						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenSet, value: "="}
+						tokens = append(tokens, curToken)
+						curToken = opTokenizedLexeme{}
+					}
 				}
 			} else {
 

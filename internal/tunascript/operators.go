@@ -16,6 +16,8 @@ var (
 	patNum  = regexp.MustCompile(`^-?[0-9]+$`)
 )
 
+const maxTokenBindingPower = 200
+
 type opAST struct {
 	nodes []*opASTNode
 }
@@ -112,10 +114,19 @@ var (
 	opTokenBool           = symbol{"TS_BOOL", "", 0}
 	opTokenUnquotedString = symbol{"TS_UNQUOTED_STRING", "", 0}
 	opTokenQuotedString   = symbol{"TS_QUOTED_STRING", "", 0}
+	opTokenIs             = symbol{"TS_IS", "==", 5}
+	opTokenIsNot          = symbol{"TS_IS_NOT", "!=", 5}
+	opTokenLessThan       = symbol{"TS_LESS_THAN", "<", 5}
+	opTokenGreaterThan    = symbol{"TS_GREATER_THAN_IS", ">", 5}
+	opTokenLessThanIs     = symbol{"TS_LESS_THEN_IS", "<=", 5}
+	opTokenGreaterThanIs  = symbol{"TS_GREATER_THAN_IS", ">=", 5}
+	opTokenSet            = symbol{"TS_SET", "=", 0}
 	opTokenAdd            = symbol{"TS_ADD", "+", 10}
 	opTokenSub            = symbol{"TS_SUB", "-", 10}
 	opTokenMult           = symbol{"TS_MULT", "*", 20}
 	opTokenDiv            = symbol{"TS_DIV", "/", 20}
+	opTokenIncSet         = symbol{"TS_INCSET", "+=", 90}
+	opTokenDecSet         = symbol{"TS_DECSET", "-=", 90}
 	opTokenInc            = symbol{"TS_INC", "++", 150}
 	opTokenDec            = symbol{"TS_DEC", "--", 150}
 	opTokenLeftParen      = symbol{"TS_LEFT_PAREN", "(", 100}
@@ -144,6 +155,20 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 		return &opASTNode{
 			value: &opASTValueNode{
 				quotedStringVal: &lex.value,
+			},
+		}, nil
+	case opTokenSub:
+		negatedVal, err := parseOpExpression(tokens, maxTokenBindingPower)
+		if err != nil {
+			return nil, err
+		}
+
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				unaryOp: &opASTUnaryOperatorGroupNode{
+					op:      "-",
+					operand: negatedVal,
+				},
 			},
 		}, nil
 	case opTokenNumber:
@@ -195,8 +220,6 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 				expr: expr,
 			},
 		}, nil
-	case opTokenRightParen:
-		return nil, nil // TODO: come back to this
 	default:
 		return nil, nil
 	}
@@ -210,6 +233,150 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 // err is only non-nil on failure to parse
 func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNode, error) {
 	switch lex.token {
+	case opTokenLessThanIs:
+		right, err := parseOpExpression(tokens, lex.token.lbp)
+		if err != nil {
+			return nil, err
+		}
+
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    "<=",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenGreaterThanIs:
+		right, err := parseOpExpression(tokens, lex.token.lbp)
+		if err != nil {
+			return nil, err
+		}
+
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    ">=",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenLessThan:
+		right, err := parseOpExpression(tokens, lex.token.lbp)
+		if err != nil {
+			return nil, err
+		}
+
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    "<",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenGreaterThan:
+		right, err := parseOpExpression(tokens, lex.token.lbp)
+		if err != nil {
+			return nil, err
+		}
+
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    ">",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenIsNot:
+		right, err := parseOpExpression(tokens, lex.token.lbp)
+		if err != nil {
+			return nil, err
+		}
+
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    "!=",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenIs:
+		right, err := parseOpExpression(tokens, lex.token.lbp)
+		if err != nil {
+			return nil, err
+		}
+
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    "==",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenSet:
+		right, err := parseOpExpression(tokens, lex.token.lbp)
+		if err != nil {
+			return nil, err
+		}
+
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    "=",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenIncSet:
+		right, err := parseOpExpression(tokens, lex.token.lbp)
+		if err != nil {
+			return nil, err
+		}
+
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    "+=",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenDecSet:
+		right, err := parseOpExpression(tokens, lex.token.lbp)
+		if err != nil {
+			return nil, err
+		}
+
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				infixOp: &opASTBinaryOperatorGroupNode{
+					op:    "-=",
+					left:  left,
+					right: right,
+				},
+			},
+		}, nil
+	case opTokenNot:
+		return &opASTNode{
+			opGroup: &opASTOperationGroupNode{
+				unaryOp: &opASTUnaryOperatorGroupNode{
+					op:      "!",
+					operand: left,
+				},
+			},
+		}, nil
 	case opTokenInc:
 		return &opASTNode{
 			opGroup: &opASTOperationGroupNode{

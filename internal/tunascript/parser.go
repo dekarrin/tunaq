@@ -22,13 +22,13 @@ func InterpretOpText(s string) (string, error) {
 		nodes: []*opASTNode{ast},
 	}
 
-	output := executeOpTree(fullTree)
+	output := translateOperators(fullTree)
 
 	return output, nil
 }
 
 // just apply to the parse tree
-func executeOpTree(ast opAST) string {
+func translateOperators(ast opAST) string {
 	var sb strings.Builder
 
 	for i := 0; i < len(ast.nodes); i++ {
@@ -57,7 +57,7 @@ func executeOpTree(ast opAST) string {
 				toExec := opAST{
 					nodes: []*opASTNode{node.fn.args[i]},
 				}
-				insert := executeOpTree(toExec)
+				insert := translateOperators(toExec)
 				sb.WriteString(insert)
 				if i+1 < len(node.fn.args) {
 					sb.WriteRune(',')
@@ -73,7 +73,7 @@ func executeOpTree(ast opAST) string {
 			toExec := opAST{
 				nodes: []*opASTNode{node.group.expr},
 			}
-			insert := executeOpTree(toExec)
+			insert := translateOperators(toExec)
 			sb.WriteString(insert)
 			sb.WriteRune(')')
 		} else if node.opGroup != nil {
@@ -86,56 +86,67 @@ func executeOpTree(ast opAST) string {
 					nodes: []*opASTNode{node.opGroup.infixOp.right},
 				}
 
-				leftInsert := executeOpTree(leftExec)
-				rightInsert := executeOpTree(rightExec)
+				leftInsert := translateOperators(leftExec)
+				rightInsert := translateOperators(rightExec)
 
-				var opFunc string
+				var funcTemplate string
 				if op == "+" {
-					opFunc = "ADD"
+					funcTemplate = "$ADD(%s, %s)"
 				} else if op == "-" {
-					opFunc = "SUB"
+					funcTemplate = "$SUB(%s, %s)"
 				} else if op == "/" {
-					opFunc = "DIV"
+					funcTemplate = "$DIV(%s, %s)"
 				} else if op == "*" {
-					opFunc = "MULT"
+					funcTemplate = "$MULT(%s, %s)"
 				} else if op == "&&" {
-					opFunc = "AND"
+					funcTemplate = "$AND(%s, %s)"
 				} else if op == "||" {
-					opFunc = "OR"
+					funcTemplate = "$OR(%s, %s)"
+				} else if op == "+=" {
+					funcTemplate = "$INC(%s, %s)"
+				} else if op == "-=" {
+					funcTemplate = "$DEC(%s, %s)"
+				} else if op == "!=" {
+					funcTemplate = "$NOT(FLAG_IS(%s, %s))"
+				} else if op == "==" {
+					funcTemplate = "$FLAG_IS(%s, %s)"
+				} else if op == "<" {
+					funcTemplate = "$FLAG_LESS_THAN(%s, %s)"
+				} else if op == ">" {
+					funcTemplate = "$FLAG_GREATER_THAN(%s, %s)"
+				} else if op == ">=" {
+					funcTemplate = "$OR($FLAG_GREATER_THAN(%[1]s, %[2]s), $FLAG_IS(%[1]s, %[2]s))"
+				} else if op == "<=" {
+					funcTemplate = "$OR($FLAG_LESS_THAN(%[1]s, %[2]s), $FLAG_IS(%[1]s, %[2]s))"
+				} else if op == "=" {
+					funcTemplate = "$SET(%[1]s, %[2]s)"
 				} else {
 					// should never happen
 					panic(fmt.Sprintf("unknown binary operator %q", op))
 				}
 
-				sb.WriteString(opFunc)
-				sb.WriteRune('(')
-				sb.WriteString(strings.TrimSpace(leftInsert))
-				sb.WriteRune(',')
-				sb.WriteRune(' ')
-				sb.WriteString(strings.TrimSpace(rightInsert))
-				sb.WriteRune(')')
+				sb.WriteString(fmt.Sprintf(funcTemplate, leftInsert, rightInsert))
 			} else if node.opGroup.unaryOp != nil {
 				op := node.opGroup.unaryOp.op
 				toExec := opAST{
 					nodes: []*opASTNode{node.opGroup.unaryOp.operand},
 				}
-				toInsert := executeOpTree(toExec)
-				var opFunc string
+				toInsert := translateOperators(toExec)
+				var funcTemplate string
 				if op == "!" {
-					opFunc = "NOT"
+					funcTemplate = "$NOT(%s)"
 				} else if op == "++" {
-					opFunc = "INC"
+					funcTemplate = "$INC(%s)"
 				} else if op == "--" {
-					opFunc = "DEC"
+					funcTemplate = "$DEC(%s)"
+				} else if op == "-" {
+					funcTemplate = "$NEG(%s)"
 				} else {
 					// should never happen
 					panic(fmt.Sprintf("unknown unary operator %q", op))
 				}
 
-				sb.WriteString(opFunc)
-				sb.WriteRune('(')
-				sb.WriteString(toInsert)
-				sb.WriteRune(')')
+				sb.WriteString(fmt.Sprintf(funcTemplate, toInsert))
 			} else {
 				// should never happen
 				panic("opGroup node in AST does not assign infix or unary")
