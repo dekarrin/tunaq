@@ -100,7 +100,7 @@ func executeOpTree(ast opAST) string {
 					opFunc = "MULT"
 				} else if op == "&&" {
 					opFunc = "AND"
-				} else if op == "::" {
+				} else if op == "||" {
 					opFunc = "OR"
 				} else {
 					// should never happen
@@ -165,7 +165,7 @@ func parseOpExpression(stream *tokenStream, rbp int) (*opASTNode, error) {
 		return nil, fmt.Errorf("%s cannot appear at start of expression", t.token.String())
 	}
 
-	for rbp < stream.Peek().lbp() {
+	for rbp < stream.Peek().token.lbp {
 		t = stream.Next()
 		left, err = t.led(left, stream)
 		if err != nil {

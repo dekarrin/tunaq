@@ -64,8 +64,8 @@ func LexOperationText(s string) (tokenStream, error) {
 				i-- // re-lex in normal mode
 			}
 		case lexString:
-			if !escaping && ch == '|' {
-				sb.WriteRune('|')
+			if !escaping && ch == '@' {
+				sb.WriteRune('@')
 				flushCurrentPendingToken()
 				mode = lexDefault
 				sb.Reset()
@@ -80,7 +80,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				sb.WriteRune(ch)
 			}
 		case lexDefault:
-			if !escaping && ch == '|' {
+			if !escaping && ch == '@' {
 				flushCurrentPendingToken()
 
 				// we are entering a string, set type and current position
@@ -89,7 +89,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				curToken.line = curLine
 				curToken.token = opTokenQuotedString
 				mode = lexString
-				sb.WriteRune('|')
+				sb.WriteRune('@')
 			} else if !escaping && ch == '$' {
 				flushCurrentPendingToken()
 
@@ -207,17 +207,17 @@ func LexOperationText(s string) (tokenStream, error) {
 				} else {
 					sb.WriteRune('&')
 				}
-			} else if ch == ':' {
+			} else if ch == '|' {
 				if escaping {
-					sb.WriteRune(':')
-				} else if i+1 < len(sRunes) && sRunes[i] == ':' {
+					sb.WriteRune('|')
+				} else if i+1 < len(sRunes) && sRunes[i] == '|' {
 					flushCurrentPendingToken()
-					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenOr, value: "::"}
+					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenOr, value: "||"}
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
 					i++
 				} else {
-					sb.WriteRune(':')
+					sb.WriteRune('|')
 				}
 			} else {
 

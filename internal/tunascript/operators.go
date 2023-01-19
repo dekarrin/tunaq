@@ -67,7 +67,7 @@ type opASTBinaryOperatorGroupNode struct {
 
 type opTokenizedLexeme struct {
 	value string
-	token opTokenType
+	token symbol
 	pos   int
 	line  int
 }
@@ -75,6 +75,17 @@ type opTokenizedLexeme struct {
 type tokenStream struct {
 	tokens []opTokenizedLexeme
 	cur    int
+}
+
+// a type of token
+type symbol struct {
+	id   string
+	repr string
+	lbp  int
+}
+
+func (s symbol) String() string {
+	return s.id
 }
 
 func (ts *tokenStream) Next() opTokenizedLexeme {
@@ -95,74 +106,27 @@ func (ts tokenStream) Remaining() int {
 	return len(ts.tokens) - ts.cur
 }
 
-type opTokenType int
-
-const (
-	opTokenUndefined opTokenType = iota
-	opTokenNumber
-	opTokenBool
-	opTokenUnquotedString
-	opTokenQuotedString // NOTE: the opTokenQuotedString token only exists in lexer pass 1.
-	opTokenAdd          // Pass 2 eliminates it and combines its body with any consecutive
-	opTokenSub          // quote strings and general unparsed TS to produce single opTokenUnparsedText
-	opTokenMult
-	opTokenDiv
-	opTokenInc
-	opTokenDec
-	opTokenLeftParen
-	opTokenRightParen
-	opTokenAnd
-	opTokenOr // TODO: SWAP OR SIGN AND STRING ESCAPE
-	opTokenNot
-	opTokenSeparator
-	opTokenIdentifier
-	opTokenEndOfText
+var (
+	opTokenUndefined      = symbol{"TS_UNDEFINED", "", 0}
+	opTokenNumber         = symbol{"TS_NUMBER", "", 0}
+	opTokenBool           = symbol{"TS_BOOL", "", 0}
+	opTokenUnquotedString = symbol{"TS_UNQUOTED_STRING", "", 0}
+	opTokenQuotedString   = symbol{"TS_QUOTED_STRING", "", 0}
+	opTokenAdd            = symbol{"TS_ADD", "+", 10}
+	opTokenSub            = symbol{"TS_SUB", "-", 10}
+	opTokenMult           = symbol{"TS_MULT", "*", 20}
+	opTokenDiv            = symbol{"TS_DIV", "/", 20}
+	opTokenInc            = symbol{"TS_INC", "++", 150}
+	opTokenDec            = symbol{"TS_DEC", "--", 150}
+	opTokenLeftParen      = symbol{"TS_LEFT_PAREN", "(", 100}
+	opTokenRightParen     = symbol{"TS_RIGHT_PAREN", ")", 0}
+	opTokenAnd            = symbol{"TS_AND", "&&", 0}
+	opTokenOr             = symbol{"TS_OR", "||", 0}
+	opTokenNot            = symbol{"TS_NOT", "!", 0}
+	opTokenSeparator      = symbol{"TS_SEPARATOR", ",", 0}
+	opTokenIdentifier     = symbol{"TS_IDENTIFIER", "", 0}
+	opTokenEndOfText      = symbol{"TS_END_OF_TEXT", "", 0}
 )
-
-func (tok opTokenType) String() string {
-	switch tok {
-	case opTokenUndefined:
-		return "LEX_UNDEFINED"
-	case opTokenUnquotedString:
-		return "LEX_UNQUOTED_STRING"
-	case opTokenQuotedString:
-		return "LEX_QUOTED_STRING"
-	case opTokenAdd:
-		return "LEX_PLUS"
-	case opTokenSub:
-		return "LEX_MINUS"
-	case opTokenMult:
-		return "LEX_MULTIPLY"
-	case opTokenDiv:
-		return "LEX_DIVIDE"
-	case opTokenInc:
-		return "LEX_DOUBLE_PLUS"
-	case opTokenDec:
-		return "LEX_DOUBLE_MINUS"
-	case opTokenLeftParen:
-		return "LEX_LEFT_PAREN"
-	case opTokenRightParen:
-		return "LEX_RIGHT_PAREN"
-	case opTokenAnd:
-		return "LEX_DOUBLE_AMPERSAND"
-	case opTokenOr:
-		return "LEX_DOUBLE_COLON"
-	case opTokenNot:
-		return "LEX_EXCLAMATION_MARK"
-	case opTokenSeparator:
-		return "LEX_COMMA"
-	case opTokenIdentifier:
-		return "LEX_IDENTIFIER"
-	case opTokenEndOfText:
-		return "LEX_EOT"
-	case opTokenNumber:
-		return "LEX_NUMBER"
-	case opTokenBool:
-		return "LEX_BOOL"
-	default:
-		return fmt.Sprintf("LEX_UNKNOWN(%d)", int(tok))
-	}
-}
 
 // null denotation values for pratt parsing
 //
@@ -265,7 +229,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 			},
 		}, nil
 	case opTokenAdd:
-		right, err := parseOpExpression(tokens, lex.lbp())
+		right, err := parseOpExpression(tokens, lex.token.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -279,7 +243,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 			},
 		}, nil
 	case opTokenSub:
-		right, err := parseOpExpression(tokens, lex.lbp())
+		right, err := parseOpExpression(tokens, lex.token.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -293,7 +257,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 			},
 		}, nil
 	case opTokenMult:
-		right, err := parseOpExpression(tokens, lex.lbp())
+		right, err := parseOpExpression(tokens, lex.token.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -307,7 +271,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 			},
 		}, nil
 	case opTokenDiv:
-		right, err := parseOpExpression(tokens, lex.lbp())
+		right, err := parseOpExpression(tokens, lex.token.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -357,30 +321,5 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 		}, nil
 	default:
 		return nil, nil
-	}
-}
-
-// left binding power values for pratt parsing. higher vals = tighter binding
-//
-// TODO: these have no reason to ever need prior value or token stream so should
-// be associated with the opToken, not the opTokenizedLexeme probably
-func (lex opTokenizedLexeme) lbp() int {
-	switch lex.token {
-	case opTokenDec:
-		fallthrough
-	case opTokenInc:
-		return 150
-	case opTokenAdd:
-		fallthrough
-	case opTokenSub:
-		return 10
-	case opTokenDiv:
-		fallthrough
-	case opTokenMult:
-		return 20
-	case opTokenLeftParen:
-		return 100
-	default:
-		return 0
 	}
 }
