@@ -48,6 +48,7 @@ type Flag struct {
 // Interpreter should not be used directly, use NewInterpreter.
 type Interpreter struct {
 	fn    map[string]Function
+	opFn  map[string]Function
 	flags map[string]*Flag
 	world WorldInterface
 }
@@ -70,6 +71,7 @@ type WorldInterface interface {
 func NewInterpreter(w WorldInterface) Interpreter {
 	inter := Interpreter{
 		fn:    make(map[string]Function),
+		opFn:  make(map[string]Function),
 		flags: make(map[string]*Flag),
 		world: w,
 	}
@@ -98,6 +100,41 @@ func NewInterpreter(w WorldInterface) Interpreter {
 	inter.fn["MOVE"] = Function{Name: "MOVE", RequiredArgs: 2, Call: inter.builtIn_Move, SideEffects: true}
 	inter.fn["OUTPUT"] = Function{Name: "OUTPUT", RequiredArgs: 1, Call: inter.builtIn_Output, SideEffects: true}
 
+	inter.opFn["-"] = Function{Name: "OP_MINUS", RequiredArgs: 1, OptionalArgs: 1, Call: func(val []Value) Value {
+		if len(val) == 2 {
+			return builtIn_Sub(val)
+		} else if len(val) == 1 {
+			return builtIn_Neg(val)
+		} else {
+			panic("incorrect number of args to predefined operator function")
+		}
+	}}
+	inter.opFn["+"] = Function{Name: "OP_PLUS", RequiredArgs: 2, Call: builtIn_Add}
+	inter.opFn["*"] = Function{Name: "OP_TIMES", RequiredArgs: 2, Call: builtIn_Mult}
+	inter.opFn["/"] = Function{Name: "OP_DIVIDED_BY", RequiredArgs: 2, Call: builtIn_Div}
+	inter.opFn["+="] = Function{Name: "OP_PLUS_ASSIGN", RequiredArgs: 2, Call: inter.builtIn_Inc, SideEffects: true}
+	inter.opFn["-="] = Function{Name: "OP_MINUS_ASSIGN", RequiredArgs: 2, Call: inter.builtIn_Dec, SideEffects: true}
+	inter.opFn["!"] = Function{Name: "OP_NOT", RequiredArgs: 1, Call: builtIn_Not}
+	// TODO: I Do Not Believe That The Equals Sign Used For Assignment Is Very
+	// Nice For A Beginner To Understand. Perhaps A Different Icon?
+	//
+	// Send it to Chittr! Or, Twitter. Whatever, you know what I mean.
+	//
+	// I'm Not Certain They Will Reply But We Will Give It A Shot.
+	//
+	// i think one of these should work ya? glub:
+	//
+	// proposal: "<-" to show flow (possibly confused with <= thoguh)
+	// proposal: ":=" to show side non-parity
+	inter.opFn["="] = Function{Name: "OP_ASSIGN", RequiredArgs: 2, Call: inter.builtIn_Set, SideEffects: true}
+	inter.opFn["=="] = Function{Name: "OP_EQ", RequiredArgs: 2, Call: builtIn_EQ}
+	inter.opFn["!="] = Function{Name: "OP_NE", RequiredArgs: 2, Call: builtIn_NE}
+	inter.opFn[">"] = Function{Name: "OP_GT", RequiredArgs: 2, Call: builtIn_GT}
+	inter.opFn[">="] = Function{Name: "OP_GE", RequiredArgs: 2, Call: builtIn_GE}
+	inter.opFn["<"] = Function{Name: "OP_LT", RequiredArgs: 2, Call: builtIn_LT}
+	inter.opFn["<="] = Function{Name: "OP_LE", RequiredArgs: 2, Call: builtIn_LE}
+	inter.opFn["||"] = Function{Name: "OP_OR", RequiredArgs: 2, Call: builtIn_Or}
+	inter.opFn["||"] = Function{Name: "OP_AND", RequiredArgs: 2, Call: builtIn_And}
 	return inter
 }
 
@@ -514,14 +551,16 @@ func (inter Interpreter) Expand(s string) (string, error) {
 // error in the code, it is returned as a non-nil error, otherwise the output of
 // evaluating the expression is returned as a string.
 func (inter Interpreter) Eval(s string) (string, error) {
-	sRunes := []rune(s)
-
-	ast, _, err := buildAST(sRunes, false)
+	// lexical analysis
+	tokens, err := LexOperationText(s)
 	if err != nil {
-		return "", fmt.Errorf("syntax error: %w", err)
+		return "", err
 	}
 
-	vals, err := inter.evalExpr(ast, false)
+	// syntactic analysis
+	parseOpExpression(tokens, 0)
+
+	vals, err := inter.eval(ast, false)
 	if err != nil {
 		return "", fmt.Errorf("syntax error: %w", err)
 	}

@@ -101,6 +101,68 @@ func builtIn_Not(args []Value) Value {
 	return NewBool(!x.Bool())
 }
 
+func builtIn_EQ(args []Value) Value {
+	firstVal := args[0]
+	checkVal := args[1]
+
+	var ret Value
+	switch checkVal.Type() {
+	case Num:
+		ret = NewBool(firstVal.Num() == checkVal.Num())
+	case Bool:
+		ret = NewBool(firstVal.Bool() == checkVal.Bool())
+	case Str:
+		ret = NewBool(firstVal.Str() == checkVal.Str())
+	}
+
+	return ret
+}
+
+func builtIn_NE(args []Value) Value {
+	firstVal := args[0]
+	checkVal := args[1]
+
+	var ret Value
+	switch checkVal.Type() {
+	case Num:
+		ret = NewBool(firstVal.Num() != checkVal.Num())
+	case Bool:
+		ret = NewBool(firstVal.Bool() != checkVal.Bool())
+	case Str:
+		ret = NewBool(firstVal.Str() != checkVal.Str())
+	}
+
+	return ret
+}
+
+func builtIn_LT(args []Value) Value {
+	firstVal := args[0]
+	checkVal := args[1]
+
+	return NewBool(firstVal.Num() < checkVal.Num())
+}
+
+func builtIn_GT(args []Value) Value {
+	firstVal := args[0]
+	checkVal := args[1]
+
+	return NewBool(firstVal.Num() > checkVal.Num())
+}
+
+func builtIn_LE(args []Value) Value {
+	firstVal := args[0]
+	checkVal := args[1]
+
+	return NewBool(firstVal.Num() <= checkVal.Num())
+}
+
+func builtIn_GE(args []Value) Value {
+	firstVal := args[0]
+	checkVal := args[1]
+
+	return NewBool(firstVal.Num() >= checkVal.Num())
+}
+
 func (inter Interpreter) builtIn_FlagEnabled(args []Value) Value {
 	flagName := strings.ToUpper(args[0].Str())
 

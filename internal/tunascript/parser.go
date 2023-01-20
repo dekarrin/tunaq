@@ -26,6 +26,19 @@ func InterpretOpText(s string) (string, error) {
 	return output, nil
 }
 
+func Parse(tokens *tokenStream) (opAST, error) {
+	ast, err := parseOpExpression(tokens, 0)
+	if err != nil {
+		return opAST{}, err
+	}
+
+	fullTree := opAST{
+		nodes: []*opASTNode{ast},
+	}
+
+	return fullTree, nil
+}
+
 func parseOpExpression(stream *tokenStream, rbp int) (*opASTNode, error) {
 	var err error
 

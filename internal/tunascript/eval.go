@@ -9,9 +9,8 @@ import (
 
 // eval takes the given AST and evaluates it to produce a value. If the given
 // AST has multiple expression nodes, there will be multiple values returned.
-func eval(ast opAST, queryOnly bool) ([]Value, error) {
-	var values []Value
-	var err error
+func (inter Interpreter) eval(ast opAST, queryOnly bool) ([]Value, error) {
+	var values []Value = make([]Value, len(ast.nodes))
 
 	// dont use range because that doesnt allow us to skip/backtrack i
 	for i := 0; i < len(ast.nodes); i++ {
@@ -19,17 +18,212 @@ func eval(ast opAST, queryOnly bool) ([]Value, error) {
 
 		// what kind of a node is it?
 		if n.value != nil {
-			// node is a value
+			// node a literal value
+
+			valNode := n.value
+			if valNode.quotedStringVal != nil {
+				// it is a quotedString
+				strVal := (*valNode.quotedStringVal)
+
+				// remove the @-signs
+				strVal = strVal[1 : len(strVal)-1]
+
+				v := NewStr(strVal)
+				values[i] = v
+			} else if valNode.unquotedStringVal != nil {
+				// it is an unquoted string
+				strVal := (*valNode.unquotedStringVal)
+				v := NewStr(strVal)
+				values[i] = v
+			} else if valNode.boolVal != nil {
+				// its a bool value
+
+				boolVal := (*valNode.boolVal)
+				v := NewBool(boolVal)
+				values[i] = v
+			} else if valNode.numVal != nil {
+				// its a number value
+
+				numVal := (*valNode.numVal)
+				v := NewNum(numVal)
+				values[i] = v
+			} else {
+				panic("empty value node in ast")
+			}
 		} else if n.fn != nil {
 			// node is a func call
+
+			fnNode := n.fn
+
+			funcArgNodes := fnNode.args
+			funcName := strings.ToUpper(fnNode.name)
+
+			// remove leading identifier marker '$' from func name
+			funcName = funcName[1:]
+
+			fn, ok := inter.fn[funcName]
+			if !ok {
+				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function $%s() does not exist", funcName), n.source)
+			}
+
+			// restrict if requested
+			if queryOnly && fn.SideEffects {
+				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function $%s() will change the game state and is not allowed here", funcName), n.source)
+			}
+
+			if len(funcArgNodes) < fn.RequiredArgs {
+				s := "s"
+				if fn.RequiredArgs == 1 {
+					s = ""
+				}
+				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function $%s() requires at least %d parameter%s; %d given", fn.Name, fn.RequiredArgs, s, len(funcArgNodes)), n.source)
+			}
+
+			maxArgs := fn.RequiredArgs + fn.OptionalArgs
+			if len(funcArgNodes) > maxArgs {
+				s := "s"
+				if maxArgs == 1 {
+					s = ""
+				}
+				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function $%s() takes at most %d parameter%s; %d given", fn.Name, maxArgs, s, len(funcArgNodes)), n.source)
+			}
+
+			// evaluate args:
+			args := make([]Value, len(funcArgNodes))
+			for argIdx := range funcArgNodes {
+				toEval := opAST{
+					nodes: []*opASTNode{funcArgNodes[argIdx]},
+				}
+
+				argResult, err := inter.eval(toEval, queryOnly)
+				if err != nil {
+					return nil, err
+				}
+
+				args[argIdx] = argResult[0]
+			}
+
+			// finally call the function
+
+			// oh yeah. no error returned. you saw that right. the Call function is literally not allowed to fail.
+			// int 100 bbyyyyyyyyyyyyyyyyyyy
+			//
+			// Oh my gog ::::/
+			//
+			// i AM ur gog now >38D
+			//
+			// This Is Later Than The Original Comment But I Must Say I Am Glad
+			// That This Portion Retained Some Use With The Redesign. If Past
+			// Info Is Needed Know That There Was A Prior Set Of Designs That
+			// Also Functioned Correctly So The History Of This File May Be
+			// Referred To.
+			//
+			// uhhhhh why is this comment still here?
+			//
+			// Capitalism probably. Honk.
+			//
+			// No, lol.
+			//
+			// I Think It Has Simply Traveled From The Old Algorithm To This One
+			// But You Are Right This Is Turning Into A Much Longer Discussion.
+
+			v := fn.Call(args)
+			values[i] = v
 		} else if n.flag != nil {
 			// node is a flag (variable) value
+
+			flagNode := n.flag
+			flagName := strings.ToUpper(flagNode.name)
+
+			// remove identifier sign '$'
+			flagName = flagName[1:]
+
+			var v Value
+			flag, ok := inter.flags[flagName]
+			if ok {
+				v = flag.Value
+			} else {
+				v = NewStr("")
+			}
+			values[i] = v
 		} else if n.group != nil {
 			// node is a parenthesized group
+
+			toEval := opAST{
+				nodes: []*opASTNode{n.group.expr},
+			}
+
+			vals, err := inter.eval(toEval, queryOnly)
+			if err != nil {
+				return nil, err
+			}
+
+			v := vals[0]
+			values[i] = v
 		} else if n.opGroup != nil {
 			// node is an operator applied to some operand(s)
+
+			var opFn Function
+			var opArgs []Value
+
+			// which operator is it?
+			if n.opGroup.infixOp != nil {
+				opNode := n.opGroup.infixOp
+
+				var ok bool
+				opFn, ok = inter.opFn[opNode.op]
+				if !ok {
+					// should never happen
+					panic(fmt.Sprintf("no implementation found for operator %q", opNode.op))
+				}
+
+				leftExec := opAST{
+					nodes: []*opASTNode{opNode.left},
+				}
+				rightExec := opAST{
+					nodes: []*opASTNode{opNode.left},
+				}
+
+				left, err := inter.eval(leftExec, queryOnly)
+				if err != nil {
+					return nil, err
+				}
+				right, err := inter.eval(rightExec, queryOnly)
+				if err != nil {
+					return nil, err
+				}
+
+				opArgs = []Value{left[0], right[0]}
+			} else if n.opGroup.unaryOp != nil {
+				opNode := n.opGroup.unaryOp
+
+				var ok bool
+				opFn, ok = inter.opFn[opNode.op]
+				if !ok {
+					// should never happen
+					panic(fmt.Sprintf("no implementation found for operator %q", opNode.op))
+				}
+
+				toExec := opAST{
+					nodes: []*opASTNode{opNode.operand},
+				}
+
+				evaluated, err := inter.eval(toExec, queryOnly)
+				if err != nil {
+					return nil, err
+				}
+
+				opArgs = []Value{evaluated[0]}
+			} else {
+				// should never happen
+				panic("empty op group node in ast")
+			}
+
+			v := opFn.Call(opArgs)
+			values[i] = v
 		} else {
 			// should never happen
+			panic("empty node in ast")
 		}
 	}
 

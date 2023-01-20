@@ -156,12 +156,14 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 			value: &opASTValueNode{
 				unquotedStringVal: &lex.value,
 			},
+			source: lex,
 		}, nil
 	case opTokenQuotedString:
 		return &opASTNode{
 			value: &opASTValueNode{
 				quotedStringVal: &lex.value,
 			},
+			source: lex,
 		}, nil
 	case opTokenSub:
 		negatedVal, err := parseOpExpression(tokens, maxTokenBindingPower)
@@ -176,6 +178,7 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 					operand: negatedVal,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenNumber:
 		num, err := strconv.Atoi(lex.value)
@@ -186,6 +189,7 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 			value: &opASTValueNode{
 				numVal: &num,
 			},
+			source: lex,
 		}, nil
 	case opTokenBool:
 		vUp := strings.ToUpper(lex.value)
@@ -204,6 +208,7 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 			value: &opASTValueNode{
 				boolVal: &boolVal,
 			},
+			source: lex,
 		}, nil
 	case opTokenIdentifier:
 		flagName := strings.ToUpper(lex.value)
@@ -211,6 +216,7 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 			flag: &opASTFlagNode{
 				name: flagName,
 			},
+			source: lex,
 		}, nil
 	case opTokenLeftParen:
 		expr, err := parseOpExpression(tokens, 0)
@@ -226,6 +232,7 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 			group: &opASTGroupNode{
 				expr: expr,
 			},
+			source: lex,
 		}, nil
 	default:
 		return nil, nil
@@ -254,6 +261,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenGreaterThanIs:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -269,6 +277,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenLessThan:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -284,6 +293,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenGreaterThan:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -299,6 +309,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenIsNot:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -314,6 +325,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenIs:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -329,6 +341,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenSet:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -344,6 +357,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenIncSet:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -359,6 +373,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenDecSet:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -374,6 +389,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenNot:
 		return &opASTNode{
@@ -383,6 +399,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					operand: left,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenInc:
 		return &opASTNode{
@@ -392,6 +409,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					operand: left,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenDec:
 		return &opASTNode{
@@ -401,6 +419,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					operand: left,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenAdd:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -415,6 +434,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenSub:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -429,6 +449,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenMult:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -443,6 +464,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenDiv:
 		right, err := parseOpExpression(tokens, lex.token.lbp)
@@ -457,6 +479,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 					right: right,
 				},
 			},
+			source: lex,
 		}, nil
 	case opTokenLeftParen:
 		// binary op '(' binds to expr
@@ -492,6 +515,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 				name: left.flag.name,
 				args: callArgs,
 			},
+			source: lex,
 		}, nil
 	default:
 		return nil, nil
