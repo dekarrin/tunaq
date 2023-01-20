@@ -68,10 +68,11 @@ type opASTBinaryOperatorGroupNode struct {
 }
 
 type opTokenizedLexeme struct {
-	value string
-	token symbol
-	pos   int
-	line  int
+	value    string
+	token    symbol
+	pos      int
+	line     int
+	fullLine string
 }
 
 type tokenStream struct {
@@ -81,13 +82,18 @@ type tokenStream struct {
 
 // a type of token
 type symbol struct {
-	id   string
-	repr string
-	lbp  int
+	id    string
+	human string
+	lbp   int
 }
 
 func (s symbol) String() string {
 	return s.id
+}
+
+// Human returns human readable name of the string.
+func (s symbol) Human() string {
+	return s.human
 }
 
 func (ts *tokenStream) Next() opTokenizedLexeme {
@@ -109,34 +115,34 @@ func (ts tokenStream) Remaining() int {
 }
 
 var (
-	opTokenUndefined      = symbol{"TS_UNDEFINED", "", 0}
-	opTokenNumber         = symbol{"TS_NUMBER", "", 0}
-	opTokenBool           = symbol{"TS_BOOL", "", 0}
-	opTokenUnquotedString = symbol{"TS_UNQUOTED_STRING", "", 0}
-	opTokenQuotedString   = symbol{"TS_QUOTED_STRING", "", 0}
-	opTokenIs             = symbol{"TS_IS", "==", 5}
-	opTokenIsNot          = symbol{"TS_IS_NOT", "!=", 5}
-	opTokenLessThan       = symbol{"TS_LESS_THAN", "<", 5}
-	opTokenGreaterThan    = symbol{"TS_GREATER_THAN_IS", ">", 5}
-	opTokenLessThanIs     = symbol{"TS_LESS_THEN_IS", "<=", 5}
-	opTokenGreaterThanIs  = symbol{"TS_GREATER_THAN_IS", ">=", 5}
-	opTokenSet            = symbol{"TS_SET", "=", 0}
-	opTokenAdd            = symbol{"TS_ADD", "+", 10}
-	opTokenSub            = symbol{"TS_SUB", "-", 10}
-	opTokenMult           = symbol{"TS_MULT", "*", 20}
-	opTokenDiv            = symbol{"TS_DIV", "/", 20}
-	opTokenIncSet         = symbol{"TS_INCSET", "+=", 90}
-	opTokenDecSet         = symbol{"TS_DECSET", "-=", 90}
-	opTokenInc            = symbol{"TS_INC", "++", 150}
-	opTokenDec            = symbol{"TS_DEC", "--", 150}
-	opTokenLeftParen      = symbol{"TS_LEFT_PAREN", "(", 100}
-	opTokenRightParen     = symbol{"TS_RIGHT_PAREN", ")", 0}
-	opTokenAnd            = symbol{"TS_AND", "&&", 0}
-	opTokenOr             = symbol{"TS_OR", "||", 0}
-	opTokenNot            = symbol{"TS_NOT", "!", 0}
-	opTokenSeparator      = symbol{"TS_SEPARATOR", ",", 0}
-	opTokenIdentifier     = symbol{"TS_IDENTIFIER", "", 0}
-	opTokenEndOfText      = symbol{"TS_END_OF_TEXT", "", 0}
+	opTokenUndefined      = symbol{"TS_UNDEFINED", "undefined", 0}
+	opTokenNumber         = symbol{"TS_NUMBER", "number", 0}
+	opTokenBool           = symbol{"TS_BOOL", "boolean value", 0}
+	opTokenUnquotedString = symbol{"TS_UNQUOTED_STRING", "text value", 0}
+	opTokenQuotedString   = symbol{"TS_QUOTED_STRING", "@-text value", 0}
+	opTokenIs             = symbol{"TS_IS", "'=='", 5}
+	opTokenIsNot          = symbol{"TS_IS_NOT", "'!='", 5}
+	opTokenLessThan       = symbol{"TS_LESS_THAN", "'<'", 5}
+	opTokenGreaterThan    = symbol{"TS_GREATER_THAN_IS", "'>'", 5}
+	opTokenLessThanIs     = symbol{"TS_LESS_THEN_IS", "'<='", 5}
+	opTokenGreaterThanIs  = symbol{"TS_GREATER_THAN_IS", "'>='", 5}
+	opTokenSet            = symbol{"TS_SET", "'='", 0}
+	opTokenAdd            = symbol{"TS_ADD", "'+'", 10}
+	opTokenSub            = symbol{"TS_SUB", "'-'", 10}
+	opTokenMult           = symbol{"TS_MULT", "'*'", 20}
+	opTokenDiv            = symbol{"TS_DIV", "'/'", 20}
+	opTokenIncSet         = symbol{"TS_INCSET", "'+='", 90}
+	opTokenDecSet         = symbol{"TS_DECSET", "'-='", 90}
+	opTokenInc            = symbol{"TS_INC", "'++'", 150}
+	opTokenDec            = symbol{"TS_DEC", "'--'", 150}
+	opTokenLeftParen      = symbol{"TS_LEFT_PAREN", "'('", 100}
+	opTokenRightParen     = symbol{"TS_RIGHT_PAREN", "')'", 0}
+	opTokenAnd            = symbol{"TS_AND", "'&&'", 0}
+	opTokenOr             = symbol{"TS_OR", "'||'", 0}
+	opTokenNot            = symbol{"TS_NOT", "'!'", 0}
+	opTokenSeparator      = symbol{"TS_SEPARATOR", "','", 0}
+	opTokenIdentifier     = symbol{"TS_IDENTIFIER", "identifier", 0}
+	opTokenEndOfText      = symbol{"TS_END_OF_TEXT", "end of text", 0}
 )
 
 // null denotation values for pratt parsing
@@ -211,8 +217,9 @@ func (lex opTokenizedLexeme) nud(tokens *tokenStream) (*opASTNode, error) {
 		if err != nil {
 			return nil, err
 		}
-		if tokens.Next().token != opTokenRightParen {
-			return nil, fmt.Errorf("unmatched left paren")
+		next := tokens.Next()
+		if next.token != opTokenRightParen {
+			return nil, syntaxErrorFromLexeme("unmatched left paren; expected a ')' here", next)
 		}
 
 		return &opASTNode{
@@ -456,7 +463,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 		callArgs := []*opASTNode{}
 
 		if left.flag == nil {
-			return nil, fmt.Errorf("unexpected \"(\" char")
+			return nil, syntaxErrorFromLexeme(fmt.Sprintf("unexpected %s\n(expected it to be after a function name or to group expressions)", lex.token.human), lex)
 		}
 
 		if tokens.Peek().token != opTokenRightParen {
@@ -477,7 +484,7 @@ func (lex opTokenizedLexeme) led(left *opASTNode, tokens *tokenStream) (*opASTNo
 
 		nextTok := tokens.Next()
 		if nextTok.token != opTokenRightParen {
-			return nil, fmt.Errorf("unexpected token %s; expected \")\"", nextTok.token.String())
+			return nil, syntaxErrorFromLexeme(fmt.Sprintf("unexpected %s\n(expected a ')' to close the previous ')')", nextTok.token.human), lex)
 		}
 
 		return &opASTNode{

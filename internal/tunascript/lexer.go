@@ -1,7 +1,6 @@
 package tunascript
 
 import (
-	"fmt"
 	"strings"
 	"unicode"
 )
@@ -29,9 +28,11 @@ func LexOperationText(s string) (tokenStream, error) {
 
 	mode := lexDefault
 
+	var currentfullLine = readFullLine(sRunes)
 	flushCurrentPendingToken := func() {
 		if sb.Len() > 0 {
 			curToken.value = sb.String()
+			curToken.fullLine = currentfullLine
 			sb.Reset()
 
 			// is the cur token literally one of the bool values?
@@ -51,6 +52,13 @@ func LexOperationText(s string) (tokenStream, error) {
 	for i := 0; i < len(sRunes); i++ {
 		ch := sRunes[i]
 
+		// if it's a newline for any reason, get the next line for the current
+		// one
+		if ch == '\n' {
+			//
+			currentfullLine = readFullLine(sRunes[i+1:])
+		}
+
 		switch mode {
 		case lexIdent:
 			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
@@ -58,6 +66,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else {
 				curToken.value = sb.String()
 				sb.Reset()
+				curToken.fullLine = currentfullLine
 				tokens = append(tokens, curToken)
 				curToken = opTokenizedLexeme{}
 				mode = lexDefault
@@ -108,6 +117,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				} else {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenSeparator, value: ","}
+					curToken.fullLine = currentfullLine
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
 				}
@@ -119,18 +129,21 @@ func LexOperationText(s string) (tokenStream, error) {
 					if i+1 < len(sRunes) && sRunes[i+1] == '+' {
 						// it is double-plus
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenInc, value: "++"}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 						i++
 					} else if i+1 < len(sRunes) && sRunes[i+1] == '=' {
 						// it is inc-by
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenIncSet, value: "-="}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 						i++
 					} else {
 						// it is a plus
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenAdd, value: "+"}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 					}
@@ -143,18 +156,21 @@ func LexOperationText(s string) (tokenStream, error) {
 					if i+1 < len(sRunes) && sRunes[i+1] == '-' {
 						// it is double-minus
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenDec, value: "--"}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 						i++
 					} else if i+1 < len(sRunes) && sRunes[i+1] == '=' {
 						// it is dec-by
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenDecSet, value: "-="}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 						i++
 					} else {
 						// it is a minus
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenSub, value: "-"}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 					}
@@ -165,6 +181,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				} else {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenDiv, value: "/"}
+					curToken.fullLine = currentfullLine
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
 				}
@@ -174,6 +191,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				} else {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenMult, value: "*"}
+					curToken.fullLine = currentfullLine
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
 				}
@@ -186,12 +204,14 @@ func LexOperationText(s string) (tokenStream, error) {
 					if i+1 < len(sRunes) && sRunes[i+1] == '=' {
 						// it is not-equal
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenIsNot, value: "!="}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 						i++
 					} else {
 						// it is a negation
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenNot, value: "!"}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 					}
@@ -205,12 +225,14 @@ func LexOperationText(s string) (tokenStream, error) {
 					if i+1 < len(sRunes) && sRunes[i+1] == '=' {
 						// it is lt/eq
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenLessThanIs, value: "<="}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 						i++
 					} else {
 						// it is less-than
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenLessThan, value: "<"}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 					}
@@ -224,12 +246,14 @@ func LexOperationText(s string) (tokenStream, error) {
 					if i+1 < len(sRunes) && sRunes[i+1] == '=' {
 						// it is gt/eq
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenGreaterThanIs, value: ">="}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 						i++
 					} else {
 						// it is greater-than
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenGreaterThan, value: ">"}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 					}
@@ -240,6 +264,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				} else {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenLeftParen, value: "("}
+					curToken.fullLine = currentfullLine
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
 				}
@@ -247,8 +272,10 @@ func LexOperationText(s string) (tokenStream, error) {
 				if escaping {
 					sb.WriteRune(')')
 				} else {
+					// if we are not the parent this is an error.
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenRightParen, value: ")"}
+					curToken.fullLine = currentfullLine
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
 				}
@@ -258,6 +285,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				} else if i+1 < len(sRunes) && sRunes[i+1] == '&' {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenAnd, value: "&&"}
+					curToken.fullLine = currentfullLine
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
 					i++
@@ -270,6 +298,7 @@ func LexOperationText(s string) (tokenStream, error) {
 				} else if i+1 < len(sRunes) && sRunes[i+1] == '|' {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenOr, value: "||"}
+					curToken.fullLine = currentfullLine
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
 					i++
@@ -287,12 +316,14 @@ func LexOperationText(s string) (tokenStream, error) {
 					if i+1 < len(sRunes) && sRunes[i+1] == '=' {
 						// it is double-equals
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenIs, value: "=="}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 						i++
 					} else {
 						// it is an equals
 						curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenSet, value: "="}
+						curToken.fullLine = currentfullLine
 						tokens = append(tokens, curToken)
 						curToken = opTokenizedLexeme{}
 					}
@@ -323,7 +354,9 @@ func LexOperationText(s string) (tokenStream, error) {
 	// do we have leftover parsing string? this is a lexing error, immediately
 	// end
 	if mode == lexString {
-		return tokenStream{}, fmt.Errorf("unterminated quoted string")
+		return tokenStream{}, SyntaxError{
+			message: "unterminated '@'-string; missing a second '@'",
+		}
 	}
 
 	// do we have leftover unparsed text? add it to the tokens list
@@ -337,4 +370,12 @@ func LexOperationText(s string) (tokenStream, error) {
 	})
 
 	return tokenStream{tokens: tokens}, nil
+}
+
+func readFullLine(sRunes []rune) string {
+	var lineBuilder strings.Builder
+	for i := 0; i < len(sRunes) && sRunes[i] != '\n'; i++ {
+		lineBuilder.WriteRune(sRunes[i])
+	}
+	return lineBuilder.String()
 }
