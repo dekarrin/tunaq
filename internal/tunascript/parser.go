@@ -26,8 +26,8 @@ func InterpretOpText(s string) (string, error) {
 	return output, nil
 }
 
-func Parse(tokens *tokenStream) (opAST, error) {
-	ast, err := parseOpExpression(tokens, 0)
+func Parse(tokens tokenStream) (opAST, error) {
+	ast, err := parseOpExpression(&tokens, 0)
 	if err != nil {
 		return opAST{}, err
 	}

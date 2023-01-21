@@ -67,12 +67,114 @@ type opASTBinaryOperatorGroupNode struct {
 	right *opASTNode
 }
 
+func (n opASTBinaryOperatorGroupNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(n.op)...)
+
+	data = append(data, encBinaryBool(n.left != nil)...)
+	if n.left != nil {
+		data = append(data, encBinary(&n.left))
+	}
+
+	data = append(data, encBinaryBool(n.right != nil)...)
+	if n.right != nil {
+		data = append(data, encBinary(&n.right)...)
+	}
+
+	return data, nil
+}
+
 type opTokenizedLexeme struct {
 	value    string
 	token    symbol
 	pos      int
 	line     int
 	fullLine string
+}
+
+func (lex opTokenizedLexeme) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(lex.value)...)
+	data = append(data, encBinary(lex.token)...)
+	data = append(data, encBinaryInt(lex.pos)...)
+	data = append(data, encBinaryInt(lex.line)...)
+	data = append(data, encBinaryString(lex.fullLine)...)
+
+	return data, nil
+}
+
+func (lex *opTokenizedLexeme) UnmarshalBinary(data []byte) error {
+	var err error
+	var bytesRead int
+
+	lex.value, bytesRead, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	bytesRead, err = decBinary(data, &lex.token)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	lex.pos, bytesRead, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	lex.line, bytesRead, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	lex.fullLine, _, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	//data = data[bytesRead:]
+
+	return nil
+}
+
+func (sym symbol) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(sym.id)...)
+	data = append(data, encBinaryString(sym.human)...)
+	data = append(data, encBinaryInt(sym.lbp)...)
+
+	return data, nil
+}
+
+func (sym *symbol) UnmarshalBinary(data []byte) error {
+	var err error
+	var bytesRead int
+
+	sym.id, bytesRead, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	sym.human, bytesRead, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	sym.lbp, _, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	// data = data[bytesRead:]
+
+	return nil
 }
 
 type tokenStream struct {
@@ -86,6 +188,9 @@ type symbol struct {
 	human string
 	lbp   int
 }
+
+// TODO: Do The Unmarshal Function Thing With The Operator Data Objects. Or
+// Structs. Or Something Like That.
 
 func (s symbol) String() string {
 	return s.id

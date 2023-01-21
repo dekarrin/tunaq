@@ -212,7 +212,7 @@ func (inter Interpreter) SyntaxCheckTree(ast *ExpansionAST, checkFlags bool) err
 			cond := n.branch.ifNode.cond
 			contentExpansionAST := n.branch.ifNode.content
 
-			conditionalValue, err := inter.evalExpr(cond, true)
+			conditionalValue, err := inter.eval(cond, true)
 			if err != nil {
 				return fmt.Errorf("syntax error: %v", err)
 			}
@@ -558,11 +558,14 @@ func (inter Interpreter) Eval(s string) (string, error) {
 	}
 
 	// syntactic analysis
-	parseOpExpression(tokens, 0)
+	ast, err := Parse(tokens)
+	if err != nil {
+		return "", err
+	}
 
 	vals, err := inter.eval(ast, false)
 	if err != nil {
-		return "", fmt.Errorf("syntax error: %w", err)
+		return "", err
 	}
 
 	strVals := make([]string, len(vals))

@@ -76,7 +76,7 @@ type expBranchNode struct {
 	elseNode    *ExpansionAST*/
 }
 type expCondNode struct {
-	cond    *AST
+	cond    *opAST
 	content *ExpansionAST
 }
 type symbolType int
