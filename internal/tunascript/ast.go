@@ -4,45 +4,56 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
-// AST is an AST of parsed (but not interpreted) block of
-// Tunascript code. The zero-value of an AST is not suitable for
-// use, and they should only be created by calls to ParseExpression.
 type AST struct {
-	nodes []astNode
+	nodes []*astNode
 }
 
 type astNode struct {
-	fn    *fnNode
-	flag  *flagNode
-	value *valueNode
-	group *AST
-}
-
-type fnNode struct {
-	name string
-	args []*AST
+	value   *valueNode
+	fn      *fnNode
+	flag    *flagNode
+	group   *groupNode
+	opGroup *operatorGroupNode
+	source  opTokenizedLexeme
 }
 
 type flagNode struct {
 	name string
 }
 
-type valueNode struct {
-	source   string
-	forceStr bool
+type fnNode struct {
+	name string
+	args []*astNode
 }
 
-/*
-// TunascriptString converts the AST into Tunascript source code. The returned
-// source is guaranteed to be syntactically identical to the code that the AST
-// was parsed from (i.e. parsing will return an identical AST), but it may not
-// be exactly the same string; coding style is not preserved.
-func (ast AST) TunascriptString() string {
-	var tsCode strings.Builder
-}*/
+type valueNode struct {
+	quotedStringVal   *string
+	unquotedStringVal *string
+	numVal            *int
+	boolVal           *bool
+}
+
+type groupNode struct {
+	expr *astNode
+}
+
+type operatorGroupNode struct {
+	unaryOp *unaryOperatorGroupNode
+	infixOp *binaryOperatorGroupNode
+}
+
+type unaryOperatorGroupNode struct {
+	op      string
+	operand *astNode
+}
+
+type binaryOperatorGroupNode struct {
+	op    string
+	left  *astNode
+	right *astNode
+}
 
 // ExpansionAnalysis is a lexed (and somewhat parsed) block of text containing
 // both tunascript expansion-legal expressions and regular text. The zero-value
@@ -76,7 +87,7 @@ type expBranchNode struct {
 	elseNode    *ExpansionAST*/
 }
 type expCondNode struct {
-	cond    *opAST
+	cond    *AST
 	content *ExpansionAST
 }
 type symbolType int
@@ -100,25 +111,15 @@ func (st symbolType) String() string {
 	}
 }
 
-type lexerState int
-
-const (
-	lexDefault lexerState = iota
-	lexIdent
-	lexStr
-)
-
-// indexOfMatchingTunascriptParen takes the given string, which must start with
+// indexOfMatchingParen takes the given string, which must start with
 // a parenthesis char "(", and returns the index of the ")" that matches it. Any
 // text in between is analyzed for other parenthesis and if they are there, they
 // must be matched as well.
 //
 // Index will be -1 if it does not have a match.
-// Error is non-nil if there is malformed tunascript syntax between the parens,
+// Error is non-nil if there is unlex-able tunascript syntax between the parens,
 // of if s cannot be operated on.
-//
-// Also returns the parsable AST of the analyzed expression as well.
-func indexOfMatchingParen(sRunes []rune) (int, *AST, error) {
+func indexOfMatchingParen(sRunes []rune) (int, AST, error) {
 	if sRunes[0] != '(' {
 		var errStr string
 		if len(sRunes) > 50 {
@@ -126,141 +127,51 @@ func indexOfMatchingParen(sRunes []rune) (int, *AST, error) {
 		} else {
 			errStr = string(sRunes)
 		}
-		return 0, nil, fmt.Errorf("no opening paren at start of analysis string %q", errStr)
-	}
-
-	if len(sRunes) < 2 {
-		return 0, nil, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
-	}
-
-	exprNode, consumed, err := buildAST(sRunes[1:], true)
-	if err != nil {
-		return 0, nil, err
-	}
-
-	return consumed, exprNode, nil
-}
-
-// ParseText interprets the text in the abstract syntax tree and evaluates it.
-func (inter Interpreter) evalExpr(ast *AST, queryOnly bool) ([]Value, error) {
-	values := make([]Value, len(ast.nodes))
-
-	for i := 0; i < len(ast.nodes); i++ {
-		child := ast.nodes[i]
-
-		// what kind of a node is it?
-		if child.value != nil {
-			// value node
-			valueNode := child.value
-
-			var v Value
-			if valueNode.forceStr {
-				v = NewStr(valueNode.source)
-			} else {
-				v = parseUntypedValString(valueNode.source)
-			}
-			values[i] = v
-		} else if child.flag != nil {
-			// flag node
-			flagNode := child.flag
-			flagName := strings.ToUpper(flagNode.name)
-
-			var v Value
-			flag, ok := inter.flags[flagName]
-			if ok {
-				v = flag.Value
-			} else {
-				v = NewStr("")
-			}
-			values[i] = v
-		} else if child.fn != nil {
-			// function call node, gather args and call it
-			fnNode := child.fn
-
-			funcArgNodes := fnNode.args
-			funcName := strings.ToUpper(fnNode.name)
-
-			fn, ok := inter.fn[funcName]
-			if !ok {
-				return nil, fmt.Errorf("function $%s() does not exist", funcName)
-			}
-
-			// restrict if requested
-			if queryOnly && fn.SideEffects {
-				return nil, fmt.Errorf("function $%s() will change game state and is not allowed here", funcName)
-			}
-
-			if len(funcArgNodes) < fn.RequiredArgs {
-				s := "s"
-				if fn.RequiredArgs == 1 {
-					s = ""
-				}
-				return nil, fmt.Errorf("function $%s() requires at least %d parameter%s; %d given", fn.Name, fn.RequiredArgs, s, len(funcArgNodes))
-			}
-
-			maxArgs := fn.RequiredArgs + fn.OptionalArgs
-			if len(funcArgNodes) > maxArgs {
-				s := "s"
-				if maxArgs == 1 {
-					s = ""
-				}
-				return nil, fmt.Errorf("function $%s() takes at most %d parameter%s; %d given", fn.Name, maxArgs, s, len(funcArgNodes))
-			}
-
-			// evaluate args:
-			args := make([]Value, len(funcArgNodes))
-			for argIdx := range funcArgNodes {
-				argResult, err := inter.evalExpr(funcArgNodes[argIdx], queryOnly)
-				if err != nil {
-					return nil, err
-				}
-
-				args[argIdx] = argResult[0]
-			}
-
-			// finally call the function
-
-			// oh yeah. no error returned. you saw that right. the Call function is literally not allowed to fail.
-			// int 100 bbyyyyyyyyyyyyyyyyyyy
-			//
-			// Oh my gog ::::/
-			//
-			// i AM ur gog now >38D
-			//
-			// This Is Later Than The Original Comment But I Must Say I Am Glad
-			// That This Portion Retained Some Use With The Redesign. If Past
-			// Info Is Needed Know That There Was A Prior Set Of Designs That
-			// Also Functioned Correctly So The History Of This File May Be
-			// Referred To.
-
-			v := fn.Call(args)
-			values[i] = v
-		} else if child.group != nil {
-			// group node, make shore there is exactly one node because more
-			// than that in an unqualified group is not allowed (don't know how
-			// to parse multi-value into single one).
-			//
-			// This grouping will make more sense when/if grouping parens and
-			// operators are added
-			groupNode := child.group
-
-			if len(groupNode.nodes) > 1 {
-				return nil, fmt.Errorf("multiple values between parenthesis but not in function call")
-			}
-
-			var v Value
-			parsedVals, err := inter.evalExpr(groupNode, queryOnly)
-			if err != nil {
-				return nil, err
-			}
-			v = parsedVals[0]
-			values[i] = v
-		} else {
-			return nil, fmt.Errorf("empty AST node (should never happen)")
+		return 0, AST{}, SyntaxError{
+			message: fmt.Sprintf("no opening paren at start of analysis string %q", errStr),
 		}
 	}
 
-	return values, nil
+	if len(sRunes) < 2 {
+		return 0, AST{}, SyntaxError{
+			message: "unexpected end of expression (unmatched left-parenthesis)",
+		}
+	}
+
+	tokenStr, consumed, err := lexRunes(sRunes, true)
+	if err != nil {
+		return 0, AST{}, err
+	}
+
+	// check that we got minimum tokens
+	if tokenStr.Len() < 3 {
+		// not enough tokens; at minimum we require lparen, rparen, and EOT.
+		return 0, AST{}, SyntaxError{
+			message: "unexpected end of expression (unmatched left-parenthesis)",
+		}
+	}
+	// check that we ended on a right paren (will be second-to-last bc last is EOT)
+	if tokenStr.tokens[len(tokenStr.tokens)-2].token.id != opTokenRightParen.id {
+		// in this case, lexing got to the end of the string but did not finish
+		// on a right paren. This is a syntax error.
+		return 0, AST{}, SyntaxError{
+			message: "unexpected end of expression (unmatched left-parenthesis)",
+		}
+	}
+
+	// modify returned list of tokens to not include the start and end parens
+	// before parsing
+	eotLexeme := tokenStr.tokens[len(tokenStr.tokens)-1]          // preserve EOT
+	tokenStr.tokens = tokenStr.tokens[1 : len(tokenStr.tokens)-2] // chop off ends
+	tokenStr.tokens = append(tokenStr.tokens, eotLexeme)          // add EOT back in
+
+	// now parse it to get back the actual AST
+	ast, err := Parse(tokenStr)
+	if err != nil {
+		return 0, ast, err
+	}
+
+	return consumed, ast, nil
 }
 
 func parseUntypedValString(valStr string) Value {
@@ -277,194 +188,6 @@ func parseUntypedValString(valStr string) Value {
 	}
 
 	return NewStr(valStr)
-}
-
-// LexText lexes the text. Returns the AST, number of runes consumed
-// and whether an error was encountered. If the input is a comma-separated list
-// of expressions, they will be returned as individual nodes of a single AST.
-func buildAST(sRunes []rune, hasParent bool) (*AST, int, error) {
-	tree := &AST{}
-
-	escaping := false
-	mode := lexDefault
-
-	var buildingText string // TODO: should probs be a strings.Builder
-
-	flushPendingImplicitValueNode := func() {
-		if buildingText != "" {
-			valNode := astNode{value: &valueNode{source: buildingText}}
-			tree.nodes = append(tree.nodes, valNode)
-			buildingText = ""
-		}
-	}
-
-	for i := 0; i < len(sRunes); i++ {
-		ch := sRunes[i]
-
-		switch mode {
-		case lexIdent:
-			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
-				buildingText += string(ch)
-			} else if ch == '(' {
-				// immediately after identifier, this is a list of args
-				if i+1 >= len(sRunes) {
-					return nil, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
-				}
-
-				// build sub-tree from args
-				subTree, consumed, err := buildAST(sRunes[i+1:], true)
-				if err != nil {
-					return nil, 0, err
-				}
-
-				// create function node and add all subtree nodes to this one
-				funcNode := astNode{
-					fn: &fnNode{
-						name: buildingText,
-						args: make([]*AST, len(subTree.nodes)),
-					},
-				}
-				buildingText = ""
-
-				for subNodeIdx := range subTree.nodes {
-					funcNode.fn.args[subNodeIdx] = &AST{
-						nodes: []astNode{subTree.nodes[subNodeIdx]},
-					}
-				}
-
-				tree.nodes = append(tree.nodes, funcNode)
-				i += consumed
-				mode = lexDefault
-			} else {
-				flNode := astNode{
-					flag: &flagNode{
-						name: buildingText,
-					},
-				}
-				buildingText = ""
-
-				tree.nodes = append(tree.nodes, flNode)
-				i--
-				mode = lexDefault
-			}
-		case lexStr:
-			if !escaping && ch == '\\' {
-				// do not add a node for this
-				escaping = true
-			} else if escaping && ch == 'n' {
-				buildingText += "\n"
-				escaping = false
-			} else if escaping && ch == 't' {
-				buildingText += "\t"
-				escaping = false
-			} else if !escaping && ch == '|' {
-				// this is an EXPLICIT text node, not implicit, so use custom
-				// behavior instead of func
-				valNode := astNode{
-					value: &valueNode{
-						source:   buildingText,
-						forceStr: true,
-					},
-				}
-
-				tree.nodes = append(tree.nodes, valNode)
-				buildingText = ""
-				mode = lexDefault
-			} else {
-				buildingText += string(ch)
-				escaping = false
-			}
-		case lexDefault:
-			if !escaping && ch == '\\' {
-				// do not add a node for this
-				escaping = true
-			} else if !escaping && ch == '$' {
-				flushPendingImplicitValueNode()
-				mode = lexIdent
-			} else if !escaping && ch == '(' {
-				flushPendingImplicitValueNode()
-				// enter grouped expression
-
-				if i+1 >= len(sRunes) {
-					return nil, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
-				}
-
-				// build sub-tree from the group
-				subTree, consumed, err := buildAST(sRunes[i+1:], true)
-				if err != nil {
-					return nil, 0, err
-				}
-
-				// unlike func args, this subtree entirely encapsulates the group
-				// so we can add it directly
-				groupNode := astNode{
-					group: subTree,
-				}
-
-				tree.nodes = append(tree.nodes, groupNode)
-				i += consumed
-			} else if !escaping && ch == ',' {
-				flushPendingImplicitValueNode()
-				// comma breaks up values but doesn't actually need to be its own node
-			} else if !escaping && ch == '|' {
-				flushPendingImplicitValueNode()
-				// explicit (quoted) string start
-				mode = lexStr
-			} else if !escaping && ch == ')' {
-				flushPendingImplicitValueNode()
-
-				// we have reached the end of our parsing. if we are the ROOT,
-				// this is an error
-				if !hasParent {
-					return nil, 0, fmt.Errorf("unexpected end of expression (unmatched right-parenthesis)")
-				}
-
-				// don't add ")" as own node, it's not relevant and is inferred
-				// by fact that parent is about to put this either into an arg
-				// list or a group node
-				return tree, i + 1, nil
-			} else if escaping && ch == 'n' {
-				buildingText += "\n"
-				escaping = false
-			} else if escaping && ch == 't' {
-				buildingText += "\t"
-				escaping = false
-			} else {
-				if escaping || !unicode.IsSpace(ch) {
-					buildingText += string(ch)
-				}
-				escaping = false
-			}
-		}
-
-	}
-
-	// if we get to the end but we are not the root, we have a paren mismatch
-	if hasParent {
-		return nil, 0, fmt.Errorf("unexpected end of expression (unmatched left-parenthesis)")
-	}
-
-	// check final pending text
-	if mode == lexDefault {
-		// in the middle of getting implicit value
-		flushPendingImplicitValueNode()
-	} else if mode == lexIdent {
-		// in the middle of getting flag
-		if buildingText != "" {
-			flNode := astNode{
-				flag: &flagNode{
-					name: buildingText,
-				},
-			}
-			buildingText = ""
-			tree.nodes = append(tree.nodes, flNode)
-		}
-	} else if mode == lexStr {
-		// in the middle of getting explicit text value, this is an error
-		return nil, 0, fmt.Errorf("unexpected end of expression (unmatched string start \"|\")")
-	}
-
-	return tree, len(sRunes), nil
 }
 
 func (east ExpansionAST) MarshalBinary() ([]byte, error) {
@@ -787,87 +510,111 @@ func (ebn *expBranchNode) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-func (ast AST) MarshalBinary() ([]byte, error) {
+func (n AST) MarshalBinary() ([]byte, error) {
 	var data []byte
 
-	// count
-	data = append(data, encBinaryInt(len(ast.nodes))...)
-	for i := range ast.nodes {
-		data = append(data, encBinary(ast.nodes[i])...)
+	// node count
+	data = append(data, encBinaryInt(len(n.nodes))...)
+
+	// each arg (skip using leading bool pointer validatity for space, if they
+	// aren't valid, panic)
+	for i := range n.nodes {
+		if n.nodes[i] == nil {
+			// should never happen
+			panic("empty node in ast")
+		}
+		data = append(data, encBinary(*n.nodes[i])...)
 	}
 
 	return data, nil
 }
 
-func (ast *AST) UnmarshalBinary(data []byte) error {
+func (n *AST) UnmarshalBinary(data []byte) error {
 	var err error
 	var readBytes int
 	var nodeCount int
 
-	// get count
+	// arg count
 	nodeCount, readBytes, err = decBinaryInt(data)
 	if err != nil {
 		return err
 	}
 	data = data[readBytes:]
 
-	// get each arg
+	// each arg
+	n.nodes = make([]*astNode, nodeCount)
 	for i := 0; i < nodeCount; i++ {
-		var n astNode
-		readBytes, err = decBinary(data, &n)
+		var argVal astNode
+		readBytes, err = decBinary(data, &argVal)
 		if err != nil {
 			return err
 		}
 		data = data[readBytes:]
-
-		ast.nodes = append(ast.nodes, n)
+		n.nodes[i] = &argVal
 	}
 
 	return nil
 }
 
-func (node astNode) MarshalBinary() ([]byte, error) {
+func (n astNode) MarshalBinary() ([]byte, error) {
 	var data []byte
 
-	// fn ptr
-	if node.fn == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinary(*node.fn)...)
+	// value
+	data = append(data, encBinaryBool(n.value != nil)...)
+	if n.value != nil {
+		data = append(data, encBinary(*n.value)...)
 	}
 
-	// flag ptr
-	if node.flag == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinary(*node.flag)...)
+	// fn
+	data = append(data, encBinaryBool(n.fn != nil)...)
+	if n.fn != nil {
+		data = append(data, encBinary(*n.fn)...)
 	}
 
-	// value ptr
-	if node.value == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinary(*node.value)...)
+	// flag
+	data = append(data, encBinaryBool(n.flag != nil)...)
+	if n.flag != nil {
+		data = append(data, encBinary(*n.flag)...)
 	}
 
-	// group ptr
-	if node.group == nil {
-		data = append(data, encBinaryBool(false)...)
-	} else {
-		data = append(data, encBinaryBool(true)...)
-		data = append(data, encBinary(*node.group)...)
+	// group
+	data = append(data, encBinaryBool(n.group != nil)...)
+	if n.group != nil {
+		data = append(data, encBinary(*n.group)...)
 	}
+
+	// opGroup
+	data = append(data, encBinaryBool(n.opGroup != nil)...)
+	if n.opGroup != nil {
+		data = append(data, encBinary(*n.opGroup)...)
+	}
+
+	// source
+	data = append(data, encBinary(n.source)...)
 
 	return data, nil
 }
 
-func (node *astNode) UnmarshalBinary(data []byte) error {
+func (n *astNode) UnmarshalBinary(data []byte) error {
 	var err error
 	var readBytes int
 	var isNil bool
+
+	// value
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.value = nil
+	} else {
+		readBytes, err = decBinary(data, n.value)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+	}
 
 	// fn
 	isNil, readBytes, err = decBinaryBool(data)
@@ -876,16 +623,13 @@ func (node *astNode) UnmarshalBinary(data []byte) error {
 	}
 	data = data[readBytes:]
 	if isNil {
-		node.fn = nil
+		n.fn = nil
 	} else {
-		var fnVal fnNode
-		readBytes, err := decBinary(data, &fnVal)
+		readBytes, err = decBinary(data, n.fn)
 		if err != nil {
 			return err
 		}
 		data = data[readBytes:]
-
-		node.fn = &fnVal
 	}
 
 	// flag
@@ -895,35 +639,13 @@ func (node *astNode) UnmarshalBinary(data []byte) error {
 	}
 	data = data[readBytes:]
 	if isNil {
-		node.fn = nil
+		n.flag = nil
 	} else {
-		var flagVal flagNode
-		readBytes, err := decBinary(data, &flagVal)
+		readBytes, err = decBinary(data, n.flag)
 		if err != nil {
 			return err
 		}
 		data = data[readBytes:]
-
-		node.flag = &flagVal
-	}
-
-	// value
-	isNil, readBytes, err = decBinaryBool(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-	if isNil {
-		node.fn = nil
-	} else {
-		var valVal valueNode
-		readBytes, err := decBinary(data, &valVal)
-		if err != nil {
-			return err
-		}
-		data = data[readBytes:]
-
-		node.value = &valVal
 	}
 
 	// group
@@ -933,81 +655,55 @@ func (node *astNode) UnmarshalBinary(data []byte) error {
 	}
 	data = data[readBytes:]
 	if isNil {
-		node.fn = nil
+		n.group = nil
 	} else {
-		var astVal AST
-		_, err := decBinary(data, &astVal)
-		if err != nil {
-			return err
-		}
-		//data = data[readBytes:]
-
-		node.group = &astVal
-	}
-
-	return nil
-}
-
-func (node fnNode) MarshalBinary() ([]byte, error) {
-	var data []byte
-
-	data = append(data, encBinaryString(node.name)...)
-
-	// count
-	data = append(data, encBinaryInt(len(node.args))...)
-	for i := range node.args {
-		data = append(data, encBinary(*node.args[i])...)
-	}
-
-	return data, nil
-}
-
-func (node *fnNode) UnmarshalBinary(data []byte) error {
-	var err error
-	var readBytes int
-	var argCount int
-
-	node.name, readBytes, err = decBinaryString(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-
-	// get count
-	argCount, readBytes, err = decBinaryInt(data)
-	if err != nil {
-		return err
-	}
-	data = data[readBytes:]
-
-	// get each arg
-	for i := 0; i < argCount; i++ {
-		var argNode AST
-		readBytes, err = decBinary(data, &argNode)
+		readBytes, err = decBinary(data, n.group)
 		if err != nil {
 			return err
 		}
 		data = data[readBytes:]
-
-		node.args = append(node.args, &argNode)
 	}
+
+	// opGroup
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.opGroup = nil
+	} else {
+		readBytes, err = decBinary(data, n.opGroup)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+	}
+
+	// source
+	_, err = decBinary(data, &n.source)
+	if err != nil {
+		return err
+	}
+	// data = data[readBytes:]
 
 	return nil
 }
 
-func (node flagNode) MarshalBinary() ([]byte, error) {
+func (n flagNode) MarshalBinary() ([]byte, error) {
 	var data []byte
 
-	data = append(data, encBinaryString(node.name)...)
+	data = append(data, encBinaryString(n.name)...)
 
 	return data, nil
 }
 
-func (node *flagNode) UnmarshalBinary(data []byte) error {
+func (n *flagNode) UnmarshalBinary(data []byte) error {
 	var err error
 	//var readBytes int
 
-	node.name, _, err = decBinaryString(data)
+	// func name
+	n.name, _, err = decBinaryString(data)
 	if err != nil {
 		return err
 	}
@@ -1016,28 +712,369 @@ func (node *flagNode) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-func (node valueNode) MarshalBinary() ([]byte, error) {
+func (n fnNode) MarshalBinary() ([]byte, error) {
 	var data []byte
 
-	data = append(data, encBinaryString(node.source)...)
-	data = append(data, encBinaryBool(node.forceStr)...)
+	// func name
+	data = append(data, encBinaryString(n.name)...)
+
+	// arg count
+	data = append(data, encBinaryInt(len(n.args))...)
+
+	// each arg (skip using leading bool pointer validatity for space, if they
+	// aren't valid, panic)
+	for i := range n.args {
+		if n.args[i] == nil {
+			// should never happen
+			panic("empty node in func arg list ast")
+		}
+		data = append(data, encBinary(*n.args[i])...)
+	}
 
 	return data, nil
 }
 
-func (node *valueNode) UnmarshalBinary(data []byte) error {
+func (n *fnNode) UnmarshalBinary(data []byte) error {
 	var err error
 	var readBytes int
+	var argCount int
 
-	node.source, readBytes, err = decBinaryString(data)
+	// func name
+	n.name, readBytes, err = decBinaryString(data)
 	if err != nil {
 		return err
 	}
 	data = data[readBytes:]
 
-	node.forceStr, _, err = decBinaryBool(data)
+	// arg count
+	argCount, readBytes, err = decBinaryInt(data)
 	if err != nil {
 		return err
+	}
+	data = data[readBytes:]
+
+	// each arg
+	n.args = make([]*astNode, argCount)
+	for i := 0; i < argCount; i++ {
+		var argVal astNode
+		readBytes, err = decBinary(data, &argVal)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+		n.args[i] = &argVal
+	}
+
+	return nil
+}
+
+func (n valueNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	// quoted str
+	data = append(data, encBinaryBool(n.quotedStringVal != nil)...)
+	if n.quotedStringVal != nil {
+		data = append(data, encBinaryString(*n.quotedStringVal)...)
+	}
+
+	// unquoted str
+	data = append(data, encBinaryBool(n.unquotedStringVal != nil)...)
+	if n.quotedStringVal != nil {
+		data = append(data, encBinaryString(*n.unquotedStringVal)...)
+	}
+
+	// num
+	data = append(data, encBinaryBool(n.numVal != nil)...)
+	if n.quotedStringVal != nil {
+		data = append(data, encBinaryInt(*n.numVal)...)
+	}
+
+	// bool
+	data = append(data, encBinaryBool(n.boolVal != nil)...)
+	if n.quotedStringVal != nil {
+		data = append(data, encBinaryBool(*n.boolVal)...)
+	}
+
+	return data, nil
+}
+
+func (n *valueNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var isNil bool
+
+	// quoted str
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.quotedStringVal = nil
+	} else {
+		var strVal string
+		strVal, readBytes, err = decBinaryString(data)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		n.quotedStringVal = &strVal
+	}
+
+	// unquoted str
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.unquotedStringVal = nil
+	} else {
+		var strVal string
+		strVal, readBytes, err = decBinaryString(data)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		n.unquotedStringVal = &strVal
+	}
+
+	// num
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.numVal = nil
+	} else {
+		var iVal int
+		iVal, readBytes, err = decBinaryInt(data)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+
+		n.numVal = &iVal
+	}
+
+	// bool
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.boolVal = nil
+	} else {
+		var bVal bool
+		bVal, _, err = decBinaryBool(data)
+		if err != nil {
+			return err
+		}
+		//data = data[readBytes:]
+
+		n.boolVal = &bVal
+	}
+
+	return nil
+}
+
+func (n groupNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryBool(n.expr != nil)...)
+	if n.expr != nil {
+		data = append(data, encBinary(*n.expr)...)
+	}
+
+	return data, nil
+}
+
+func (n *groupNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var isNil bool
+
+	// expr
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.expr = nil
+	} else {
+		_, err = decBinary(data, n.expr)
+		if err != nil {
+			return err
+		}
+		//data = data[readBytes:]
+	}
+
+	return nil
+}
+
+func (n operatorGroupNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryBool(n.unaryOp != nil)...)
+	if n.unaryOp != nil {
+		data = append(data, encBinary(*n.unaryOp)...)
+	}
+
+	data = append(data, encBinaryBool(n.infixOp != nil)...)
+	if n.infixOp != nil {
+		data = append(data, encBinary(*n.infixOp)...)
+	}
+
+	return data, nil
+}
+
+func (n *operatorGroupNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var isNil bool
+
+	// unaryOp
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.unaryOp = nil
+	} else {
+		readBytes, err = decBinary(data, n.unaryOp)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+	}
+
+	// infix
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.infixOp = nil
+	} else {
+		_, err = decBinary(data, n.infixOp)
+		if err != nil {
+			return err
+		}
+		//data = data[readBytes:]
+	}
+
+	return nil
+}
+
+func (n unaryOperatorGroupNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(n.op)...)
+
+	data = append(data, encBinaryBool(n.operand != nil)...)
+	if n.operand != nil {
+		data = append(data, encBinary(*n.operand)...)
+	}
+
+	return data, nil
+}
+
+func (n *unaryOperatorGroupNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var isNil bool
+
+	n.op, readBytes, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// operand
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.operand = nil
+	} else {
+		_, err = decBinary(data, n.operand)
+		if err != nil {
+			return err
+		}
+		//data = data[readBytes:]
+	}
+
+	return nil
+}
+
+func (n binaryOperatorGroupNode) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(n.op)...)
+
+	data = append(data, encBinaryBool(n.left != nil)...)
+	if n.left != nil {
+		data = append(data, encBinary(*n.left)...)
+	}
+
+	data = append(data, encBinaryBool(n.right != nil)...)
+	if n.right != nil {
+		data = append(data, encBinary(*n.right)...)
+	}
+
+	return data, nil
+}
+
+func (n *binaryOperatorGroupNode) UnmarshalBinary(data []byte) error {
+	var err error
+	var readBytes int
+	var isNil bool
+
+	n.op, readBytes, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+
+	// left
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.left = nil
+	} else {
+		readBytes, err = decBinary(data, n.left)
+		if err != nil {
+			return err
+		}
+		data = data[readBytes:]
+	}
+
+	// right
+	isNil, readBytes, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	data = data[readBytes:]
+	if isNil {
+		n.right = nil
+	} else {
+		_, err = decBinary(data, n.right)
+		if err != nil {
+			return err
+		}
+		//data = data[readBytes:]
 	}
 
 	return nil

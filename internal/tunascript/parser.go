@@ -17,8 +17,8 @@ func InterpretOpText(s string) (string, error) {
 		return "", err
 	}
 
-	fullTree := opAST{
-		nodes: []*opASTNode{ast},
+	fullTree := AST{
+		nodes: []*astNode{ast},
 	}
 
 	output := translateOperators(fullTree)
@@ -26,20 +26,20 @@ func InterpretOpText(s string) (string, error) {
 	return output, nil
 }
 
-func Parse(tokens tokenStream) (opAST, error) {
+func Parse(tokens tokenStream) (AST, error) {
 	ast, err := parseOpExpression(&tokens, 0)
 	if err != nil {
-		return opAST{}, err
+		return AST{}, err
 	}
 
-	fullTree := opAST{
-		nodes: []*opASTNode{ast},
+	fullTree := AST{
+		nodes: []*astNode{ast},
 	}
 
 	return fullTree, nil
 }
 
-func parseOpExpression(stream *tokenStream, rbp int) (*opASTNode, error) {
+func parseOpExpression(stream *tokenStream, rbp int) (*astNode, error) {
 	var err error
 
 	if stream.Remaining() < 1 {

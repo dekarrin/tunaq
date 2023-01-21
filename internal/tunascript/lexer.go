@@ -7,7 +7,12 @@ import (
 
 func LexOperationText(s string) (tokenStream, error) {
 	sRunes := []rune(s)
+	tokens, _, err := lexRunes(sRunes, false)
+	return tokens, err
+}
 
+// returns the created tokenstream, num runes consumed, and error.
+func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) {
 	var tokens []opTokenizedLexeme
 
 	curLine := 1
@@ -27,6 +32,10 @@ func LexOperationText(s string) (tokenStream, error) {
 	)
 
 	mode := lexDefault
+
+	// track our paren-depth in case endAtMatching is set
+	parenDepth := 0
+	runesConsumed := len(sRunes)
 
 	var currentfullLine = readFullLine(sRunes)
 	flushCurrentPendingToken := func() {
@@ -114,6 +123,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == ',' {
 				if escaping {
 					sb.WriteRune(',')
+					escaping = false
 				} else {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenSeparator, value: ","}
@@ -124,6 +134,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '+' {
 				if escaping {
 					sb.WriteRune('+')
+					escaping = false
 				} else {
 					flushCurrentPendingToken()
 					if i+1 < len(sRunes) && sRunes[i+1] == '+' {
@@ -151,6 +162,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '-' {
 				if escaping {
 					sb.WriteRune('-')
+					escaping = false
 				} else {
 					flushCurrentPendingToken()
 					if i+1 < len(sRunes) && sRunes[i+1] == '-' {
@@ -178,6 +190,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '/' {
 				if escaping {
 					sb.WriteRune('/')
+					escaping = false
 				} else {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenDiv, value: "/"}
@@ -188,6 +201,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '*' {
 				if escaping {
 					sb.WriteRune('*')
+					escaping = false
 				} else {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenMult, value: "*"}
@@ -198,6 +212,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '!' {
 				if escaping {
 					sb.WriteRune('!')
+					escaping = false
 				} else {
 					flushCurrentPendingToken()
 
@@ -219,6 +234,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '<' {
 				if escaping {
 					sb.WriteRune('<')
+					escaping = false
 				} else {
 					flushCurrentPendingToken()
 
@@ -240,6 +256,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '>' {
 				if escaping {
 					sb.WriteRune('>')
+					escaping = false
 				} else {
 					flushCurrentPendingToken()
 
@@ -261,16 +278,19 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '(' {
 				if escaping {
 					sb.WriteRune('(')
+					escaping = false
 				} else {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenLeftParen, value: "("}
 					curToken.fullLine = currentfullLine
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
+					parenDepth++
 				}
 			} else if ch == ')' {
 				if escaping {
 					sb.WriteRune(')')
+					escaping = false
 				} else {
 					// if we are not the parent this is an error.
 					flushCurrentPendingToken()
@@ -278,10 +298,16 @@ func LexOperationText(s string) (tokenStream, error) {
 					curToken.fullLine = currentfullLine
 					tokens = append(tokens, curToken)
 					curToken = opTokenizedLexeme{}
+					parenDepth--
+					if endAtMatchingParen && parenDepth == 0 {
+						runesConsumed = i
+						break
+					}
 				}
 			} else if ch == '&' {
 				if escaping {
 					sb.WriteRune('&')
+					escaping = false
 				} else if i+1 < len(sRunes) && sRunes[i+1] == '&' {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenAnd, value: "&&"}
@@ -295,6 +321,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '|' {
 				if escaping {
 					sb.WriteRune('|')
+					escaping = false
 				} else if i+1 < len(sRunes) && sRunes[i+1] == '|' {
 					flushCurrentPendingToken()
 					curToken = opTokenizedLexeme{pos: curLinePos, line: curLine, token: opTokenOr, value: "||"}
@@ -308,6 +335,7 @@ func LexOperationText(s string) (tokenStream, error) {
 			} else if ch == '=' {
 				if escaping {
 					sb.WriteRune('=')
+					escaping = false
 				} else {
 					// unary binding will be handled by parsing, no need to lookahead
 					// at this time.
@@ -340,6 +368,7 @@ func LexOperationText(s string) (tokenStream, error) {
 						curToken.token = opTokenUnquotedString
 					}
 					sb.WriteRune(ch)
+					escaping = false
 				}
 			}
 		}
@@ -354,7 +383,7 @@ func LexOperationText(s string) (tokenStream, error) {
 	// do we have leftover parsing string? this is a lexing error, immediately
 	// end
 	if mode == lexString {
-		return tokenStream{}, SyntaxError{
+		return tokenStream{}, 0, SyntaxError{
 			message: "unterminated '@'-string; missing a second '@'",
 		}
 	}
@@ -369,7 +398,7 @@ func LexOperationText(s string) (tokenStream, error) {
 		token: opTokenEndOfText,
 	})
 
-	return tokenStream{tokens: tokens}, nil
+	return tokenStream{tokens: tokens}, runesConsumed, nil
 }
 
 func readFullLine(sRunes []rune) string {

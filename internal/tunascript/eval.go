@@ -9,7 +9,7 @@ import (
 
 // eval takes the given AST and evaluates it to produce a value. If the given
 // AST has multiple expression nodes, there will be multiple values returned.
-func (inter Interpreter) eval(ast opAST, queryOnly bool) ([]Value, error) {
+func (inter Interpreter) eval(ast AST, queryOnly bool) ([]Value, error) {
 	var values []Value = make([]Value, len(ast.nodes))
 
 	// dont use range because that doesnt allow us to skip/backtrack i
@@ -91,8 +91,8 @@ func (inter Interpreter) eval(ast opAST, queryOnly bool) ([]Value, error) {
 			// evaluate args:
 			args := make([]Value, len(funcArgNodes))
 			for argIdx := range funcArgNodes {
-				toEval := opAST{
-					nodes: []*opASTNode{funcArgNodes[argIdx]},
+				toEval := AST{
+					nodes: []*astNode{funcArgNodes[argIdx]},
 				}
 
 				argResult, err := inter.eval(toEval, queryOnly)
@@ -149,8 +149,8 @@ func (inter Interpreter) eval(ast opAST, queryOnly bool) ([]Value, error) {
 		} else if n.group != nil {
 			// node is a parenthesized group
 
-			toEval := opAST{
-				nodes: []*opASTNode{n.group.expr},
+			toEval := AST{
+				nodes: []*astNode{n.group.expr},
 			}
 
 			vals, err := inter.eval(toEval, queryOnly)
@@ -177,11 +177,11 @@ func (inter Interpreter) eval(ast opAST, queryOnly bool) ([]Value, error) {
 					panic(fmt.Sprintf("no implementation found for operator %q", opNode.op))
 				}
 
-				leftExec := opAST{
-					nodes: []*opASTNode{opNode.left},
+				leftExec := AST{
+					nodes: []*astNode{opNode.left},
 				}
-				rightExec := opAST{
-					nodes: []*opASTNode{opNode.left},
+				rightExec := AST{
+					nodes: []*astNode{opNode.left},
 				}
 
 				left, err := inter.eval(leftExec, queryOnly)
@@ -204,8 +204,8 @@ func (inter Interpreter) eval(ast opAST, queryOnly bool) ([]Value, error) {
 					panic(fmt.Sprintf("no implementation found for operator %q", opNode.op))
 				}
 
-				toExec := opAST{
-					nodes: []*opASTNode{opNode.operand},
+				toExec := AST{
+					nodes: []*astNode{opNode.operand},
 				}
 
 				evaluated, err := inter.eval(toExec, queryOnly)
@@ -233,7 +233,7 @@ func (inter Interpreter) eval(ast opAST, queryOnly bool) ([]Value, error) {
 // translateOperators turns the ast into a tunascript string containing only
 // function calls and no operators. Originally this was for a 2-pass compiler
 // but that is overkill; current ast already handles all cases.
-func translateOperators(ast opAST) string {
+func translateOperators(ast AST) string {
 	var sb strings.Builder
 
 	for i := 0; i < len(ast.nodes); i++ {
@@ -259,8 +259,8 @@ func translateOperators(ast opAST) string {
 			sb.WriteRune('(')
 
 			for i := range node.fn.args {
-				toExec := opAST{
-					nodes: []*opASTNode{node.fn.args[i]},
+				toExec := AST{
+					nodes: []*astNode{node.fn.args[i]},
 				}
 				insert := translateOperators(toExec)
 				sb.WriteString(insert)
@@ -275,8 +275,8 @@ func translateOperators(ast opAST) string {
 			sb.WriteString(node.flag.name)
 		} else if node.group != nil {
 			sb.WriteRune('(')
-			toExec := opAST{
-				nodes: []*opASTNode{node.group.expr},
+			toExec := AST{
+				nodes: []*astNode{node.group.expr},
 			}
 			insert := translateOperators(toExec)
 			sb.WriteString(insert)
@@ -284,11 +284,11 @@ func translateOperators(ast opAST) string {
 		} else if node.opGroup != nil {
 			if node.opGroup.infixOp != nil {
 				op := node.opGroup.infixOp.op
-				leftExec := opAST{
-					nodes: []*opASTNode{node.opGroup.infixOp.left},
+				leftExec := AST{
+					nodes: []*astNode{node.opGroup.infixOp.left},
 				}
-				rightExec := opAST{
-					nodes: []*opASTNode{node.opGroup.infixOp.right},
+				rightExec := AST{
+					nodes: []*astNode{node.opGroup.infixOp.right},
 				}
 
 				leftInsert := translateOperators(leftExec)
@@ -333,8 +333,8 @@ func translateOperators(ast opAST) string {
 				sb.WriteString(fmt.Sprintf(funcTemplate, leftInsert, rightInsert))
 			} else if node.opGroup.unaryOp != nil {
 				op := node.opGroup.unaryOp.op
-				toExec := opAST{
-					nodes: []*opASTNode{node.opGroup.unaryOp.operand},
+				toExec := AST{
+					nodes: []*astNode{node.opGroup.unaryOp.operand},
 				}
 				toInsert := translateOperators(toExec)
 				var funcTemplate string
