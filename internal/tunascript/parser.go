@@ -52,10 +52,10 @@ func parseOpExpression(stream *tokenStream, rbp int) (*astNode, error) {
 		return nil, err
 	}
 	if left == nil {
-		return nil, syntaxErrorFromLexeme(fmt.Sprintf("unexpected %[1]s\n(%[1]s cannot be at the start of an expression)", t.token.human), t)
+		return nil, syntaxErrorFromLexeme(fmt.Sprintf("unexpected %[1]s\n(%[1]s cannot be at the start of an expression)", t.class.human), t)
 	}
 
-	for rbp < stream.Peek().token.lbp {
+	for rbp < stream.Peek().class.lbp {
 		t = stream.Next()
 		left, err = t.led(left, stream)
 		if err != nil {

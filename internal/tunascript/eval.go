@@ -25,8 +25,8 @@ func (inter Interpreter) eval(ast AST, queryOnly bool) ([]Value, error) {
 				// it is a quotedString
 				strVal := (*valNode.quotedStringVal)
 
-				// remove the @-signs
-				strVal = strVal[1 : len(strVal)-1]
+				// remove the quote-signs
+				strVal = strVal[len(literalStrStringQuote) : len(strVal)-len(literalStrStringQuote)]
 
 				v := NewStr(strVal)
 				values[i] = v
@@ -59,16 +59,16 @@ func (inter Interpreter) eval(ast AST, queryOnly bool) ([]Value, error) {
 			funcName := strings.ToUpper(fnNode.name)
 
 			// remove leading identifier marker '$' from func name
-			funcName = funcName[1:]
+			funcName = funcName[len(literalStrIdentifierStart):]
 
 			fn, ok := inter.fn[funcName]
 			if !ok {
-				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function $%s() does not exist", funcName), n.source)
+				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function %s%s%s does not exist", literalStrIdentifierStart, funcName, literalStrGroupOpen+literalStrGroupClose), n.source)
 			}
 
 			// restrict if requested
 			if queryOnly && fn.SideEffects {
-				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function $%s() will change the game state and is not allowed here", funcName), n.source)
+				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function %s%s%s will change the game state and is not allowed here", literalStrIdentifierStart, funcName, literalStrGroupOpen+literalStrGroupClose), n.source)
 			}
 
 			if len(funcArgNodes) < fn.RequiredArgs {
@@ -76,7 +76,7 @@ func (inter Interpreter) eval(ast AST, queryOnly bool) ([]Value, error) {
 				if fn.RequiredArgs == 1 {
 					s = ""
 				}
-				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function $%s() requires at least %d parameter%s; %d given", fn.Name, fn.RequiredArgs, s, len(funcArgNodes)), n.source)
+				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function %s%s%s requires at least %d parameter%s; %d given", literalStrIdentifierStart, fn.Name, literalStrGroupOpen+literalStrGroupClose, fn.RequiredArgs, s, len(funcArgNodes)), n.source)
 			}
 
 			maxArgs := fn.RequiredArgs + fn.OptionalArgs
@@ -85,7 +85,7 @@ func (inter Interpreter) eval(ast AST, queryOnly bool) ([]Value, error) {
 				if maxArgs == 1 {
 					s = ""
 				}
-				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function $%s() takes at most %d parameter%s; %d given", fn.Name, maxArgs, s, len(funcArgNodes)), n.source)
+				return nil, syntaxErrorFromLexeme(fmt.Sprintf("function %s%s%s takes at most %d parameter%s; %d given", literalStrIdentifierStart, fn.Name, literalStrGroupOpen+literalStrGroupClose, maxArgs, s, len(funcArgNodes)), n.source)
 			}
 
 			// evaluate args:
@@ -136,7 +136,7 @@ func (inter Interpreter) eval(ast AST, queryOnly bool) ([]Value, error) {
 			flagName := strings.ToUpper(flagNode.name)
 
 			// remove identifier sign '$'
-			flagName = flagName[1:]
+			flagName = flagName[len(literalStrIdentifierStart):]
 
 			var v Value
 			flag, ok := inter.flags[flagName]
@@ -256,7 +256,7 @@ func translateOperators(ast AST) string {
 			}
 		} else if node.fn != nil {
 			sb.WriteString(node.fn.name)
-			sb.WriteRune('(')
+			writeRuneSlice(sb, literalGroupOpen)
 
 			for i := range node.fn.args {
 				toExec := AST{
@@ -265,22 +265,22 @@ func translateOperators(ast AST) string {
 				insert := translateOperators(toExec)
 				sb.WriteString(insert)
 				if i+1 < len(node.fn.args) {
-					sb.WriteRune(',')
+					writeRuneSlice(sb, literalSeparator)
 					sb.WriteRune(' ')
 				}
 			}
 
-			sb.WriteRune(')')
+			writeRuneSlice(sb, literalGroupClose)
 		} else if node.flag != nil {
 			sb.WriteString(node.flag.name)
 		} else if node.group != nil {
-			sb.WriteRune('(')
+			writeRuneSlice(sb, literalGroupOpen)
 			toExec := AST{
 				nodes: []*astNode{node.group.expr},
 			}
 			insert := translateOperators(toExec)
 			sb.WriteString(insert)
-			sb.WriteRune(')')
+			writeRuneSlice(sb, literalGroupClose)
 		} else if node.opGroup != nil {
 			if node.opGroup.infixOp != nil {
 				op := node.opGroup.infixOp.op
@@ -295,42 +295,43 @@ func translateOperators(ast AST) string {
 				rightInsert := translateOperators(rightExec)
 
 				var funcTemplate string
+				// TODO: Dude, Go has the template package! Why aren't we using it????????
 				if op == "+" {
-					funcTemplate = "$ADD(%s, %s)"
+					funcTemplate = "%[1]sADD%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else if op == "-" {
-					funcTemplate = "$SUB(%s, %s)"
+					funcTemplate = "%[1]sSUB%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else if op == "/" {
-					funcTemplate = "$DIV(%s, %s)"
+					funcTemplate = "%[1]sDIV%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else if op == "*" {
-					funcTemplate = "$MULT(%s, %s)"
+					funcTemplate = "%[1]sMULT%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else if op == "&&" {
-					funcTemplate = "$AND(%s, %s)"
+					funcTemplate = "%[1]sAND%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else if op == "||" {
-					funcTemplate = "$OR(%s, %s)"
+					funcTemplate = "%[1]sOR%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else if op == "+=" {
-					funcTemplate = "$INC(%s, %s)"
+					funcTemplate = "%[1]sINC%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else if op == "-=" {
-					funcTemplate = "$DEC(%s, %s)"
+					funcTemplate = "%[1]sDEC%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else if op == "!=" {
-					funcTemplate = "$NOT(FLAG_IS(%s, %s))"
-				} else if op == "==" {
-					funcTemplate = "$FLAG_IS(%s, %s)"
+					funcTemplate = "%[1]sNOT%[2]s%[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s%[3]s"
+				} else if op == literalStrOpIs {
+					funcTemplate = "%[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else if op == "<" {
-					funcTemplate = "$FLAG_LESS_THAN(%s, %s)"
+					funcTemplate = "%[1]sFLAG_LESS_THAN%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else if op == ">" {
-					funcTemplate = "$FLAG_GREATER_THAN(%s, %s)"
+					funcTemplate = "%[1]sFLAG_GREATER_THAN%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else if op == ">=" {
-					funcTemplate = "$OR($FLAG_GREATER_THAN(%[1]s, %[2]s), $FLAG_IS(%[1]s, %[2]s))"
+					funcTemplate = "%[1]sOR%[2]s%[1]sFLAG_GREATER_THAN%[2]s%[4]s%[6]s %[5]s%[3]s%[6]s %[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s%[3]s"
 				} else if op == "<=" {
-					funcTemplate = "$OR($FLAG_LESS_THAN(%[1]s, %[2]s), $FLAG_IS(%[1]s, %[2]s))"
+					funcTemplate = "%[1]sOR%[2]s%[1]sFLAG_LESS_THAN%[2]s%[4]s%[6]s %[5]s%[3]s%[6]s %[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s%[3]s"
 				} else if op == "=" {
-					funcTemplate = "$SET(%[1]s, %[2]s)"
+					funcTemplate = "%[1]sSET%[2]s%[4]s%[6]s %[5]s%[3]s"
 				} else {
 					// should never happen
 					panic(fmt.Sprintf("unknown binary operator %q", op))
 				}
 
-				sb.WriteString(fmt.Sprintf(funcTemplate, leftInsert, rightInsert))
+				sb.WriteString(fmt.Sprintf(funcTemplate, literalStrIdentifierStart, literalStrGroupOpen, literalStrGroupClose, leftInsert, rightInsert, literalStrSeparator))
 			} else if node.opGroup.unaryOp != nil {
 				op := node.opGroup.unaryOp.op
 				toExec := AST{
@@ -339,19 +340,19 @@ func translateOperators(ast AST) string {
 				toInsert := translateOperators(toExec)
 				var funcTemplate string
 				if op == "!" {
-					funcTemplate = "$NOT(%s)"
+					funcTemplate = "%[1]sNOT%[2]s%[4]s%[3]s"
 				} else if op == "++" {
-					funcTemplate = "$INC(%s)"
+					funcTemplate = "%[1]sINC%[2]s%[4]s%[3]s"
 				} else if op == "--" {
-					funcTemplate = "$DEC(%s)"
+					funcTemplate = "%[1]sDEC%[2]s%[4]s%[3]s"
 				} else if op == "-" {
-					funcTemplate = "$NEG(%s)"
+					funcTemplate = "%[1]sNEG%[2]s%[4]s%[3]s"
 				} else {
 					// should never happen
 					panic(fmt.Sprintf("unknown unary operator %q", op))
 				}
 
-				sb.WriteString(fmt.Sprintf(funcTemplate, toInsert))
+				sb.WriteString(fmt.Sprintf(funcTemplate, literalStrIdentifierStart, literalStrGroupOpen, literalStrGroupClose, toInsert))
 			} else {
 				// should never happen
 				panic("opGroup node in AST does not assign infix or unary")
@@ -363,4 +364,10 @@ func translateOperators(ast AST) string {
 	}
 
 	return sb.String()
+}
+
+func writeRuneSlice(sb strings.Builder, r []rune) {
+	for i := range r {
+		sb.WriteRune(r[i])
+	}
 }

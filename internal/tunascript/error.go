@@ -76,11 +76,11 @@ func (se SyntaxError) SourceLineWithCursor() string {
 	return se.sourceLine + "\n" + cursorLine
 }
 
-func syntaxErrorFromLexeme(msg string, lexeme opTokenizedLexeme) SyntaxError {
+func syntaxErrorFromLexeme(msg string, lexeme token) SyntaxError {
 	return SyntaxError{
 		message:    msg,
 		sourceLine: lexeme.fullLine,
-		source:     lexeme.value,
+		source:     lexeme.lexeme,
 		pos:        lexeme.pos,
 		line:       lexeme.line,
 	}

@@ -16,7 +16,7 @@ type astNode struct {
 	flag    *flagNode
 	group   *groupNode
 	opGroup *operatorGroupNode
-	source  opTokenizedLexeme
+	source  token
 }
 
 type flagNode struct {
@@ -151,7 +151,7 @@ func indexOfMatchingParen(sRunes []rune) (int, AST, error) {
 		}
 	}
 	// check that we ended on a right paren (will be second-to-last bc last is EOT)
-	if tokenStr.tokens[len(tokenStr.tokens)-2].token.id != opTokenRightParen.id {
+	if tokenStr.tokens[len(tokenStr.tokens)-2].class.id != tsGroupClose.id {
 		// in this case, lexing got to the end of the string but did not finish
 		// on a right paren. This is a syntax error.
 		return 0, AST{}, SyntaxError{
