@@ -12,7 +12,7 @@ func InterpretOpText(s string) (string, error) {
 	}
 
 	// TODO: need debug
-	ast, err := parseOpExpression(&lexed, 0)
+	ast, err := parseExpression(&lexed, 0)
 	if err != nil {
 		return "", err
 	}
@@ -27,7 +27,7 @@ func InterpretOpText(s string) (string, error) {
 }
 
 func Parse(tokens tokenStream) (AST, error) {
-	ast, err := parseOpExpression(&tokens, 0)
+	ast, err := parseExpression(&tokens, 0)
 	if err != nil {
 		return AST{}, err
 	}
@@ -39,7 +39,7 @@ func Parse(tokens tokenStream) (AST, error) {
 	return fullTree, nil
 }
 
-func parseOpExpression(stream *tokenStream, rbp int) (*astNode, error) {
+func parseExpression(stream *tokenStream, rbp int) (*astNode, error) {
 	// TODO: consider implementing panic mode to parse rest of the system
 
 	var err error

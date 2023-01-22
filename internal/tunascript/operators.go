@@ -59,7 +59,7 @@ func (lex token) nud(tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpMinus:
-		negatedVal, err := parseOpExpression(tokens, maxTokenBindingPower)
+		negatedVal, err := parseExpression(tokens, maxTokenBindingPower)
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +113,7 @@ func (lex token) nud(tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsGroupOpen:
-		expr, err := parseOpExpression(tokens, 0)
+		expr, err := parseExpression(tokens, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +142,7 @@ func (lex token) nud(tokens *tokenStream) (*astNode, error) {
 func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 	switch lex.class {
 	case tsOpLessThanIs:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +158,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpGreaterThanIs:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +174,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpLessThan:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +190,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpGreaterThan:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -206,7 +206,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpIsNot:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -222,7 +222,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpIs:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -238,7 +238,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpSet:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -254,7 +254,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpIncset:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -270,7 +270,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpDecset:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -319,7 +319,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpPlus:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -334,7 +334,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpMinus:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -349,7 +349,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpMultiply:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -364,7 +364,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			source: lex,
 		}, nil
 	case tsOpDivide:
-		right, err := parseOpExpression(tokens, lex.class.lbp)
+		right, err := parseExpression(tokens, lex.class.lbp)
 		if err != nil {
 			return nil, err
 		}
@@ -388,7 +388,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 
 		if tokens.Peek().class != tsGroupClose {
 			for {
-				arg, err := parseOpExpression(tokens, 0)
+				arg, err := parseExpression(tokens, 0)
 				if err != nil {
 					return nil, err
 				}
