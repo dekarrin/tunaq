@@ -269,93 +269,91 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 		case lexDefault:
 			if !escaping && ch == '\\' {
 				escaping = true
-				// TODO: continue but dont actually use that!
-				// I Believe It Would Cause It To Go Out Of Scope Yes.
-			}
-
-			// need to not unroll this bc we need to try all and then select
-			// by disambiguation
-
-			matches := []matchRule{}
-			if !escaping {
-				for j := range regularModeMatchRules {
-					if startMatches(sRunes[i:], regularModeMatchRules[j].literal) {
-						matches = append(matches, regularModeMatchRules[j])
-					}
-				}
-			}
-
-			// TODO This entire section can a8solutely be replaced with a regular
-			// expression! And it wouldn't need a *lot* of modific8ions. Well,
-			// not any that wouldn't 8e worth it, anyways.
-			//
-			// right but i think its super hard to write a regex for a quoted
-			// string that can have backslashes. unless you gave a regex for a
-			// modeswap hmmmm....
-			//
-			// Yeah, we should look into it in the future if we want to
-			// optimize.
-			if len(matches) > 0 {
-				if len(matches) > 1 {
-					// need to decide which one to do, select the largest one
-					longestMatchLen := 0
-					for _, m := range matches {
-						if len(m.literal) > longestMatchLen {
-							longestMatchLen = len(m.literal)
-						}
-					}
-
-					// drop all smaller than largest
-					bettaMatches := []matchRule{}
-					for _, m := range matches {
-						if len(m.literal) == longestMatchLen {
-							bettaMatches = append(bettaMatches, m)
-						}
-					}
-
-					// if we STILL have an ambiguity, take the one at start
-					matches = bettaMatches[:1]
-				}
-				action := matches[0]
-
-				flushCurrentPendingToken()
-				curToken.pos = curLinePos
-				curToken.line = curLine
-				curToken.class = action.class
-				if action.transitionModeTo != lexDefault {
-					mode = action.transitionModeTo
-					writeRuneSlice(sb, action.literal)
-				} else {
-					// for a normal match, just put in the token
-					curToken.lexeme = action.lexeme
-					curToken.fullLine = currentfullLine
-					tokens = append(tokens, curToken)
-					curToken = token{}
-				}
-
-				if action.class == tsGroupOpen {
-					parenDepth++
-				} else if action.class == tsGroupClose {
-					parenDepth--
-					if endAtMatchingParen && parenDepth == 0 {
-						runesConsumed = i + len(action.literal) - 1
-						break
-					}
-				}
-				i += len(action.literal) - 1
 			} else {
+				// need to not unroll this bc we need to try all and then select
+				// by disambiguation
 
-				// do not include whitespace unless it is escaped
-				if escaping || !unicode.IsSpace(ch) {
-					// is this the first non empty char? set the props for an unquoted string,
-					// the default.
-					if sb.Len() == 0 {
-						curToken.line = curLine
-						curToken.pos = curLinePos
-						curToken.class = tsUnquotedString
+				matches := []matchRule{}
+				if !escaping {
+					for j := range regularModeMatchRules {
+						if startMatches(sRunes[i:], regularModeMatchRules[j].literal) {
+							matches = append(matches, regularModeMatchRules[j])
+						}
 					}
-					sb.WriteRune(ch)
-					escaping = false
+				}
+
+				// TODO This entire section can a8solutely be replaced with a regular
+				// expression! And it wouldn't need a *lot* of modific8ions. Well,
+				// not any that wouldn't 8e worth it, anyways.
+				//
+				// right but i think its super hard to write a regex for a quoted
+				// string that can have backslashes. unless you gave a regex for a
+				// modeswap hmmmm....
+				//
+				// Yeah, we should look into it in the future if we want to
+				// optimize.
+				if len(matches) > 0 {
+					if len(matches) > 1 {
+						// need to decide which one to do, select the largest one
+						longestMatchLen := 0
+						for _, m := range matches {
+							if len(m.literal) > longestMatchLen {
+								longestMatchLen = len(m.literal)
+							}
+						}
+
+						// drop all smaller than largest
+						bettaMatches := []matchRule{}
+						for _, m := range matches {
+							if len(m.literal) == longestMatchLen {
+								bettaMatches = append(bettaMatches, m)
+							}
+						}
+
+						// if we STILL have an ambiguity, take the one at start
+						matches = bettaMatches[:1]
+					}
+					action := matches[0]
+
+					flushCurrentPendingToken()
+					curToken.pos = curLinePos
+					curToken.line = curLine
+					curToken.class = action.class
+					if action.transitionModeTo != lexDefault {
+						mode = action.transitionModeTo
+						writeRuneSlice(sb, action.literal)
+					} else {
+						// for a normal match, just put in the token
+						curToken.lexeme = action.lexeme
+						curToken.fullLine = currentfullLine
+						tokens = append(tokens, curToken)
+						curToken = token{}
+					}
+
+					if action.class == tsGroupOpen {
+						parenDepth++
+					} else if action.class == tsGroupClose {
+						parenDepth--
+						if endAtMatchingParen && parenDepth == 0 {
+							runesConsumed = i + len(action.literal) - 1
+							break
+						}
+					}
+					i += len(action.literal) - 1
+				} else {
+
+					// do not include whitespace unless it is escaped
+					if escaping || !unicode.IsSpace(ch) {
+						// is this the first non empty char? set the props for an unquoted string,
+						// the default.
+						if sb.Len() == 0 {
+							curToken.line = curLine
+							curToken.pos = curLinePos
+							curToken.class = tsUnquotedString
+						}
+						sb.WriteRune(ch)
+						escaping = false
+					}
 				}
 			}
 		}

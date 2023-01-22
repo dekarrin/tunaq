@@ -54,15 +54,23 @@ type binaryOperatorGroupNode struct {
 // of a ParsedExpansion is not suitable for use and they should only be created
 // by calls to AnalyzeExpansion.
 type ExpansionAST struct {
-	nodes []expTreeNode
+	nodes []expASTNode
 }
 
-type expTreeNode struct {
+type expASTNode struct {
 	// can be a text node or a conditional node. Conditional nodes hold a series
 	// of ifs
 	text   *expTextNode   // if not nil its a text node
 	branch *expBranchNode // if not nil its a branch node
 	flag   *expFlagNode   // if not nil its a flag node
+	source expSource
+}
+
+type expSource struct {
+	text     string
+	fullLine string
+	line     int
+	pos      int
 }
 
 type expFlagNode struct {

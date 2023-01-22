@@ -7,67 +7,34 @@ import (
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
-// indexOfMatchingParen takes the given string, which must start with
-// a parenthesis char "(", and returns the index of the ")" that matches it. Any
-// text in between is analyzed for other parenthesis and if they are there, they
-// must be matched as well.
+// Expand applies expansion on the given text. Expansion will expand the
+// following constructs:
 //
-// Index will be -1 if it does not have a match.
-// Error is non-nil if there is unlex-able tunascript syntax between the parens,
-// of if s cannot be operated on.
-func indexOfMatchingParen(sRunes []rune) (int, AST, error) {
-	if sRunes[0] != '(' {
-		var errStr string
-		if len(sRunes) > 50 {
-			errStr = string(sRunes[:50]) + "..."
-		} else {
-			errStr = string(sRunes)
-		}
-		return 0, AST{}, SyntaxError{
-			message: fmt.Sprintf("no %s at start of analysis string %q", literalStrGroupOpen, errStr),
-		}
-	}
-
-	if len(sRunes) < 2 {
-		return 0, AST{}, SyntaxError{
-			message: "unexpected end of expression (unmatched '" + literalStrGroupOpen + "')",
-		}
-	}
-
-	tokenStr, consumed, err := lexRunes(sRunes, true)
+//   - any flag reference with the $ will be expanded to its full value.
+//   - any $IF() ... $ENDIF() block will be evaluated and included in the output
+//     text only if the tunaquest expression inside the $IF evaluates to true.
+//   - function calls are not allowed outside of the tunascript expression in an
+//     $IF. If they are there, they will be interpreted as a variable expansion,
+//     and if there is no value matching that one, it will be expanded to an
+//     empty string. E.g. "$ADD()" in the body text would evaluate to value of
+//     flag called "ADD" (probably ""), followed by literal parenthesis.
+//   - bare dollar signs are evaluated as literal. This will only happen if they
+//     are not immediately followed by identifier chars.
+//   - literal $ signs can be included with a backslash. Thus the escape
+//     backslash will work.
+//   - literal backslashes can be included by escaping them.
+func (inter Interpreter) Expand(s string) (string, error) {
+	expAST, err := inter.ParseExpansion(s)
 	if err != nil {
-		return 0, AST{}, err
+		return "", err
 	}
 
-	// check that we got minimum tokens
-	if tokenStr.Len() < 3 {
-		// not enough tokens; at minimum we require lparen, rparen, and EOT.
-		return 0, AST{}, SyntaxError{
-			message: "unexpected end of expression (unmatched '" + literalStrGroupOpen + "')",
-		}
-	}
-	// check that we ended on a right paren (will be second-to-last bc last is EOT)
-	if tokenStr.tokens[len(tokenStr.tokens)-2].class.id != tsGroupClose.id {
-		// in this case, lexing got to the end of the string but did not finish
-		// on a right paren. This is a syntax error.
-		return 0, AST{}, SyntaxError{
-			message: "unexpected end of expression (unmatched '" + literalStrGroupOpen + "')",
-		}
-	}
-
-	// modify returned list of tokens to not include the start and end parens
-	// before parsing
-	eotLexeme := tokenStr.tokens[len(tokenStr.tokens)-1]          // preserve EOT
-	tokenStr.tokens = tokenStr.tokens[1 : len(tokenStr.tokens)-2] // chop off ends
-	tokenStr.tokens = append(tokenStr.tokens, eotLexeme)          // add EOT back in
-
-	// now parse it to get back the actual AST
-	ast, err := Parse(tokenStr)
+	expanded, err := inter.ExpandTree(expAST)
 	if err != nil {
-		return 0, ast, err
+		return "", err
 	}
 
-	return consumed, ast, nil
+	return expanded, nil
 }
 
 // SyntaxCheckTree executes every branch of the tree without giving output to
@@ -241,7 +208,7 @@ func (inter Interpreter) ParseExpansion(s string) (*ExpansionAST, error) {
 
 func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bool) (*ExpansionAST, int, error) {
 	tree := &ExpansionAST{
-		nodes: make([]expTreeNode, 0),
+		nodes: make([]expASTNode, 0),
 	}
 
 	const (
@@ -274,23 +241,51 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 
 	}
 
+	curLine := 1
+	curLinePos := 1
+	currentfullLine := readFullLine(sRunes)
+
+	curSource := func() expSource {
+		es := expSource{
+			line:     curLine,
+			pos:      curLinePos,
+			fullLine: currentfullLine,
+		}
+		if mode == modeText {
+			es.text = curText.String()
+		} else {
+			es.text = ident.String()
+		}
+		return es
+	}
+
 	for i := 0; i < len(sRunes); i++ {
 		ch := sRunes[i]
+
+		// if it's a newline for any reason, get the next line for the current
+		// one
+		if ch == '\n' {
+			//
+			currentfullLine = readFullLine(sRunes[i+1:])
+		}
+
 		switch mode {
 		case modeText:
 			if !escaping && ch == '\\' {
 				escaping = true
-			} else if !escaping && ch == '$' {
+			} else if !escaping && startMatches(sRunes[i:], literalIdentifierStart) {
 				if curText.Len() > 0 {
 					lastText := curText.String()
-					tree.nodes = append(tree.nodes, expTreeNode{
-						text: buildTextNode(lastText),
+					tree.nodes = append(tree.nodes, expASTNode{
+						text:   buildTextNode(lastText),
+						source: curSource(),
 					})
 					curText.Reset()
 				}
 
-				ident.WriteRune('$')
+				writeRuneSlice(ident, literalIdentifierStart)
 				mode = modeIdent
+				i += len(literalIdentifierStart) - 1
 			} else {
 				curText.WriteRune(ch)
 			}
@@ -300,16 +295,22 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 			} else if ch == '(' {
 				fnName := ident.String()
 
-				if fnName == "$IF" {
+				if fnName == literalStrIdentifierStart+"IF" {
 					// we've encountered an IF block, recurse.
 					parenMatch, tsExpr, err := indexOfMatchingParen(sRunes[i:])
 					if err != nil {
-						return tree, 0, fmt.Errorf("at char %d: %w", i, err)
+						return tree, 0, err
 					}
 					exprLen := parenMatch - 1
 
 					if exprLen < 1 {
-						return tree, 0, fmt.Errorf("at char %d: args cannot be empty", i)
+						return nil, 0, SyntaxError{
+							line:       curLine,
+							pos:        curLinePos,
+							sourceLine: currentfullLine,
+							source:     fnName,
+							message:    "args cannot be empty",
+						}
 					}
 
 					branch := expBranchNode{
@@ -321,7 +322,13 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 					i += parenMatch
 
 					if i+1 >= len(sRunes) {
-						return nil, 0, fmt.Errorf("unexpected end of text (unmatched $IF)")
+						return nil, 0, SyntaxError{
+							line:       curLine,
+							pos:        curLinePos,
+							sourceLine: currentfullLine,
+							source:     fnName,
+							message:    "unexpected end of text (unmatched " + literalStrIdentifierStart + "IF)",
+						}
 					}
 
 					ast, consumed, err := inter.parseExpansion(sRunes[i+1:], sBytes[i+1:], false)
@@ -331,17 +338,18 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 
 					branch.ifNode.content = ast
 
-					tree.nodes = append(tree.nodes, expTreeNode{
+					tree.nodes = append(tree.nodes, expASTNode{
 						branch: &branch,
+						source: curSource(),
 					})
 
 					i += consumed
 
 					ident.Reset()
 
-					i++ // to skip the closing paren that the recursed call detected and returned on
+					i += len(literalGroupClose) // to skip the closing paren that the recursed call detected and returned on
 					mode = modeText
-				} else if fnName == "$ENDIF" {
+				} else if fnName == literalStrIdentifierStart+"ENDIF" {
 					parenMatch, tsExpr, err := indexOfMatchingParen(sRunes[i:])
 					if err != nil {
 						return nil, 0, fmt.Errorf("at char %d: %w", i, err)
@@ -349,22 +357,40 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 					exprLen := parenMatch - 1
 
 					if exprLen != 0 {
-						return nil, 0, fmt.Errorf("at char %d: $ENDIF() takes zero arguments, received %d", i, len(tsExpr.nodes))
+						return nil, 0, SyntaxError{
+							line:       curLine,
+							pos:        curLinePos,
+							sourceLine: currentfullLine,
+							source:     fnName,
+							message:    fmt.Sprintf(literalStrIdentifierStart+"ENDIF%s%s takes zero arguments, received %d", literalStrGroupOpen, literalStrGroupClose, len(tsExpr.nodes)),
+						}
 					}
 					i += parenMatch
 
 					if topLevel {
-						return nil, 0, fmt.Errorf("unexpected end of text (unmatched $ENDIF)")
+						return nil, 0, SyntaxError{
+							line:       curLine,
+							pos:        curLinePos,
+							sourceLine: currentfullLine,
+							source:     fnName,
+							message:    "unexpected end of text (unmatched " + literalStrIdentifierStart + "ENDIF)",
+						}
 					}
 
 					return tree, i, nil
 				} else {
-					return nil, 0, fmt.Errorf("at char %d: %s() is not a text function; only $IF() or $ENDIF() are allowed", i, ident.String())
+					return nil, 0, SyntaxError{
+						line:       curLine,
+						pos:        curLinePos,
+						sourceLine: currentfullLine,
+						source:     fnName,
+						message:    fmt.Sprintf("%[4]s%[2]s%[3]s is not a text function; only %[1]sIF%[2]s%[3]s or %[1]sENDIF%[2]s%[3]s are allowed", literalStrIdentifierStart, literalStrGroupOpen, literalStrGroupClose, ident.String()),
+					}
 				}
 			} else {
 				flagName := ident.String()
 
-				tree.nodes = append(tree.nodes, expTreeNode{
+				tree.nodes = append(tree.nodes, expASTNode{
 					flag: &expFlagNode{
 						name: flagName,
 					},
@@ -375,17 +401,29 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 			}
 		default:
 			// should never happen
-			return nil, 0, fmt.Errorf("unknown parser mode: %v", mode)
+			panic(fmt.Sprintf("unknown parser mode: %v", mode))
+		}
+
+		curLinePos++
+		if ch == '\n' {
+			curLine++
+			curLinePos = 1
 		}
 	}
 
 	if !topLevel {
-		return nil, 0, fmt.Errorf("unexpected end of text (unmatched $IF)")
+		return nil, 0, SyntaxError{
+			line:       curLine,
+			pos:        curLinePos,
+			sourceLine: currentfullLine,
+			source:     "",
+			message:    fmt.Sprintf("unexpected end of text (unmatched %[1]sIF)", literalStrIdentifierStart),
+		}
 	}
 
 	if curText.Len() > 0 {
 		lastText := curText.String()
-		tree.nodes = append(tree.nodes, expTreeNode{
+		tree.nodes = append(tree.nodes, expASTNode{
 			text: buildTextNode(lastText),
 		})
 		curText.Reset()
@@ -394,7 +432,7 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 	if ident.Len() > 0 {
 		flagName := ident.String()
 
-		tree.nodes = append(tree.nodes, expTreeNode{
+		tree.nodes = append(tree.nodes, expASTNode{
 			flag: &expFlagNode{
 				name: flagName,
 			},
@@ -404,32 +442,66 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 	return tree, len(sRunes), nil
 }
 
-// Expand applies expansion on the given text. Expansion will expand the
-// following constructs:
+// indexOfMatchingParen takes the given string, which must start with
+// a group open token, and returns the starting index of the group close token
+// that matches it. Any text in between is analyzed for other parenthesis and if
+// they are there, they must be matched as well.
 //
-//   - any flag reference with the $ will be expanded to its full value.
-//   - any $IF() ... $ENDIF() block will be evaluated and included in the output
-//     text only if the tunaquest expression inside the $IF evaluates to true.
-//   - function calls are not allowed outside of the tunascript expression in an
-//     $IF. If they are there, they will be interpreted as a variable expansion,
-//     and if there is no value matching that one, it will be expanded to an
-//     empty string. E.g. "$ADD()" in the body text would evaluate to value of
-//     flag called "ADD" (probably ""), followed by literal parenthesis.
-//   - bare dollar signs are evaluated as literal. This will only happen if they
-//     are not immediately followed by identifier chars.
-//   - literal $ signs can be included with a backslash. Thus the escape
-//     backslash will work.
-//   - literal backslashes can be included by escaping them.
-func (inter Interpreter) Expand(s string) (string, error) {
-	expAST, err := inter.ParseExpansion(s)
-	if err != nil {
-		return "", err
+// Index will be -1 if it does not have a match.
+//
+// Error is non-nil if there is unlex-able tunascript syntax within the group,
+// of if s cannot be operated on.
+func indexOfMatchingParen(sRunes []rune) (int, AST, error) {
+	if !startMatches(sRunes, literalGroupOpen) {
+		var errStr string
+		if len(sRunes) > 50 {
+			errStr = string(sRunes[:50]) + "..."
+		} else {
+			errStr = string(sRunes)
+		}
+		return 0, AST{}, SyntaxError{
+			message: fmt.Sprintf("no %s at start of analysis string %q", literalStrGroupOpen, errStr),
+		}
 	}
 
-	expanded, err := inter.ExpandTree(expAST)
-	if err != nil {
-		return "", err
+	if len(sRunes) < 2 {
+		return 0, AST{}, SyntaxError{
+			message: "unexpected end of expression (unmatched '" + literalStrGroupOpen + "')",
+		}
 	}
 
-	return expanded, nil
+	tokenStr, consumed, err := lexRunes(sRunes, true)
+	if err != nil {
+		return 0, AST{}, err
+	}
+
+	// check that we got minimum tokens
+	if tokenStr.Len() < 3 {
+		// not enough tokens; at minimum we require lparen, rparen, and EOT.
+		return 0, AST{}, SyntaxError{
+			message: "unexpected end of expression (unmatched '" + literalStrGroupOpen + "')",
+		}
+	}
+	// check that we ended on a right paren (will be second-to-last bc last is EOT)
+	if tokenStr.tokens[len(tokenStr.tokens)-2].class.id != tsGroupClose.id {
+		// in this case, lexing got to the end of the string but did not finish
+		// on a right paren. This is a syntax error.
+		return 0, AST{}, SyntaxError{
+			message: "unexpected end of expression (unmatched '" + literalStrGroupOpen + "')",
+		}
+	}
+
+	// modify returned list of tokens to not include the start and end parens
+	// before parsing
+	eotLexeme := tokenStr.tokens[len(tokenStr.tokens)-1]          // preserve EOT
+	tokenStr.tokens = tokenStr.tokens[1 : len(tokenStr.tokens)-2] // chop off ends
+	tokenStr.tokens = append(tokenStr.tokens, eotLexeme)          // add EOT back in
+
+	// now parse it to get back the actual AST
+	ast, err := Parse(tokenStr)
+	if err != nil {
+		return 0, ast, err
+	}
+
+	return consumed, ast, nil
 }

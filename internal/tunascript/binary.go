@@ -258,7 +258,7 @@ func (east *ExpansionAST) UnmarshalBinary(data []byte) error {
 
 	// each node
 	for i := 0; i < nodeCount; i++ {
-		var node expTreeNode
+		var node expASTNode
 		readBytes, err := decBinary(data, &node)
 		if err != nil {
 			return err
@@ -337,7 +337,7 @@ func (ecn *expCondNode) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-func (etn expTreeNode) MarshalBinary() ([]byte, error) {
+func (etn expASTNode) MarshalBinary() ([]byte, error) {
 	var data []byte
 
 	// text ptr
@@ -364,10 +364,12 @@ func (etn expTreeNode) MarshalBinary() ([]byte, error) {
 		data = append(data, encBinary(*etn.flag)...)
 	}
 
+	data = append(data, encBinary(etn.source)...)
+
 	return data, nil
 }
 
-func (etn *expTreeNode) UnmarshalBinary(data []byte) error {
+func (etn *expASTNode) UnmarshalBinary(data []byte) error {
 	var err error
 	var readBytes int
 	var isNil bool
@@ -420,14 +422,20 @@ func (etn *expTreeNode) UnmarshalBinary(data []byte) error {
 		etn.flag = nil
 	} else {
 		var flagVal expFlagNode
-		_, err := decBinary(data, &flagVal)
+		readBytes, err := decBinary(data, &flagVal)
 		if err != nil {
 			return err
 		}
-		//data = data[readBytes:]
+		data = data[readBytes:]
 
 		etn.flag = &flagVal
 	}
+
+	_, err = decBinary(data, &etn.source)
+	if err != nil {
+		return err
+	}
+	// data = data[readBytes:]
 
 	return nil
 }
@@ -1119,3 +1127,55 @@ func (n *binaryOperatorGroupNode) UnmarshalBinary(data []byte) error {
 
 	return nil
 }
+
+func (es expSource) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(es.text)...)
+	data = append(data, encBinaryString(es.fullLine)...)
+	data = append(data, encBinaryInt(es.line)...)
+	data = append(data, encBinaryInt(es.pos)...)
+
+	return data, nil
+}
+
+func (es *expSource) UnmarshalBinary(data []byte) error {
+	var err error
+	var bytesRead int
+
+	es.text, bytesRead, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	es.fullLine, bytesRead, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	es.line, bytesRead, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	es.pos, _, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	//data = data[bytesRead:]
+
+	return nil
+}
+
+/* 	source expString
+}
+
+type expString struct {
+	text       string
+	sourceLine string
+	line       int
+	pos        int
+}*/
