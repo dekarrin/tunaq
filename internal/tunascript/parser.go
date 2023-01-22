@@ -6,7 +6,7 @@ import (
 
 // InterpretOpText returns the interpreted TS op text.
 func InterpretOpText(s string) (string, error) {
-	lexed, err := LexOperationText(s)
+	lexed, err := Lex(s)
 	if err != nil {
 		return "", err
 	}

@@ -182,7 +182,7 @@ var (
 	tsOpNot           = tokenClass{"TS_OP_NOT", "'" + literalStrOpNot + "'", 0}
 )
 
-func LexOperationText(s string) (tokenStream, error) {
+func Lex(s string) (tokenStream, error) {
 	sRunes := []rune(s)
 	tokens, _, err := lexRunes(sRunes, false)
 	return tokens, err

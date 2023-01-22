@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// eval takes the given AST and evaluates it to produce a value. If the given
+// invoke takes the given AST and evaluates it to produce a value. If the given
 // AST has multiple expression nodes, there will be multiple values returned.
-func (inter Interpreter) eval(ast AST, queryOnly bool) ([]Value, error) {
+func (inter Interpreter) invoke(ast AST, queryOnly bool) ([]Value, error) {
 	var values []Value = make([]Value, len(ast.nodes))
 
 	// dont use range because that doesnt allow us to skip/backtrack i
@@ -95,7 +95,7 @@ func (inter Interpreter) eval(ast AST, queryOnly bool) ([]Value, error) {
 					nodes: []*astNode{funcArgNodes[argIdx]},
 				}
 
-				argResult, err := inter.eval(toEval, queryOnly)
+				argResult, err := inter.invoke(toEval, queryOnly)
 				if err != nil {
 					return nil, err
 				}
@@ -153,7 +153,7 @@ func (inter Interpreter) eval(ast AST, queryOnly bool) ([]Value, error) {
 				nodes: []*astNode{n.group.expr},
 			}
 
-			vals, err := inter.eval(toEval, queryOnly)
+			vals, err := inter.invoke(toEval, queryOnly)
 			if err != nil {
 				return nil, err
 			}
@@ -184,11 +184,11 @@ func (inter Interpreter) eval(ast AST, queryOnly bool) ([]Value, error) {
 					nodes: []*astNode{opNode.left},
 				}
 
-				left, err := inter.eval(leftExec, queryOnly)
+				left, err := inter.invoke(leftExec, queryOnly)
 				if err != nil {
 					return nil, err
 				}
-				right, err := inter.eval(rightExec, queryOnly)
+				right, err := inter.invoke(rightExec, queryOnly)
 				if err != nil {
 					return nil, err
 				}
@@ -208,7 +208,7 @@ func (inter Interpreter) eval(ast AST, queryOnly bool) ([]Value, error) {
 					nodes: []*astNode{opNode.operand},
 				}
 
-				evaluated, err := inter.eval(toExec, queryOnly)
+				evaluated, err := inter.invoke(toExec, queryOnly)
 				if err != nil {
 					return nil, err
 				}

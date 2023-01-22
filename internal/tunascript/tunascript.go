@@ -212,7 +212,7 @@ func (inter Interpreter) SyntaxCheckTree(ast *ExpansionAST, checkFlags bool) err
 			cond := n.branch.ifNode.cond
 			contentExpansionAST := n.branch.ifNode.content
 
-			conditionalValue, err := inter.eval(*cond, true)
+			conditionalValue, err := inter.invoke(*cond, true)
 			if err != nil {
 				return fmt.Errorf("syntax error: %v", err)
 			}
@@ -266,7 +266,7 @@ func (inter Interpreter) ExpandTree(ast *ExpansionAST) (string, error) {
 			cond := n.branch.ifNode.cond
 			contentExpansionAST := n.branch.ifNode.content
 
-			conditionalValue, err := inter.eval(*cond, true)
+			conditionalValue, err := inter.invoke(*cond, true)
 			if err != nil {
 				return "", fmt.Errorf("syntax error: %v", err)
 			}
@@ -552,7 +552,7 @@ func (inter Interpreter) Expand(s string) (string, error) {
 // evaluating the expression is returned as a string.
 func (inter Interpreter) Eval(s string) (string, error) {
 	// lexical analysis
-	tokens, err := LexOperationText(s)
+	tokens, err := Lex(s)
 	if err != nil {
 		return "", err
 	}
@@ -563,7 +563,7 @@ func (inter Interpreter) Eval(s string) (string, error) {
 		return "", err
 	}
 
-	vals, err := inter.eval(ast, false)
+	vals, err := inter.invoke(ast, false)
 	if err != nil {
 		return "", err
 	}
