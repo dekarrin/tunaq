@@ -258,25 +258,3 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 		})
 	}
 }
-
-type wi struct {
-	inInven bool
-	move    bool
-	output  bool
-}
-
-func (w wi) InInventory(label string) bool {
-	return w.inInven
-}
-
-func (w wi) Move(label string, dest string) bool {
-	return w.move
-}
-
-func (w wi) Output(str string) bool {
-	return w.output
-}
-
-func worldInterFixture() WorldInterface {
-	return wi{}
-}

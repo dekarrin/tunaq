@@ -89,6 +89,34 @@ type token struct {
 	fullLine string
 }
 
+func (tok token) Equal(o any) bool {
+	other, ok := o.(token)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*token)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if tok.lexeme != other.lexeme {
+		return false
+	} else if !tok.class.Equal(other.class) {
+		return false
+	} else if tok.pos != other.pos {
+		return false
+	} else if tok.line != other.line {
+		return false
+	} else if tok.fullLine != other.fullLine {
+		return false
+	}
+
+	return true
+}
+
 type tokenStream struct {
 	tokens []token
 	cur    int
@@ -99,6 +127,30 @@ type tokenClass struct {
 	id    string
 	human string
 	lbp   int
+}
+
+func (tc tokenClass) Equal(o any) bool {
+	other, ok := o.(tokenClass)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*tokenClass)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if tc.id != other.id {
+		return false
+	} else if tc.human != other.human {
+		return false
+	} else if tc.lbp != other.lbp {
+		return false
+	}
+
+	return true
 }
 
 // TODO: Do The Unmarshal Function Thing With The Operator Data Objects. Or

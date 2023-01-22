@@ -3,10 +3,105 @@ package tunascript
 import (
 	"fmt"
 	"strings"
+
+	"github.com/dekarrin/tunaq/internal/util"
 )
 
 type AST struct {
 	nodes []*astNode
+}
+
+const (
+	astTreeLevelOngoing             = "  |     "
+	astTreeLevelPrefix              = "  |%s: "
+	astTreeLevelPrefixLast          = `  \%s: `
+	astTreeLevelPrefixNamePadChar   = '-'
+	astTreeLevelPrefixNamePadAmount = 3
+)
+
+// (AST)
+//   |---: (BOOL_VAL "true")
+//	 |---: (NUM_VAL "1")
+//		|
+//
+
+func makeASTTreeLevelPrefix(msg string) string {
+	for len([]rune(msg)) < astTreeLevelPrefixNamePadAmount {
+		msg += string(astTreeLevelPrefixNamePadChar)
+	}
+	return fmt.Sprintf(astTreeLevelPrefix, msg)
+}
+
+func makeASTTreeLevelPrefixLast(msg string) string {
+	for len([]rune(msg)) < astTreeLevelPrefixNamePadAmount {
+		msg += string(astTreeLevelPrefixNamePadChar)
+	}
+	return fmt.Sprintf(astTreeLevelPrefixLast, msg)
+}
+
+// String returns a prettified representation of the entire AST suitable for use
+// in line-by-line comparisons of tree structure.
+func (ast AST) String() string {
+	var sb strings.Builder
+
+	sb.WriteString("(AST)\n")
+
+	for i := range ast.nodes {
+		var prefix string
+		if i+1 < len(ast.nodes) {
+			prefix = makeASTTreeLevelPrefix("")
+		} else {
+			prefix = makeASTTreeLevelPrefixLast("")
+		}
+		itemOut := ast.nodes[i].leveledStr(prefix)
+		sb.WriteString(itemOut)
+		if len(itemOut) > 0 {
+			sb.WriteRune('\n')
+		}
+	}
+
+	return sb.String()
+}
+
+// Equal checks if the AST is equal to another object. If the other object is
+// not another AST, they are not considered equal. If the other object is, Equal
+// returns whether the two trees, if invoked for any type of meaning, would
+// return the same result. Note that this is distinct from whether they were
+// created from the tunascript source code; to check that, use EqualSource().
+func (ast AST) Equal(o any) bool {
+	other, ok := o.(AST)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*AST)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if !util.EqualSlices(ast.nodes, other.nodes) {
+		return false
+	}
+
+	return true
+}
+
+// EqualSource returns whether the two ASTs were created from identical
+// tunascript code.
+func (ast AST) EqualSource(other AST) bool {
+	if len(ast.nodes) != len(other.nodes) {
+		return false
+	}
+
+	for i := range ast.nodes {
+		if !ast.nodes[i].source.Equal(other.nodes[i].source) {
+			return false
+		}
+	}
+
+	return true
 }
 
 type astNode struct {
@@ -18,13 +113,142 @@ type astNode struct {
 	source  token
 }
 
+// Equal checks if the astNode is equal to the given parameter. If the parameter
+// is not an astNode, it will not be equal. The source of an ASTNode is
+// considered supplementary information and is not considered in the equality
+// check.
+func (n astNode) Equal(o any) bool {
+	other, ok := o.(astNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*astNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if !util.EqualNilness(n.value, other.value) {
+		return false
+	} else if n.value != nil && !n.value.Equal(*other.value) {
+		return false
+	} else if !util.EqualNilness(n.fn, other.fn) {
+		return false
+	} else if n.fn != nil && !n.fn.Equal(*other.fn) {
+		return false
+	} else if !util.EqualNilness(n.flag, other.flag) {
+		return false
+	} else if n.flag != nil && !n.flag.Equal(*other.flag) {
+		return false
+	} else if !util.EqualNilness(n.group, other.group) {
+		return false
+	} else if n.group != nil && !n.group.Equal(*other.group) {
+		return false
+	} else if !util.EqualNilness(n.opGroup, other.opGroup) {
+		return false
+	} else if n.opGroup != nil && !n.opGroup.Equal(*other.opGroup) {
+		return false
+	}
+
+	// do not check source member; if all other things are the same, having
+	// different source does not matter and is a consequence of the many-to-one
+	// mapping of the meaning function L(x) from syntax to semantics.
+	return true
+}
+
+func (n astNode) leveledStr(prefix string) string {
+	if n.value != nil {
+		return n.value.leveledStr(prefix)
+	} else if n.flag != nil {
+		return n.flag.leveledStr(prefix)
+	} else if n.fn != nil {
+		return n.fn.leveledStr(prefix)
+	} else if n.group != nil {
+		return n.group.leveledStr(prefix)
+	} else if n.opGroup != nil {
+		return n.opGroup.leveledStr(prefix)
+	} else {
+		// should never happen
+		panic("empty ast node")
+	}
+}
+
 type flagNode struct {
 	name string
+}
+
+func (n flagNode) Equal(o any) bool {
+	other, ok := o.(flagNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*flagNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if n.name != other.name {
+		return false
+	}
+
+	return true
+}
+
+func (n flagNode) leveledStr(prefix string) string {
+	return fmt.Sprintf("%s(FLAG \"%s\")", prefix, n.name)
 }
 
 type fnNode struct {
 	name string
 	args []*astNode
+}
+
+func (n fnNode) Equal(o any) bool {
+	other, ok := o.(fnNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*fnNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if n.name != other.name {
+		return false
+	} else if !util.EqualSlices(n.args, other.args) {
+		return false
+	}
+
+	return true
+}
+
+func (n fnNode) leveledStr(prefix string) string {
+	var sb strings.Builder
+
+	sb.WriteString(prefix)
+	sb.WriteString(fmt.Sprintf("(FUNCTION \"%s\")", n.name))
+
+	for i := range n.args {
+		sb.WriteRune('\n')
+		var leveledPrefix string
+		if i+1 < len(n.args) {
+			leveledPrefix = prefix + makeASTTreeLevelPrefix(fmt.Sprintf("A%d", i))
+		} else {
+			leveledPrefix = prefix + makeASTTreeLevelPrefixLast(fmt.Sprintf("A%d", i))
+		}
+		itemOut := n.args[i].leveledStr(leveledPrefix)
+		sb.WriteString(itemOut)
+	}
+
+	return sb.String()
 }
 
 type valueNode struct {
@@ -34,12 +258,135 @@ type valueNode struct {
 	boolVal           *bool
 }
 
+func (n valueNode) Equal(o any) bool {
+	other, ok := o.(valueNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*valueNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if !util.EqualNilness(n.quotedStringVal, other.quotedStringVal) {
+		return false
+	} else if n.quotedStringVal != nil && *n.quotedStringVal != *other.quotedStringVal {
+		return false
+	} else if !util.EqualNilness(n.unquotedStringVal, other.unquotedStringVal) {
+		return false
+	} else if n.unquotedStringVal != nil && *n.unquotedStringVal != *other.unquotedStringVal {
+		return false
+	} else if !util.EqualNilness(n.numVal, other.numVal) {
+		return false
+	} else if n.numVal != nil && *n.numVal != *other.numVal {
+		return false
+	} else if !util.EqualNilness(n.boolVal, other.boolVal) {
+		return false
+	} else if n.boolVal != nil && *n.boolVal != *other.boolVal {
+		return false
+	}
+
+	return true
+}
+
+func (n valueNode) leveledStr(prefix string) string {
+	if n.quotedStringVal != nil {
+		return fmt.Sprintf("(QSTR_VALUE \"%s\")", *n.quotedStringVal)
+	} else if n.unquotedStringVal != nil {
+		return fmt.Sprintf("(STR_VALUE \"%s\")", *n.unquotedStringVal)
+	} else if n.boolVal != nil {
+		return fmt.Sprintf("(BOOL_VALUE \"%t\")", *n.boolVal)
+	} else if n.numVal != nil {
+		return fmt.Sprintf("(NUM_VALUE \"%d\")", *n.numVal)
+	} else {
+		// should never happen
+		panic("empty ast node")
+	}
+}
+
 type groupNode struct {
 	expr *astNode
 }
+
+func (n groupNode) Equal(o any) bool {
+	other, ok := o.(groupNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*groupNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if !util.EqualNilness(n.expr, other.expr) {
+		return false
+	} else if n.expr != nil && !n.expr.Equal(*other.expr) {
+		return false
+	}
+
+	return true
+}
+
+func (n groupNode) leveledStr(prefix string) string {
+	if n.expr == nil {
+		panic("empty ast node")
+	}
+
+	fullStr := prefix + "(GROUP)"
+	groupOut := n.expr.leveledStr(prefix + makeASTTreeLevelPrefixLast(""))
+
+	if len(groupOut) > 0 {
+		fullStr += "\n" + groupOut
+	}
+
+	return fullStr
+}
+
 type operatorGroupNode struct {
 	unaryOp *unaryOperatorGroupNode
 	infixOp *binaryOperatorGroupNode
+}
+
+func (n operatorGroupNode) Equal(o any) bool {
+	other, ok := o.(operatorGroupNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*operatorGroupNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if !util.EqualNilness(n.unaryOp, other.unaryOp) {
+		return false
+	} else if n.unaryOp != nil && !n.unaryOp.Equal(*other.unaryOp) {
+		return false
+	} else if !util.EqualNilness(n.infixOp, other.infixOp) {
+		return false
+	} else if n.infixOp != nil && !n.infixOp.Equal(*other.infixOp) {
+		return false
+	}
+
+	return true
+}
+
+func (n operatorGroupNode) leveledStr(prefix string) string {
+	if n.infixOp != nil {
+		return n.infixOp.leveledStr(prefix)
+	} else if n.unaryOp != nil {
+		return n.unaryOp.leveledStr(prefix)
+	} else {
+		panic("empty ast node")
+	}
 }
 
 type unaryOperatorGroupNode struct {
@@ -48,10 +395,105 @@ type unaryOperatorGroupNode struct {
 	prefix  bool
 }
 
+func (n unaryOperatorGroupNode) Equal(o any) bool {
+	other, ok := o.(unaryOperatorGroupNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*unaryOperatorGroupNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if n.op != other.op {
+		return false
+	} else if !util.EqualNilness(n.operand, other.operand) {
+		return false
+	} else if n.operand != nil && !n.operand.Equal(other.operand) {
+		return false
+	} else if n.prefix != other.prefix {
+		return false
+	}
+
+	return true
+}
+
+func (n unaryOperatorGroupNode) leveledStr(prefix string) string {
+	if n.operand == nil {
+		panic("empty ast node")
+	}
+
+	fullStr := prefix + fmt.Sprintf("(UNARY_OP \"%s\")", n.op)
+	operandOut := n.operand.leveledStr(prefix + makeASTTreeLevelPrefixLast(""))
+
+	if len(operandOut) > 0 {
+		fullStr += "\n" + operandOut
+	}
+
+	return fullStr
+}
+
 type binaryOperatorGroupNode struct {
 	op    string
 	left  *astNode
 	right *astNode
+}
+
+func (n binaryOperatorGroupNode) Equal(o any) bool {
+	other, ok := o.(binaryOperatorGroupNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*binaryOperatorGroupNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if n.op != other.op {
+		return false
+	} else if !util.EqualNilness(n.left, other.left) {
+		return false
+	} else if n.left != nil && !n.left.Equal(other.left) {
+		return false
+	} else if !util.EqualNilness(n.right, other.right) {
+		return false
+	} else if n.right != nil && !n.right.Equal(other.right) {
+		return false
+	}
+
+	return true
+}
+
+func (n binaryOperatorGroupNode) leveledStr(prefix string) string {
+	if n.left == nil || n.right == nil {
+		panic("empty ast node")
+	}
+
+	fullStr := prefix + fmt.Sprintf("(BINARY_OP \"%s\")", n.op)
+
+	leftOut := n.left.leveledStr(prefix + makeASTTreeLevelPrefix("L"))
+	rightOut := n.right.leveledStr(prefix + makeASTTreeLevelPrefixLast("R"))
+
+	if len(leftOut) > 0 {
+		fullStr += "\n" + leftOut
+	}
+	if len(rightOut) > 0 {
+		fullStr += "\n" + rightOut
+	}
+
+	return fullStr
+}
+
+//
+
+func (n binaryOperatorGroupNode) String() string {
+	return "<BINARY OP>"
 }
 
 // ExpansionAnalysis is a lexed (and somewhat parsed) block of text containing
