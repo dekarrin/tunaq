@@ -1,7 +1,6 @@
 package tunascript
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 	"unicode"
@@ -195,12 +194,7 @@ var (
 	patNum     = regexp.MustCompile(`^[0-9]+$`)
 )
 
-var debug = false
-
 func Lex(s string) (tokenStream, error) {
-	if strings.HasPrefix(s, "1") {
-		debug = true
-	}
 	sRunes := []rune(s)
 	tokens, _, err := lexRunes(sRunes, false)
 	return tokens, err
@@ -237,10 +231,6 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 
 	for i := 0; i < len(sRunes); i++ {
 		ch := sRunes[i]
-
-		if debug {
-			fmt.Printf("glub")
-		}
 
 		// if it's a newline for any reason, get the next line for the current
 		// one
@@ -400,10 +390,6 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 		}
 	}
 
-	if debug {
-		fmt.Printf("glub")
-	}
-
 	// do we have leftover parsing string? this is a lexing error, immediately
 	// end
 	if mode == lexString {
@@ -457,9 +443,6 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 			// mark if the whitespace-glued string matches a bool or a num
 			// constant
 			vUp := strings.ToUpper(fullToken.lexeme)
-			if debug {
-				fmt.Sprintf("fight me")
-			}
 			for i := range boolConsts {
 				if boolConsts[i] == vUp {
 					fullToken.class = tsBool

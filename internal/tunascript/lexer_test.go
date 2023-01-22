@@ -14,6 +14,9 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 		expect    []tokenClass
 		expectErr bool
 	}{
+		{name: "break two-char token with escape", input: `$X!\=$y`, expect: []tokenClass{
+			tsIdentifier, tsOpNot, tsUnquotedString, tsIdentifier, tsEndOfText,
+		}},
 		{name: "blank string", input: "", expect: []tokenClass{
 			tsEndOfText,
 		}},
@@ -168,16 +171,52 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 		{name: "NOT flag, ignore space", input: "! $X", expect: []tokenClass{
 			tsOpNot, tsIdentifier, tsEndOfText,
 		}},
-		{name: "mixed boolean expression", input: "($FLAG + 3 || false) && !$x || $y", expect: []tokenClass{
+		{name: "mixed logical operator expression", input: "($FLAG + 3 || false) && !$x || $y", expect: []tokenClass{
 			tsGroupOpen, tsIdentifier, tsOpPlus, tsNumber, tsOpOr, tsBool, tsGroupClose, tsOpAnd, tsOpNot, tsIdentifier,
 			tsOpOr, tsIdentifier, tsEndOfText,
 		}},
-		{name: "expr 1", input: "@glubglub@ - exit * 600 /($FLAG_VAR+3)+$ADD(3, 4)", expect: []tokenClass{
+		{name: "flag equals", input: "$X == 1", expect: []tokenClass{
+			tsIdentifier, tsOpIs, tsNumber, tsEndOfText,
+		}},
+		{name: "flag equals, ignore space", input: "$X==1", expect: []tokenClass{
+			tsIdentifier, tsOpIs, tsNumber, tsEndOfText,
+		}},
+		{name: "flag not equals", input: "$X != 1", expect: []tokenClass{
+			tsIdentifier, tsOpIsNot, tsNumber, tsEndOfText,
+		}},
+		{name: "flag not equals, ignore space", input: "$X!=$y", expect: []tokenClass{
+			tsIdentifier, tsOpIsNot, tsIdentifier, tsEndOfText,
+		}},
+		{name: "flag less than", input: "$X < 1", expect: []tokenClass{
+			tsIdentifier, tsOpLessThan, tsNumber, tsEndOfText,
+		}},
+		{name: "flag less than, ignore space", input: "$X<1", expect: []tokenClass{
+			tsIdentifier, tsOpLessThan, tsNumber, tsEndOfText,
+		}},
+		{name: "flag greater than", input: "$X > 1", expect: []tokenClass{
+			tsIdentifier, tsOpGreaterThan, tsNumber, tsEndOfText,
+		}},
+		{name: "flag greater than, ignore space", input: "$X>1", expect: []tokenClass{
+			tsIdentifier, tsOpGreaterThan, tsNumber, tsEndOfText,
+		}},
+		{name: "flag less than equals", input: "$X <= 1", expect: []tokenClass{
+			tsIdentifier, tsOpLessThanIs, tsNumber, tsEndOfText,
+		}},
+		{name: "flag less than equals, ignore space", input: "$X<=1", expect: []tokenClass{
+			tsIdentifier, tsOpLessThanIs, tsNumber, tsEndOfText,
+		}},
+		{name: "flag greater than equals", input: "$X >= 1", expect: []tokenClass{
+			tsIdentifier, tsOpGreaterThanIs, tsNumber, tsEndOfText,
+		}},
+		{name: "flag greater than equals, ignore space", input: "$X>=1", expect: []tokenClass{
+			tsIdentifier, tsOpGreaterThanIs, tsNumber, tsEndOfText,
+		}},
+		{name: "mixed arithmetic expression 1", input: "@glubglub@ - exit * 600 /($FLAG_VAR+3)+$ADD(3, 4)", expect: []tokenClass{
 			tsQuotedString, tsOpMinus, tsUnquotedString, tsOpMultiply, tsNumber, tsOpDivide, tsGroupOpen, tsIdentifier,
 			tsOpPlus, tsNumber, tsGroupClose, tsOpPlus, tsIdentifier, tsGroupOpen, tsNumber, tsSeparator, tsNumber,
 			tsGroupClose, tsEndOfText,
 		}},
-		{name: "expr 2", input: "@some fin@ + 243 * b - $SOME_FUNC(glubin) * 3", expect: []tokenClass{
+		{name: "mixed arithmetic expression 2", input: "@some fin@ + 243 * b - $SOME_FUNC(glubin) * 3", expect: []tokenClass{
 			tsQuotedString, tsOpPlus, tsNumber, tsOpMultiply, tsUnquotedString, tsOpMinus, tsIdentifier, tsGroupOpen,
 			tsUnquotedString, tsGroupClose, tsOpMultiply, tsNumber, tsEndOfText,
 		}},
