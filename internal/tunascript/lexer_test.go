@@ -33,7 +33,16 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 		{name: "subtraction", input: "3 -   8", expect: []tokenClass{tsNumber, tsOpMinus, tsNumber, tsEndOfText}},
 		{name: "add negative", input: "3 +-8", expect: []tokenClass{tsNumber, tsOpPlus, tsOpMinus, tsNumber, tsEndOfText}},
 		{name: "add two strings", input: "@hello glub@ + string 2", expect: []tokenClass{tsQuotedString, tsOpPlus, tsUnquotedString, tsEndOfText}},
-		{name: "expr 1", input: "@glubglub@ - exit * 600 /($FLAG_VAR+3)+$ADD(3, 4)", expect: []tokenClass{tsQuotedString, tsOpMinus, tsUnquotedString, tsOpMultiply, tsNumber, tsOpDivide, tsGroupOpen, tsIdentifier, tsOpPlus, tsNumber, tsGroupClose, tsOpPlus, tsIdentifier, tsGroupOpen, tsNumber, tsSeparator, tsNumber, tsGroupClose, tsEndOfText}},
+		{name: "expr 1", input: "@glubglub@ - exit * 600 /($FLAG_VAR+3)+$ADD(3, 4)", expect: []tokenClass{
+			tsQuotedString, tsOpMinus, tsUnquotedString, tsOpMultiply, tsNumber, tsOpDivide, tsGroupOpen, tsIdentifier,
+			tsOpPlus, tsNumber, tsGroupClose, tsOpPlus, tsIdentifier, tsGroupOpen, tsNumber, tsSeparator, tsNumber,
+			tsGroupClose, tsEndOfText,
+		}},
+		{name: "expr 2", input: "@some fin@ + 243 * b - $SOME_FUNC(glubin) * 3", expect: []tokenClass{
+			tsQuotedString, tsOpPlus, tsNumber, tsOpMultiply, tsUnquotedString, tsOpMinus, tsIdentifier, tsGroupOpen,
+			tsUnquotedString, tsGroupClose, tsOpPlus, tsNumber, tsGroupClose, tsOpPlus, tsIdentifier, tsGroupOpen,
+			tsNumber, tsGroupClose, tsOpMultiply, tsNumber, tsEndOfText,
+		}},
 	}
 
 	for _, tc := range testCases {

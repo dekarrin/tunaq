@@ -256,7 +256,7 @@ func TranslateOperators(ast AST) string {
 			}
 		} else if node.fn != nil {
 			sb.WriteString(node.fn.name)
-			writeRuneSlice(sb, literalGroupOpen)
+			writeRuneSlice(&sb, literalGroupOpen)
 
 			for i := range node.fn.args {
 				toExec := AST{
@@ -265,22 +265,22 @@ func TranslateOperators(ast AST) string {
 				insert := TranslateOperators(toExec)
 				sb.WriteString(insert)
 				if i+1 < len(node.fn.args) {
-					writeRuneSlice(sb, literalSeparator)
+					writeRuneSlice(&sb, literalSeparator)
 					sb.WriteRune(' ')
 				}
 			}
 
-			writeRuneSlice(sb, literalGroupClose)
+			writeRuneSlice(&sb, literalGroupClose)
 		} else if node.flag != nil {
 			sb.WriteString(node.flag.name)
 		} else if node.group != nil {
-			writeRuneSlice(sb, literalGroupOpen)
+			writeRuneSlice(&sb, literalGroupOpen)
 			toExec := AST{
 				nodes: []*astNode{node.group.expr},
 			}
 			insert := TranslateOperators(toExec)
 			sb.WriteString(insert)
-			writeRuneSlice(sb, literalGroupClose)
+			writeRuneSlice(&sb, literalGroupClose)
 		} else if node.opGroup != nil {
 			if node.opGroup.infixOp != nil {
 				op := node.opGroup.infixOp.op
@@ -328,7 +328,7 @@ func TranslateOperators(ast AST) string {
 	return sb.String()
 }
 
-func writeRuneSlice(sb strings.Builder, r []rune) {
+func writeRuneSlice(sb *strings.Builder, r []rune) {
 	for i := range r {
 		sb.WriteRune(r[i])
 	}

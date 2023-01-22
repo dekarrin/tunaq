@@ -194,7 +194,7 @@ var (
 var debug = false
 
 func Lex(s string) (tokenStream, error) {
-	if strings.HasPrefix(s, "no ") {
+	if strings.HasPrefix(s, "1") {
 		debug = true
 	}
 	sRunes := []rune(s)
@@ -226,20 +226,6 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 			curToken.lexeme = sb.String()
 			curToken.fullLine = currentfullLine
 			sb.Reset()
-
-			// is the cur token literally one of the bool values?
-			if curToken.class == tsUnquotedString {
-				vUp := strings.ToUpper(curToken.lexeme)
-				for i := range boolConsts {
-					if boolConsts[i] == vUp {
-						curToken.class = tsBool
-					}
-				}
-				if patNum.MatchString(vUp) {
-					curToken.class = tsNumber
-				}
-			}
-
 			tokens = append(tokens, curToken)
 			curToken = token{}
 		}
@@ -286,7 +272,7 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 			}
 		case lexString:
 			if !escaping && startMatches(sRunes[i:], literalStringQuote) {
-				writeRuneSlice(sb, literalStringQuote)
+				writeRuneSlice(&sb, literalStringQuote)
 				flushCurrentPendingToken()
 				mode = lexDefault
 				i += len(literalStringQuote) - 1
@@ -362,7 +348,7 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 					curToken.class = action.class
 					if action.transitionModeTo != lexDefault {
 						mode = action.transitionModeTo
-						writeRuneSlice(sb, action.literal)
+						writeRuneSlice(&sb, action.literal)
 					} else {
 						// for a normal match, just put in the token
 						curToken.lexeme = action.lexeme
@@ -417,10 +403,15 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 	// do we have leftover unparsed text? add it to the tokens list
 	flushCurrentPendingToken()
 
-	// 2nd pass: glue together whitespace in unquoted and delete it elsewhere
-	newTokens := make([]token, len(tokens))
+	// 2nd pass, do in order:
+	// * glue together whitespace between unquoted strings, and consecutive
+	//   unquoted string sequences
+	// * delete whitespace elsewhere
+	// * convert unquoted string constants that match num and bool literals to
+	//   that token class
+	secondPassTokens := make([]token, len(tokens))
 	numNew := 0
-	for i := range tokens {
+	for i := 0; i < len(tokens); i++ {
 		if tokens[i].class == tsUnquotedString {
 			var fullToken = token{
 				line:     tokens[i].line,
@@ -429,10 +420,51 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 				class:    tokens[i].class,
 			}
 			fullUnquoted := strings.Builder{}
-			fullUnquoted.WriteString(tokens[i])
-			newTokens = append(newTokens)
+			fullUnquoted.WriteString(tokens[i].lexeme)
+
+			added := 0
+			for j := 1; i+j < len(tokens); j++ {
+				lookahead := tokens[i+j]
+
+				if lookahead.class == tsUnquotedString {
+					fullUnquoted.WriteString(lookahead.lexeme)
+					added++
+				} else if lookahead.class == tsWhitespace && j+i+1 < len(tokens) && tokens[j+i+1].class == tsUnquotedString {
+					// need to look ahead AGAIN; only add if the whitespace is
+					// between unquoted strings
+					fullUnquoted.WriteString(lookahead.lexeme)
+					added++
+				} else {
+					break
+				}
+			}
+			i += added
+
+			fullToken.lexeme = fullUnquoted.String()
+
+			// mark if the whitespace-glued string matches a bool or a num
+			// constant
+			vUp := strings.ToUpper(fullToken.lexeme)
+			if debug {
+				fmt.Sprintf("fight me")
+			}
+			for i := range boolConsts {
+				if boolConsts[i] == vUp {
+					fullToken.class = tsBool
+				}
+			}
+			if patNum.MatchString(vUp) {
+				fullToken.class = tsNumber
+			}
+
+			secondPassTokens[numNew] = fullToken
+			numNew++
+		} else if tokens[i].class != tsWhitespace {
+			secondPassTokens[numNew] = tokens[i]
+			numNew++
 		}
 	}
+	tokens = secondPassTokens[:numNew]
 
 	// add special EOT token
 	tokens = append(tokens, token{

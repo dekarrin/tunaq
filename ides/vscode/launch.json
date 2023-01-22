@@ -15,7 +15,7 @@
                 "-w",
                 "${workspaceFolder}/world.tqw",
                 "-c",
-                "DEBUG OPS |some fin| + 243 * b - $SOME_FUNC(glubin) * 3"
+                "DEBUG OPS @some fin@ + 243 * b - $SOME_FUNC(glubin) * 3"
             ],
             "console": "integratedTerminal"
         },

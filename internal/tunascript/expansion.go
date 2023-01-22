@@ -283,7 +283,7 @@ func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bo
 					curText.Reset()
 				}
 
-				writeRuneSlice(ident, literalIdentifierStart)
+				writeRuneSlice(&ident, literalIdentifierStart)
 				mode = modeIdent
 				i += len(literalIdentifierStart) - 1
 			} else {
