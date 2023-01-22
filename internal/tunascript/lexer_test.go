@@ -144,11 +144,33 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 		{name: "set flag, ignore space", input: "$X=test string", expect: []tokenClass{
 			tsIdentifier, tsOpSet, tsUnquotedString, tsEndOfText,
 		}},
-		{name: "not flag", input: "!$X", expect: []tokenClass{
+		{name: "AND-ing flags", input: "$X && $Y", expect: []tokenClass{
+			tsIdentifier, tsOpAnd, tsIdentifier, tsEndOfText,
+		}},
+		{name: "AND-ing flags, ignore space", input: "$X&&$Y", expect: []tokenClass{
+			tsIdentifier, tsOpAnd, tsIdentifier, tsEndOfText,
+		}},
+		{name: "AND sequence", input: "$X && Off && 3 && @this is truthy@", expect: []tokenClass{
+			tsIdentifier, tsOpAnd, tsBool, tsOpAnd, tsNumber, tsOpAnd, tsQuotedString, tsEndOfText,
+		}},
+		{name: "OR-ing flags", input: "$X || $Y", expect: []tokenClass{
+			tsIdentifier, tsOpOr, tsIdentifier, tsEndOfText,
+		}},
+		{name: "OR-ing flags, ignore space", input: "$X||$Y", expect: []tokenClass{
+			tsIdentifier, tsOpOr, tsIdentifier, tsEndOfText,
+		}},
+		{name: "OR sequence", input: "$X || Off || 3 || @this is truthy@", expect: []tokenClass{
+			tsIdentifier, tsOpOr, tsBool, tsOpOr, tsNumber, tsOpOr, tsQuotedString, tsEndOfText,
+		}},
+		{name: "NOT flag", input: "!$X", expect: []tokenClass{
 			tsOpNot, tsIdentifier, tsEndOfText,
 		}},
-		{name: "not flag, ignore space", input: "! $X", expect: []tokenClass{
+		{name: "NOT flag, ignore space", input: "! $X", expect: []tokenClass{
 			tsOpNot, tsIdentifier, tsEndOfText,
+		}},
+		{name: "mixed boolean expression", input: "($FLAG + 3 || false) && !$x || $y", expect: []tokenClass{
+			tsGroupOpen, tsIdentifier, tsOpPlus, tsNumber, tsOpOr, tsBool, tsGroupClose, tsOpAnd, tsOpNot, tsIdentifier,
+			tsOpOr, tsIdentifier, tsEndOfText,
 		}},
 		{name: "expr 1", input: "@glubglub@ - exit * 600 /($FLAG_VAR+3)+$ADD(3, 4)", expect: []tokenClass{
 			tsQuotedString, tsOpMinus, tsUnquotedString, tsOpMultiply, tsNumber, tsOpDivide, tsGroupOpen, tsIdentifier,
