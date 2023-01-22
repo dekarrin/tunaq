@@ -4,28 +4,9 @@ import (
 	"fmt"
 )
 
-// InterpretOpText returns the interpreted TS op text.
-func InterpretOpText(s string) (string, error) {
-	lexed, err := Lex(s)
-	if err != nil {
-		return "", err
-	}
-
-	// TODO: need debug
-	ast, err := parseExpression(&lexed, 0)
-	if err != nil {
-		return "", err
-	}
-
-	fullTree := AST{
-		nodes: []*astNode{ast},
-	}
-
-	output := TranslateOperators(fullTree)
-
-	return output, nil
-}
-
+// Parse builds an abstract syntax tree by reading the tokens in the provided
+// tokenStream. It returns the built up AST that is parsed from it. If any
+// issues are encountered, an error is returned (likely a SyntaxError).
 func Parse(tokens tokenStream) (AST, error) {
 	ast, err := parseExpression(&tokens, 0)
 	if err != nil {

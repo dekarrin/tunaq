@@ -71,7 +71,7 @@ func (gs *State) executeDebugFlags() (string, error) {
 }
 
 func (gs *State) executeDebugOps(s string) (string, error) {
-	return tunascript.InterpretOpText(s)
+	return tunascript.TranslateOperators(s)
 }
 
 // ListFlags returns a text table of the Flags in the game and their current

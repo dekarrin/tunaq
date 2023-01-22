@@ -230,10 +230,35 @@ func (inter Interpreter) invoke(ast AST, queryOnly bool) ([]Value, error) {
 	return nil, nil
 }
 
-// TranslateOperators turns the ast into a tunascript string containing only
+// TranslateOperators returns the given tunascript re-written to have no
+// operators and exclusively use functions to reproduce the same functionality.
+// Every operator in the provided string s is converted into one or more
+// built-in function calls that produce the same result.
+func TranslateOperators(s string) (string, error) {
+	lexed, err := Lex(s)
+	if err != nil {
+		return "", err
+	}
+
+	// TODO: need debug
+	ast, err := parseExpression(&lexed, 0)
+	if err != nil {
+		return "", err
+	}
+
+	fullTree := AST{
+		nodes: []*astNode{ast},
+	}
+
+	output := TranslateOperatorsInAST(fullTree)
+
+	return output, nil
+}
+
+// TranslateOperatorsInAST turns the ast into a tunascript string containing only
 // function calls and no operators. Originally this was for a 2-pass compiler
 // but that is overkill; current ast already handles all cases.
-func TranslateOperators(ast AST) string {
+func TranslateOperatorsInAST(ast AST) string {
 	var sb strings.Builder
 
 	for i := 0; i < len(ast.nodes); i++ {
@@ -262,7 +287,7 @@ func TranslateOperators(ast AST) string {
 				toExec := AST{
 					nodes: []*astNode{node.fn.args[i]},
 				}
-				insert := TranslateOperators(toExec)
+				insert := TranslateOperatorsInAST(toExec)
 				sb.WriteString(insert)
 				if i+1 < len(node.fn.args) {
 					writeRuneSlice(&sb, literalSeparator)
@@ -278,7 +303,7 @@ func TranslateOperators(ast AST) string {
 			toExec := AST{
 				nodes: []*astNode{node.group.expr},
 			}
-			insert := TranslateOperators(toExec)
+			insert := TranslateOperatorsInAST(toExec)
 			sb.WriteString(insert)
 			writeRuneSlice(&sb, literalGroupClose)
 		} else if node.opGroup != nil {
@@ -291,8 +316,8 @@ func TranslateOperators(ast AST) string {
 					nodes: []*astNode{node.opGroup.infixOp.right},
 				}
 
-				leftInsert := TranslateOperators(leftExec)
-				rightInsert := TranslateOperators(rightExec)
+				leftInsert := TranslateOperatorsInAST(leftExec)
+				rightInsert := TranslateOperatorsInAST(rightExec)
 
 				funcTemplate := binaryOpFuncTranslations[op]
 				if funcTemplate == "" {
@@ -306,7 +331,7 @@ func TranslateOperators(ast AST) string {
 				toExec := AST{
 					nodes: []*astNode{node.opGroup.unaryOp.operand},
 				}
-				toInsert := TranslateOperators(toExec)
+				toInsert := TranslateOperatorsInAST(toExec)
 
 				funcTemplate := unaryOpFuncTranslations[op]
 				if funcTemplate == "" {
