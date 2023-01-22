@@ -1031,6 +1031,8 @@ func (n unaryOperatorGroupNode) MarshalBinary() ([]byte, error) {
 		data = append(data, encBinary(*n.operand)...)
 	}
 
+	data = append(data, encBinaryBool(n.prefix)...)
+
 	return data, nil
 }
 
@@ -1054,12 +1056,19 @@ func (n *unaryOperatorGroupNode) UnmarshalBinary(data []byte) error {
 	if isNil {
 		n.operand = nil
 	} else {
-		_, err = decBinary(data, n.operand)
+		readBytes, err = decBinary(data, n.operand)
 		if err != nil {
 			return err
 		}
-		//data = data[readBytes:]
+		data = data[readBytes:]
 	}
+
+	// prefix
+	n.prefix, _, err = decBinaryBool(data)
+	if err != nil {
+		return err
+	}
+	// data = data[readBytes:]
 
 	return nil
 }

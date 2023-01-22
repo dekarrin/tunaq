@@ -69,6 +69,7 @@ func (lex token) nud(tokens *tokenStream) (*astNode, error) {
 				unaryOp: &unaryOperatorGroupNode{
 					op:      literalStrOpMinus,
 					operand: negatedVal,
+					prefix:  true,
 				},
 			},
 			source: lex,
@@ -290,6 +291,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 				unaryOp: &unaryOperatorGroupNode{
 					op:      literalStrOpNot,
 					operand: left,
+					prefix:  true,
 				},
 			},
 			source: lex,
@@ -300,6 +302,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 				unaryOp: &unaryOperatorGroupNode{
 					op:      literalStrOpInc,
 					operand: left,
+					prefix:  false,
 				},
 			},
 			source: lex,
@@ -310,6 +313,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 				unaryOp: &unaryOperatorGroupNode{
 					op:      literalStrOpDec,
 					operand: left,
+					prefix:  false,
 				},
 			},
 			source: lex,
