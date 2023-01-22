@@ -18,6 +18,32 @@ var (
 
 const maxTokenBindingPower = 200
 
+// TODO: Dude, Go has the template package! Why aren't we using it????????
+var binaryOpFuncTranslations = map[string]string{
+	literalStrOpPlus:          "%[1]sADD%[2]s%[4]s%[6]s %[5]s%[3]s",
+	literalStrOpMinus:         "%[1]sSUB%[2]s%[4]s%[6]s %[5]s%[3]s",
+	literalStrOpDivide:        "%[1]sDIV%[2]s%[4]s%[6]s %[5]s%[3]s",
+	literalStrOpMultiply:      "%[1]sMULT%[2]s%[4]s%[6]s %[5]s%[3]s",
+	literalStrOpAnd:           "%[1]sAND%[2]s%[4]s%[6]s %[5]s%[3]s",
+	literalStrOpOr:            "%[1]sOR%[2]s%[4]s%[6]s %[5]s%[3]s",
+	literalStrOpIncset:        "%[1]sINC%[2]s%[4]s%[6]s %[5]s%[3]s",
+	literalStrOpDecset:        "%[1]sDEC%[2]s%[4]s%[6]s %[5]s%[3]s",
+	literalStrOpIsNot:         "%[1]sNOT%[2]s%[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s%[3]s",
+	literalStrOpIs:            "%[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s",
+	literalStrOpLessThan:      "%[1]sFLAG_LESS_THAN%[2]s%[4]s%[6]s %[5]s%[3]s",
+	literalStrOpGreaterThan:   "%[1]sFLAG_GREATER_THAN%[2]s%[4]s%[6]s %[5]s%[3]s",
+	literalStrOpGreaterThanIs: "%[1]sOR%[2]s%[1]sFLAG_GREATER_THAN%[2]s%[4]s%[6]s %[5]s%[3]s%[6]s %[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s%[3]s",
+	literalStrOpLessThanIs:    "%[1]sOR%[2]s%[1]sFLAG_LESS_THAN%[2]s%[4]s%[6]s %[5]s%[3]s%[6]s %[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s%[3]s",
+	literalStrOpSet:           "%[1]sSET%[2]s%[4]s%[6]s %[5]s%[3]s",
+}
+
+var unaryOpFuncTranslations = map[string]string{
+	literalStrOpNot:   "%[1]sNOT%[2]s%[4]s%[3]s",
+	literalStrOpInc:   "%[1]sINC%[2]s%[4]s%[3]s",
+	literalStrOpDec:   "%[1]sDEC%[2]s%[4]s%[3]s",
+	literalStrOpMinus: "%[1]sNEG%[2]s%[4]s%[3]s",
+}
+
 // null denotation values for pratt parsing
 //
 // return nil for "this token cannot appear at start of lang construct", or

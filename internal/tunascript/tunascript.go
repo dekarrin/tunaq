@@ -3,9 +3,8 @@ package tunascript
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
-
-	"github.com/dekarrin/tunaq/internal/util"
 )
 
 // tunascript execution engine
@@ -100,7 +99,7 @@ func NewInterpreter(w WorldInterface) Interpreter {
 	inter.fn["MOVE"] = Function{Name: "MOVE", RequiredArgs: 2, Call: inter.builtIn_Move, SideEffects: true}
 	inter.fn["OUTPUT"] = Function{Name: "OUTPUT", RequiredArgs: 1, Call: inter.builtIn_Output, SideEffects: true}
 
-	inter.opFn["-"] = Function{Name: "OP_MINUS", RequiredArgs: 1, OptionalArgs: 1, Call: func(val []Value) Value {
+	inter.opFn[literalStrOpMinus] = Function{Name: "OP_MINUS", RequiredArgs: 1, OptionalArgs: 1, Call: func(val []Value) Value {
 		if len(val) == 2 {
 			return builtIn_Sub(val)
 		} else if len(val) == 1 {
@@ -109,32 +108,21 @@ func NewInterpreter(w WorldInterface) Interpreter {
 			panic("incorrect number of args to predefined operator function")
 		}
 	}}
-	inter.opFn["+"] = Function{Name: "OP_PLUS", RequiredArgs: 2, Call: builtIn_Add}
-	inter.opFn["*"] = Function{Name: "OP_TIMES", RequiredArgs: 2, Call: builtIn_Mult}
-	inter.opFn["/"] = Function{Name: "OP_DIVIDED_BY", RequiredArgs: 2, Call: builtIn_Div}
-	inter.opFn["+="] = Function{Name: "OP_PLUS_ASSIGN", RequiredArgs: 2, Call: inter.builtIn_Inc, SideEffects: true}
-	inter.opFn["-="] = Function{Name: "OP_MINUS_ASSIGN", RequiredArgs: 2, Call: inter.builtIn_Dec, SideEffects: true}
-	inter.opFn["!"] = Function{Name: "OP_NOT", RequiredArgs: 1, Call: builtIn_Not}
-	// TODO: I Do Not Believe That The Equals Sign Used For Assignment Is Very
-	// Nice For A Beginner To Understand. Perhaps A Different Icon?
-	//
-	// Send it to Chittr! Or, Twitter. Whatever, you know what I mean.
-	//
-	// I'm Not Certain They Will Reply But We Will Give It A Shot.
-	//
-	// i think one of these should work ya? glub:
-	//
-	// proposal: "<-" to show flow (possibly confused with <= thoguh)
-	// proposal: ":=" to show side non-parity
-	inter.opFn["="] = Function{Name: "OP_ASSIGN", RequiredArgs: 2, Call: inter.builtIn_Set, SideEffects: true}
-	inter.opFn["=="] = Function{Name: "OP_EQ", RequiredArgs: 2, Call: builtIn_EQ}
-	inter.opFn["!="] = Function{Name: "OP_NE", RequiredArgs: 2, Call: builtIn_NE}
-	inter.opFn[">"] = Function{Name: "OP_GT", RequiredArgs: 2, Call: builtIn_GT}
-	inter.opFn[">="] = Function{Name: "OP_GE", RequiredArgs: 2, Call: builtIn_GE}
-	inter.opFn["<"] = Function{Name: "OP_LT", RequiredArgs: 2, Call: builtIn_LT}
-	inter.opFn["<="] = Function{Name: "OP_LE", RequiredArgs: 2, Call: builtIn_LE}
-	inter.opFn["||"] = Function{Name: "OP_OR", RequiredArgs: 2, Call: builtIn_Or}
-	inter.opFn["||"] = Function{Name: "OP_AND", RequiredArgs: 2, Call: builtIn_And}
+	inter.opFn[literalStrOpPlus] = Function{Name: "OP_PLUS", RequiredArgs: 2, Call: builtIn_Add}
+	inter.opFn[literalStrOpMultiply] = Function{Name: "OP_TIMES", RequiredArgs: 2, Call: builtIn_Mult}
+	inter.opFn[literalStrOpDivide] = Function{Name: "OP_DIVIDED_BY", RequiredArgs: 2, Call: builtIn_Div}
+	inter.opFn[literalStrOpIncset] = Function{Name: "OP_PLUS_ASSIGN", RequiredArgs: 2, Call: inter.builtIn_Inc, SideEffects: true}
+	inter.opFn[literalStrOpDecset] = Function{Name: "OP_MINUS_ASSIGN", RequiredArgs: 2, Call: inter.builtIn_Dec, SideEffects: true}
+	inter.opFn[literalStrOpNot] = Function{Name: "OP_NOT", RequiredArgs: 1, Call: builtIn_Not}
+	inter.opFn[literalStrOpSet] = Function{Name: "OP_ASSIGN", RequiredArgs: 2, Call: inter.builtIn_Set, SideEffects: true}
+	inter.opFn[literalStrOpIs] = Function{Name: "OP_EQ", RequiredArgs: 2, Call: builtIn_EQ}
+	inter.opFn[literalStrOpIsNot] = Function{Name: "OP_NE", RequiredArgs: 2, Call: builtIn_NE}
+	inter.opFn[literalStrOpGreaterThan] = Function{Name: "OP_GT", RequiredArgs: 2, Call: builtIn_GT}
+	inter.opFn[literalStrOpGreaterThanIs] = Function{Name: "OP_GE", RequiredArgs: 2, Call: builtIn_GE}
+	inter.opFn[literalStrOpLessThan] = Function{Name: "OP_LT", RequiredArgs: 2, Call: builtIn_LT}
+	inter.opFn[literalStrOpLessThanIs] = Function{Name: "OP_LE", RequiredArgs: 2, Call: builtIn_LE}
+	inter.opFn[literalStrOpOr] = Function{Name: "OP_OR", RequiredArgs: 2, Call: builtIn_Or}
+	inter.opFn[literalStrOpAnd] = Function{Name: "OP_AND", RequiredArgs: 2, Call: builtIn_And}
 	return inter
 }
 
@@ -183,374 +171,10 @@ func (inter Interpreter) GetFlag(label string) string {
 	return flag.String()
 }
 
-// SyntaxCheckTree executes every branch of the tree without giving output to
-// ensure that every branch can be parsed. If this function does not return an
-// an error, the same tree passed to ExpandTree should never return an error.
-//
-// If checkFlags, This also ensures every flag reference in the tree refers
-// to an existing flag.
-func (inter Interpreter) SyntaxCheckTree(ast *ExpansionAST, checkFlags bool) error {
-	if ast == nil {
-		return fmt.Errorf("nil ast")
-	}
-
-	for i := range ast.nodes {
-		n := ast.nodes[i]
-
-		if n.flag != nil {
-			// if flag is not
-			if checkFlags {
-				flUpper := strings.ToUpper(n.flag.name[1:])
-				_, ok := inter.flags[flUpper]
-				if !ok {
-					return fmt.Errorf("%q is not a defined flag", flUpper)
-				}
-			}
-		} else if n.text != nil {
-			// do no checking, we dont care about looking at raw text
-		} else if n.branch != nil {
-			cond := n.branch.ifNode.cond
-			contentExpansionAST := n.branch.ifNode.content
-
-			conditionalValue, err := inter.invoke(*cond, true)
-			if err != nil {
-				return fmt.Errorf("syntax error: %v", err)
-			}
-			if len(conditionalValue) != 1 {
-				return fmt.Errorf("incorrect number of arguments to $IF; must be exactly 1")
-			}
-
-			// regardless of value of conditional, do every branch
-			_, err = inter.ExpandTree(contentExpansionAST)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (inter Interpreter) ExpandTree(ast *ExpansionAST) (string, error) {
-	if ast == nil {
-		return "", fmt.Errorf("nil ast")
-	}
-
-	expandFlag := func(fullFlagToken string) string {
-		flagName := fullFlagToken[1:]
-		if flagName == "" {
-			// bare dollarsign, go add it to expanded
-			return "$"
-		} else {
-			// it is a full var name
-			flagName = strings.ToUpper(flagName)
-			flag, ok := inter.flags[flagName]
-			if !ok {
-				return ""
-			}
-			return flag.Value.String()
-		}
-	}
-
-	usb := util.UndoableStringBuilder{}
-
-	for i := range ast.nodes {
-		n := ast.nodes[i]
-
-		if n.flag != nil {
-			flagVal := expandFlag(n.flag.name)
-			usb.WriteString(flagVal)
-		} else if n.text != nil {
-			usb.WriteString(n.text.t)
-		} else if n.branch != nil {
-			cond := n.branch.ifNode.cond
-			contentExpansionAST := n.branch.ifNode.content
-
-			conditionalValue, err := inter.invoke(*cond, true)
-			if err != nil {
-				return "", fmt.Errorf("syntax error: %v", err)
-			}
-			if len(conditionalValue) != 1 {
-				return "", fmt.Errorf("incorrect number of arguments to $IF; must be exactly 1")
-			}
-
-			if conditionalValue[0].Bool() {
-				expandedContent, err := inter.ExpandTree(contentExpansionAST)
-				if err != nil {
-					return "", err
-				}
-
-				expandedContent = strings.TrimSpace(expandedContent)
-				usb.WriteString(expandedContent)
-			} else {
-				// get rid of extra space here if it's not still too slow
-
-				var prevTextHasSpace, nextTextHasSpace bool
-
-				// is there trailing space char in prior text block?
-				if i > 0 {
-					prevNode := ast.nodes[i-1]
-					if prevNode.text != nil {
-						textNode := prevNode.text
-						if textNode.minusSpaceSuffix != nil {
-							prevTextHasSpace = true
-						}
-					}
-				}
-
-				// is there a leading space char in next text block?
-				if i+1 < len(ast.nodes) {
-					nextNode := ast.nodes[i+1]
-					if nextNode.text != nil {
-						textNode := nextNode.text
-						if textNode.minusSpacePrefix != nil {
-							nextTextHasSpace = true
-						}
-					}
-				}
-
-				// if both have a space char, eliminate the prior one
-				if prevTextHasSpace && nextTextHasSpace {
-					usb.Undo()
-
-					prevText := ast.nodes[i-1].text.minusSpaceSuffix
-
-					usb.WriteString(*prevText)
-				}
-			}
-		}
-	}
-
-	str := usb.String()
-	return str, nil
-}
-
-// ParseExpansion applies expansion analysis to the given text.
-//
-//   - any flag reference with the $ will be expanded to its full value.
-//   - any $IF() ... $ENDIF() block will be evaluated and included in the output
-//     text only if the tunaquest expression inside the $IF evaluates to true.
-//   - function calls are not allowed outside of the tunascript expression in an
-//     $IF. If they are there, they will be interpreted as a variable expansion,
-//     and if there is no value matching that one, it will be expanded to an
-//     empty string. E.g. "$ADD()" in the body text would evaluate to value of
-//     flag called "ADD" (probably ""), followed by literal parenthesis.
-//   - bare dollar signs are evaluated as literal. This will only happen if they
-//     are not immediately followed by identifier chars.
-//   - literal $ signs can be included with a backslash. Thus the escape
-//     backslash will work.
-//   - literal backslashes can be included by escaping them.
-func (inter Interpreter) ParseExpansion(s string) (*ExpansionAST, error) {
-	sRunes := []rune{}
-	sBytes := []int{}
-	for b, ch := range s {
-		sRunes = append(sRunes, ch)
-		sBytes = append(sBytes, b)
-	}
-
-	ast, _, err := inter.parseExpansion(sRunes, sBytes, true)
-	return ast, err
-}
-
-func (inter Interpreter) parseExpansion(sRunes []rune, sBytes []int, topLevel bool) (*ExpansionAST, int, error) {
-	tree := &ExpansionAST{
-		nodes: make([]expTreeNode, 0),
-	}
-
-	const (
-		modeText = iota
-		modeIdent
-	)
-
-	var ident strings.Builder
-
-	var escaping bool
-
-	curText := strings.Builder{}
-	mode := modeText
-
-	buildTextNode := func(s string) *expTextNode {
-		var noPre, noSuf *string
-		if strings.HasPrefix(s, " ") {
-			noPre = new(string)
-			*noPre = strings.TrimPrefix(s, " ")
-		}
-		if strings.HasSuffix(s, " ") {
-			noSuf = new(string)
-			*noSuf = strings.TrimSuffix(s, " ")
-		}
-		return &expTextNode{
-			t:                s,
-			minusSpacePrefix: noPre,
-			minusSpaceSuffix: noSuf,
-		}
-
-	}
-
-	for i := 0; i < len(sRunes); i++ {
-		ch := sRunes[i]
-		switch mode {
-		case modeText:
-			if !escaping && ch == '\\' {
-				escaping = true
-			} else if !escaping && ch == '$' {
-				if curText.Len() > 0 {
-					lastText := curText.String()
-					tree.nodes = append(tree.nodes, expTreeNode{
-						text: buildTextNode(lastText),
-					})
-					curText.Reset()
-				}
-
-				ident.WriteRune('$')
-				mode = modeIdent
-			} else {
-				curText.WriteRune(ch)
-			}
-		case modeIdent:
-			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
-				ident.WriteRune(ch)
-			} else if ch == '(' {
-				fnName := ident.String()
-
-				if fnName == "$IF" {
-					// we've encountered an IF block, recurse.
-					parenMatch, tsExpr, err := indexOfMatchingParen(sRunes[i:])
-					if err != nil {
-						return tree, 0, fmt.Errorf("at char %d: %w", i, err)
-					}
-					exprLen := parenMatch - 1
-
-					if exprLen < 1 {
-						return tree, 0, fmt.Errorf("at char %d: args cannot be empty", i)
-					}
-
-					branch := expBranchNode{
-						ifNode: expCondNode{
-							cond: &tsExpr,
-						},
-					}
-
-					i += parenMatch
-
-					if i+1 >= len(sRunes) {
-						return nil, 0, fmt.Errorf("unexpected end of text (unmatched $IF)")
-					}
-
-					ast, consumed, err := inter.parseExpansion(sRunes[i+1:], sBytes[i+1:], false)
-					if err != nil {
-						return nil, 0, err
-					}
-
-					branch.ifNode.content = ast
-
-					tree.nodes = append(tree.nodes, expTreeNode{
-						branch: &branch,
-					})
-
-					i += consumed
-
-					ident.Reset()
-
-					i++ // to skip the closing paren that the recursed call detected and returned on
-					mode = modeText
-				} else if fnName == "$ENDIF" {
-					parenMatch, tsExpr, err := indexOfMatchingParen(sRunes[i:])
-					if err != nil {
-						return nil, 0, fmt.Errorf("at char %d: %w", i, err)
-					}
-					exprLen := parenMatch - 1
-
-					if exprLen != 0 {
-						return nil, 0, fmt.Errorf("at char %d: $ENDIF() takes zero arguments, received %d", i, len(tsExpr.nodes))
-					}
-					i += parenMatch
-
-					if topLevel {
-						return nil, 0, fmt.Errorf("unexpected end of text (unmatched $ENDIF)")
-					}
-
-					return tree, i, nil
-				} else {
-					return nil, 0, fmt.Errorf("at char %d: %s() is not a text function; only $IF() or $ENDIF() are allowed", i, ident.String())
-				}
-			} else {
-				flagName := ident.String()
-
-				tree.nodes = append(tree.nodes, expTreeNode{
-					flag: &expFlagNode{
-						name: flagName,
-					},
-				})
-
-				mode = modeText
-				i-- // reparse 'normally'
-			}
-		default:
-			// should never happen
-			return nil, 0, fmt.Errorf("unknown parser mode: %v", mode)
-		}
-	}
-
-	if !topLevel {
-		return nil, 0, fmt.Errorf("unexpected end of text (unmatched $IF)")
-	}
-
-	if curText.Len() > 0 {
-		lastText := curText.String()
-		tree.nodes = append(tree.nodes, expTreeNode{
-			text: buildTextNode(lastText),
-		})
-		curText.Reset()
-	}
-
-	if ident.Len() > 0 {
-		flagName := ident.String()
-
-		tree.nodes = append(tree.nodes, expTreeNode{
-			flag: &expFlagNode{
-				name: flagName,
-			},
-		})
-	}
-
-	return tree, len(sRunes), nil
-}
-
-// Expand applies expansion on the given text. Expansion will expand the
-// following constructs:
-//
-//   - any flag reference with the $ will be expanded to its full value.
-//   - any $IF() ... $ENDIF() block will be evaluated and included in the output
-//     text only if the tunaquest expression inside the $IF evaluates to true.
-//   - function calls are not allowed outside of the tunascript expression in an
-//     $IF. If they are there, they will be interpreted as a variable expansion,
-//     and if there is no value matching that one, it will be expanded to an
-//     empty string. E.g. "$ADD()" in the body text would evaluate to value of
-//     flag called "ADD" (probably ""), followed by literal parenthesis.
-//   - bare dollar signs are evaluated as literal. This will only happen if they
-//     are not immediately followed by identifier chars.
-//   - literal $ signs can be included with a backslash. Thus the escape
-//     backslash will work.
-//   - literal backslashes can be included by escaping them.
-func (inter Interpreter) Expand(s string) (string, error) {
-	expAST, err := inter.ParseExpansion(s)
-	if err != nil {
-		return "", err
-	}
-
-	expanded, err := inter.ExpandTree(expAST)
-	if err != nil {
-		return "", err
-	}
-
-	return expanded, nil
-}
-
-// Eval interprets the tunaquest expression in the given string. If there is an
+// Evaluate interprets the tunaquest expression in the given string. If there is an
 // error in the code, it is returned as a non-nil error, otherwise the output of
 // evaluating the expression is returned as a string.
-func (inter Interpreter) Eval(s string) (string, error) {
+func (inter Interpreter) Evaluate(s string) (string, error) {
 	// lexical analysis
 	tokens, err := Lex(s)
 	if err != nil {
@@ -574,4 +198,20 @@ func (inter Interpreter) Eval(s string) (string, error) {
 	}
 
 	return strings.Join(strVals, " "), nil
+}
+
+func parseUntypedValString(valStr string) Value {
+	srcUpper := strings.ToUpper(valStr)
+	if srcUpper == "TRUE" || srcUpper == "YES" || srcUpper == "ON" {
+		return NewBool(true)
+	} else if srcUpper == "FALSE" || srcUpper == "NO" || srcUpper == "OFF" {
+		return NewBool(false)
+	}
+
+	intVal, err := strconv.Atoi(valStr)
+	if err == nil {
+		return NewNum(intVal)
+	}
+
+	return NewStr(valStr)
 }

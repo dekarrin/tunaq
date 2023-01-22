@@ -230,10 +230,10 @@ func (inter Interpreter) invoke(ast AST, queryOnly bool) ([]Value, error) {
 	return nil, nil
 }
 
-// translateOperators turns the ast into a tunascript string containing only
+// TranslateOperators turns the ast into a tunascript string containing only
 // function calls and no operators. Originally this was for a 2-pass compiler
 // but that is overkill; current ast already handles all cases.
-func translateOperators(ast AST) string {
+func TranslateOperators(ast AST) string {
 	var sb strings.Builder
 
 	for i := 0; i < len(ast.nodes); i++ {
@@ -262,7 +262,7 @@ func translateOperators(ast AST) string {
 				toExec := AST{
 					nodes: []*astNode{node.fn.args[i]},
 				}
-				insert := translateOperators(toExec)
+				insert := TranslateOperators(toExec)
 				sb.WriteString(insert)
 				if i+1 < len(node.fn.args) {
 					writeRuneSlice(sb, literalSeparator)
@@ -278,7 +278,7 @@ func translateOperators(ast AST) string {
 			toExec := AST{
 				nodes: []*astNode{node.group.expr},
 			}
-			insert := translateOperators(toExec)
+			insert := TranslateOperators(toExec)
 			sb.WriteString(insert)
 			writeRuneSlice(sb, literalGroupClose)
 		} else if node.opGroup != nil {
@@ -291,42 +291,11 @@ func translateOperators(ast AST) string {
 					nodes: []*astNode{node.opGroup.infixOp.right},
 				}
 
-				leftInsert := translateOperators(leftExec)
-				rightInsert := translateOperators(rightExec)
+				leftInsert := TranslateOperators(leftExec)
+				rightInsert := TranslateOperators(rightExec)
 
-				var funcTemplate string
-				// TODO: Dude, Go has the template package! Why aren't we using it????????
-				if op == "+" {
-					funcTemplate = "%[1]sADD%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else if op == "-" {
-					funcTemplate = "%[1]sSUB%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else if op == "/" {
-					funcTemplate = "%[1]sDIV%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else if op == "*" {
-					funcTemplate = "%[1]sMULT%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else if op == "&&" {
-					funcTemplate = "%[1]sAND%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else if op == "||" {
-					funcTemplate = "%[1]sOR%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else if op == "+=" {
-					funcTemplate = "%[1]sINC%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else if op == "-=" {
-					funcTemplate = "%[1]sDEC%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else if op == "!=" {
-					funcTemplate = "%[1]sNOT%[2]s%[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s%[3]s"
-				} else if op == literalStrOpIs {
-					funcTemplate = "%[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else if op == "<" {
-					funcTemplate = "%[1]sFLAG_LESS_THAN%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else if op == ">" {
-					funcTemplate = "%[1]sFLAG_GREATER_THAN%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else if op == ">=" {
-					funcTemplate = "%[1]sOR%[2]s%[1]sFLAG_GREATER_THAN%[2]s%[4]s%[6]s %[5]s%[3]s%[6]s %[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s%[3]s"
-				} else if op == "<=" {
-					funcTemplate = "%[1]sOR%[2]s%[1]sFLAG_LESS_THAN%[2]s%[4]s%[6]s %[5]s%[3]s%[6]s %[1]sFLAG_IS%[2]s%[4]s%[6]s %[5]s%[3]s%[3]s"
-				} else if op == "=" {
-					funcTemplate = "%[1]sSET%[2]s%[4]s%[6]s %[5]s%[3]s"
-				} else {
+				funcTemplate := binaryOpFuncTranslations[op]
+				if funcTemplate == "" {
 					// should never happen
 					panic(fmt.Sprintf("unknown binary operator %q", op))
 				}
@@ -337,17 +306,10 @@ func translateOperators(ast AST) string {
 				toExec := AST{
 					nodes: []*astNode{node.opGroup.unaryOp.operand},
 				}
-				toInsert := translateOperators(toExec)
-				var funcTemplate string
-				if op == "!" {
-					funcTemplate = "%[1]sNOT%[2]s%[4]s%[3]s"
-				} else if op == "++" {
-					funcTemplate = "%[1]sINC%[2]s%[4]s%[3]s"
-				} else if op == "--" {
-					funcTemplate = "%[1]sDEC%[2]s%[4]s%[3]s"
-				} else if op == "-" {
-					funcTemplate = "%[1]sNEG%[2]s%[4]s%[3]s"
-				} else {
+				toInsert := TranslateOperators(toExec)
+
+				funcTemplate := unaryOpFuncTranslations[op]
+				if funcTemplate == "" {
 					// should never happen
 					panic(fmt.Sprintf("unknown unary operator %q", op))
 				}

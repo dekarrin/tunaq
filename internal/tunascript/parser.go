@@ -21,7 +21,7 @@ func InterpretOpText(s string) (string, error) {
 		nodes: []*astNode{ast},
 	}
 
-	output := translateOperators(fullTree)
+	output := TranslateOperators(fullTree)
 
 	return output, nil
 }
