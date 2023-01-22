@@ -12,6 +12,7 @@ type AST struct {
 }
 
 const (
+	astTreeLevelEmpty               = "        "
 	astTreeLevelOngoing             = "  |     "
 	astTreeLevelPrefix              = "  |%s: "
 	astTreeLevelPrefixLast          = `  \%s: `
@@ -27,14 +28,14 @@ const (
 
 func makeASTTreeLevelPrefix(msg string) string {
 	for len([]rune(msg)) < astTreeLevelPrefixNamePadAmount {
-		msg += string(astTreeLevelPrefixNamePadChar)
+		msg = string(astTreeLevelPrefixNamePadChar) + msg
 	}
 	return fmt.Sprintf(astTreeLevelPrefix, msg)
 }
 
 func makeASTTreeLevelPrefixLast(msg string) string {
 	for len([]rune(msg)) < astTreeLevelPrefixNamePadAmount {
-		msg += string(astTreeLevelPrefixNamePadChar)
+		msg = string(astTreeLevelPrefixNamePadChar) + msg
 	}
 	return fmt.Sprintf(astTreeLevelPrefixLast, msg)
 }
@@ -47,15 +48,18 @@ func (ast AST) String() string {
 	sb.WriteString("(AST)\n")
 
 	for i := range ast.nodes {
-		var prefix string
+		var firstPrefix string
+		var contPrefix string
 		if i+1 < len(ast.nodes) {
-			prefix = makeASTTreeLevelPrefix("")
+			firstPrefix = makeASTTreeLevelPrefix("")
+			contPrefix = astTreeLevelOngoing
 		} else {
-			prefix = makeASTTreeLevelPrefixLast("")
+			firstPrefix = makeASTTreeLevelPrefixLast("")
+			contPrefix = astTreeLevelEmpty
 		}
-		itemOut := ast.nodes[i].leveledStr(prefix)
+		itemOut := ast.nodes[i].leveledStr(firstPrefix, contPrefix)
 		sb.WriteString(itemOut)
-		if len(itemOut) > 0 {
+		if len(itemOut) > 0 && i+1 < len(ast.nodes) {
 			sb.WriteRune('\n')
 		}
 	}
@@ -158,17 +162,17 @@ func (n astNode) Equal(o any) bool {
 	return true
 }
 
-func (n astNode) leveledStr(prefix string) string {
+func (n astNode) leveledStr(firstPrefix, contPrefix string) string {
 	if n.value != nil {
-		return n.value.leveledStr(prefix)
+		return n.value.leveledStr(firstPrefix)
 	} else if n.flag != nil {
-		return n.flag.leveledStr(prefix)
+		return n.flag.leveledStr(firstPrefix)
 	} else if n.fn != nil {
-		return n.fn.leveledStr(prefix)
+		return n.fn.leveledStr(firstPrefix, contPrefix)
 	} else if n.group != nil {
-		return n.group.leveledStr(prefix)
+		return n.group.leveledStr(firstPrefix, contPrefix)
 	} else if n.opGroup != nil {
-		return n.opGroup.leveledStr(prefix)
+		return n.opGroup.leveledStr(firstPrefix, contPrefix)
 	} else {
 		// should never happen
 		panic("empty ast node")
@@ -230,21 +234,24 @@ func (n fnNode) Equal(o any) bool {
 	return true
 }
 
-func (n fnNode) leveledStr(prefix string) string {
+func (n fnNode) leveledStr(firstPrefix, contPrefix string) string {
 	var sb strings.Builder
 
-	sb.WriteString(prefix)
+	sb.WriteString(firstPrefix)
 	sb.WriteString(fmt.Sprintf("(FUNCTION \"%s\")", n.name))
 
 	for i := range n.args {
 		sb.WriteRune('\n')
-		var leveledPrefix string
+		var leveledFirstPrefix string
+		var leveledContPrefix string
 		if i+1 < len(n.args) {
-			leveledPrefix = prefix + makeASTTreeLevelPrefix(fmt.Sprintf("A%d", i))
+			leveledFirstPrefix = contPrefix + makeASTTreeLevelPrefix(fmt.Sprintf("A%d", i))
+			leveledContPrefix = contPrefix + astTreeLevelOngoing
 		} else {
-			leveledPrefix = prefix + makeASTTreeLevelPrefixLast(fmt.Sprintf("A%d", i))
+			leveledFirstPrefix = contPrefix + makeASTTreeLevelPrefixLast(fmt.Sprintf("A%d", i))
+			leveledContPrefix = contPrefix + astTreeLevelEmpty
 		}
-		itemOut := n.args[i].leveledStr(leveledPrefix)
+		itemOut := n.args[i].leveledStr(leveledFirstPrefix, leveledContPrefix)
 		sb.WriteString(itemOut)
 	}
 
@@ -294,13 +301,13 @@ func (n valueNode) Equal(o any) bool {
 
 func (n valueNode) leveledStr(prefix string) string {
 	if n.quotedStringVal != nil {
-		return fmt.Sprintf("(QSTR_VALUE \"%s\")", *n.quotedStringVal)
+		return prefix + fmt.Sprintf("(QSTR_VALUE \"%s\")", *n.quotedStringVal)
 	} else if n.unquotedStringVal != nil {
-		return fmt.Sprintf("(STR_VALUE \"%s\")", *n.unquotedStringVal)
+		return prefix + fmt.Sprintf("(STR_VALUE \"%s\")", *n.unquotedStringVal)
 	} else if n.boolVal != nil {
-		return fmt.Sprintf("(BOOL_VALUE \"%t\")", *n.boolVal)
+		return prefix + fmt.Sprintf("(BOOL_VALUE \"%t\")", *n.boolVal)
 	} else if n.numVal != nil {
-		return fmt.Sprintf("(NUM_VALUE \"%d\")", *n.numVal)
+		return prefix + fmt.Sprintf("(NUM_VALUE \"%d\")", *n.numVal)
 	} else {
 		// should never happen
 		panic("empty ast node")
@@ -333,13 +340,17 @@ func (n groupNode) Equal(o any) bool {
 	return true
 }
 
-func (n groupNode) leveledStr(prefix string) string {
+func (n groupNode) leveledStr(firstPrefix, contPrefix string) string {
 	if n.expr == nil {
 		panic("empty ast node")
 	}
 
-	fullStr := prefix + "(GROUP)"
-	groupOut := n.expr.leveledStr(prefix + makeASTTreeLevelPrefixLast(""))
+	fullStr := firstPrefix + "(GROUP)"
+
+	leveledFirst := contPrefix + makeASTTreeLevelPrefixLast("")
+	leveledCont := contPrefix + astTreeLevelEmpty
+
+	groupOut := n.expr.leveledStr(leveledFirst, leveledCont)
 
 	if len(groupOut) > 0 {
 		fullStr += "\n" + groupOut
@@ -379,11 +390,11 @@ func (n operatorGroupNode) Equal(o any) bool {
 	return true
 }
 
-func (n operatorGroupNode) leveledStr(prefix string) string {
+func (n operatorGroupNode) leveledStr(firstPrefix, contPrefix string) string {
 	if n.infixOp != nil {
-		return n.infixOp.leveledStr(prefix)
+		return n.infixOp.leveledStr(firstPrefix, contPrefix)
 	} else if n.unaryOp != nil {
-		return n.unaryOp.leveledStr(prefix)
+		return n.unaryOp.leveledStr(firstPrefix, contPrefix)
 	} else {
 		panic("empty ast node")
 	}
@@ -421,13 +432,17 @@ func (n unaryOperatorGroupNode) Equal(o any) bool {
 	return true
 }
 
-func (n unaryOperatorGroupNode) leveledStr(prefix string) string {
+func (n unaryOperatorGroupNode) leveledStr(firstPrefix, contPrefix string) string {
 	if n.operand == nil {
 		panic("empty ast node")
 	}
 
-	fullStr := prefix + fmt.Sprintf("(UNARY_OP \"%s\")", n.op)
-	operandOut := n.operand.leveledStr(prefix + makeASTTreeLevelPrefixLast(""))
+	fullStr := firstPrefix + fmt.Sprintf("(UNARY_OP \"%s\")", n.op)
+
+	leveledFirst := contPrefix + makeASTTreeLevelPrefixLast("")
+	leveledCont := contPrefix + astTreeLevelEmpty
+
+	operandOut := n.operand.leveledStr(leveledFirst, leveledCont)
 
 	if len(operandOut) > 0 {
 		fullStr += "\n" + operandOut
@@ -470,15 +485,20 @@ func (n binaryOperatorGroupNode) Equal(o any) bool {
 	return true
 }
 
-func (n binaryOperatorGroupNode) leveledStr(prefix string) string {
+func (n binaryOperatorGroupNode) leveledStr(firstPrefix, contPrefix string) string {
 	if n.left == nil || n.right == nil {
 		panic("empty ast node")
 	}
 
-	fullStr := prefix + fmt.Sprintf("(BINARY_OP \"%s\")", n.op)
+	fullStr := firstPrefix + fmt.Sprintf("(BINARY_OP \"%s\")", n.op)
 
-	leftOut := n.left.leveledStr(prefix + makeASTTreeLevelPrefix("L"))
-	rightOut := n.right.leveledStr(prefix + makeASTTreeLevelPrefixLast("R"))
+	leftFirst := contPrefix + makeASTTreeLevelPrefix("L")
+	leftCont := contPrefix + astTreeLevelOngoing
+	rightFirst := contPrefix + makeASTTreeLevelPrefixLast("R")
+	rightCont := contPrefix + astTreeLevelEmpty
+
+	leftOut := n.left.leveledStr(leftFirst, leftCont)
+	rightOut := n.right.leveledStr(rightFirst, rightCont)
 
 	if len(leftOut) > 0 {
 		fullStr += "\n" + leftOut

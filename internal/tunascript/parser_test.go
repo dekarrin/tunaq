@@ -32,6 +32,14 @@ func sRef(s string) *string {
 	return &s
 }
 
+func iRef(i int) *int {
+	return &i
+}
+
+func bRef(b bool) *bool {
+	return &b
+}
+
 type wi struct {
 	inInven bool
 	move    bool
