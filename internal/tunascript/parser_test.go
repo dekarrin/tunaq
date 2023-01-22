@@ -1,11 +1,5 @@
 package tunascript
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-)
-
 /*
 func Test_Parse(t *testing.T) {
 	testCases := []struct {
@@ -34,22 +28,8 @@ func Test_Parse(t *testing.T) {
 	}
 }*/
 
-func Test_AST_String(t *testing.T) {
-	testCases := []struct {
-		name   string
-		input  AST
-		expect string
-	}{}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert := assert.New(t)
-
-			actual := tc.input.String()
-
-			assert.Equal(tc.expect, actual)
-		})
-	}
+func sRef(s string) *string {
+	return &s
 }
 
 type wi struct {
