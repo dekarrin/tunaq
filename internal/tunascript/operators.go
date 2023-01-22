@@ -47,7 +47,7 @@ func (lex token) nud(tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				unaryOp: &unaryOperatorGroupNode{
-					op:      "-",
+					op:      literalStrOpMinus,
 					operand: negatedVal,
 				},
 			},
@@ -56,7 +56,7 @@ func (lex token) nud(tokens *tokenStream) (*astNode, error) {
 	case tsNumber:
 		num, err := strconv.Atoi(lex.lexeme)
 		if err != nil {
-			panic(fmt.Sprintf("got non-integer value %q in LEX_NUMBER token, should never happen", lex.lexeme))
+			panic(fmt.Sprintf("got non-integer value %q in %s token, should never happen", lex.lexeme, lex.class.id))
 		}
 		return &astNode{
 			value: &valueNode{
@@ -74,7 +74,7 @@ func (lex token) nud(tokens *tokenStream) (*astNode, error) {
 		} else if vUp == "FALSE" || vUp == "OFF" || vUp == "NO" {
 			boolVal = false
 		} else {
-			panic(fmt.Sprintf("got non-bool value %q in LEX_BOOL token, should never happen", lex.lexeme))
+			panic(fmt.Sprintf("got non-bool value %q in %s token, should never happen", lex.lexeme, lex.class.id))
 		}
 
 		return &astNode{
@@ -98,7 +98,7 @@ func (lex token) nud(tokens *tokenStream) (*astNode, error) {
 		}
 		next := tokens.Next()
 		if next.class != tsGroupClose {
-			return nil, syntaxErrorFromLexeme("unmatched left paren; expected a '"+literalStrGroupClose+"' here", next)
+			return nil, syntaxErrorFromLexeme("unmatched '"+literalStrGroupOpen+"'; expected a '"+literalStrGroupClose+"' here", next)
 		}
 
 		return &astNode{
@@ -129,7 +129,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    "<=",
+					op:    literalStrOpLessThanIs,
 					left:  left,
 					right: right,
 				},
@@ -145,7 +145,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    ">=",
+					op:    literalStrOpGreaterThanIs,
 					left:  left,
 					right: right,
 				},
@@ -161,7 +161,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    "<",
+					op:    literalStrOpLessThan,
 					left:  left,
 					right: right,
 				},
@@ -177,7 +177,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    ">",
+					op:    literalStrOpGreaterThan,
 					left:  left,
 					right: right,
 				},
@@ -193,7 +193,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    "!=",
+					op:    literalStrOpIsNot,
 					left:  left,
 					right: right,
 				},
@@ -209,7 +209,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    "==",
+					op:    literalStrOpIs,
 					left:  left,
 					right: right,
 				},
@@ -225,7 +225,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    "=",
+					op:    literalStrOpSet,
 					left:  left,
 					right: right,
 				},
@@ -241,7 +241,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    "+=",
+					op:    literalStrOpIncset,
 					left:  left,
 					right: right,
 				},
@@ -257,7 +257,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    "-=",
+					op:    literalStrOpDecset,
 					left:  left,
 					right: right,
 				},
@@ -268,7 +268,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				unaryOp: &unaryOperatorGroupNode{
-					op:      "!",
+					op:      literalStrOpNot,
 					operand: left,
 				},
 			},
@@ -278,7 +278,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				unaryOp: &unaryOperatorGroupNode{
-					op:      "++",
+					op:      literalStrOpInc,
 					operand: left,
 				},
 			},
@@ -288,7 +288,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				unaryOp: &unaryOperatorGroupNode{
-					op:      "--",
+					op:      literalStrOpDec,
 					operand: left,
 				},
 			},
@@ -302,7 +302,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    "+",
+					op:    literalStrOpPlus,
 					left:  left,
 					right: right,
 				},
@@ -317,7 +317,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    "-",
+					op:    literalStrOpMinus,
 					left:  left,
 					right: right,
 				},
@@ -332,7 +332,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    "*",
+					op:    literalStrOpMultiply,
 					left:  left,
 					right: right,
 				},
@@ -347,7 +347,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 		return &astNode{
 			opGroup: &operatorGroupNode{
 				infixOp: &binaryOperatorGroupNode{
-					op:    "/",
+					op:    literalStrOpDivide,
 					left:  left,
 					right: right,
 				},
@@ -393,88 +393,4 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 	default:
 		return nil, nil
 	}
-}
-
-func (lex token) MarshalBinary() ([]byte, error) {
-	var data []byte
-
-	data = append(data, encBinaryString(lex.lexeme)...)
-	data = append(data, encBinary(lex.class)...)
-	data = append(data, encBinaryInt(lex.pos)...)
-	data = append(data, encBinaryInt(lex.line)...)
-	data = append(data, encBinaryString(lex.fullLine)...)
-
-	return data, nil
-}
-
-func (lex *token) UnmarshalBinary(data []byte) error {
-	var err error
-	var bytesRead int
-
-	lex.lexeme, bytesRead, err = decBinaryString(data)
-	if err != nil {
-		return err
-	}
-	data = data[bytesRead:]
-
-	bytesRead, err = decBinary(data, &lex.class)
-	if err != nil {
-		return err
-	}
-	data = data[bytesRead:]
-
-	lex.pos, bytesRead, err = decBinaryInt(data)
-	if err != nil {
-		return err
-	}
-	data = data[bytesRead:]
-
-	lex.line, bytesRead, err = decBinaryInt(data)
-	if err != nil {
-		return err
-	}
-	data = data[bytesRead:]
-
-	lex.fullLine, _, err = decBinaryString(data)
-	if err != nil {
-		return err
-	}
-	//data = data[bytesRead:]
-
-	return nil
-}
-
-func (sym tokenClass) MarshalBinary() ([]byte, error) {
-	var data []byte
-
-	data = append(data, encBinaryString(sym.id)...)
-	data = append(data, encBinaryString(sym.human)...)
-	data = append(data, encBinaryInt(sym.lbp)...)
-
-	return data, nil
-}
-
-func (sym *tokenClass) UnmarshalBinary(data []byte) error {
-	var err error
-	var bytesRead int
-
-	sym.id, bytesRead, err = decBinaryString(data)
-	if err != nil {
-		return err
-	}
-	data = data[bytesRead:]
-
-	sym.human, bytesRead, err = decBinaryString(data)
-	if err != nil {
-		return err
-	}
-	data = data[bytesRead:]
-
-	sym.lbp, _, err = decBinaryInt(data)
-	if err != nil {
-		return err
-	}
-	// data = data[bytesRead:]
-
-	return nil
 }

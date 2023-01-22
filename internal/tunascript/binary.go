@@ -145,3 +145,87 @@ func decBinary(data []byte, b encoding.BinaryUnmarshaler) (int, error) {
 
 	return byteLen + readBytes, nil
 }
+
+func (lex token) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(lex.lexeme)...)
+	data = append(data, encBinary(lex.class)...)
+	data = append(data, encBinaryInt(lex.pos)...)
+	data = append(data, encBinaryInt(lex.line)...)
+	data = append(data, encBinaryString(lex.fullLine)...)
+
+	return data, nil
+}
+
+func (lex *token) UnmarshalBinary(data []byte) error {
+	var err error
+	var bytesRead int
+
+	lex.lexeme, bytesRead, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	bytesRead, err = decBinary(data, &lex.class)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	lex.pos, bytesRead, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	lex.line, bytesRead, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	lex.fullLine, _, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	//data = data[bytesRead:]
+
+	return nil
+}
+
+func (sym tokenClass) MarshalBinary() ([]byte, error) {
+	var data []byte
+
+	data = append(data, encBinaryString(sym.id)...)
+	data = append(data, encBinaryString(sym.human)...)
+	data = append(data, encBinaryInt(sym.lbp)...)
+
+	return data, nil
+}
+
+func (sym *tokenClass) UnmarshalBinary(data []byte) error {
+	var err error
+	var bytesRead int
+
+	sym.id, bytesRead, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	sym.human, bytesRead, err = decBinaryString(data)
+	if err != nil {
+		return err
+	}
+	data = data[bytesRead:]
+
+	sym.lbp, _, err = decBinaryInt(data)
+	if err != nil {
+		return err
+	}
+	// data = data[bytesRead:]
+
+	return nil
+}
