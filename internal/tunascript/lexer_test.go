@@ -220,6 +220,14 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 			tsQuotedString, tsOpPlus, tsNumber, tsOpMultiply, tsUnquotedString, tsOpMinus, tsIdentifier, tsGroupOpen,
 			tsUnquotedString, tsGroupClose, tsOpMultiply, tsNumber, tsEndOfText,
 		}},
+		{
+			name:  "mixed boolean expression",
+			input: "$JOEY_TASK_DONE || ($PLAYER_CHAR > 25 && $JOEY_RELATION >= 2) || !$PASSED_TUTORIAL",
+			expect: []tokenClass{
+				tsIdentifier, tsOpOr, tsGroupOpen, tsIdentifier, tsOpGreaterThan, tsNumber, tsOpAnd, tsIdentifier,
+				tsOpGreaterThanIs, tsNumber, tsGroupClose, tsOpOr, tsOpNot, tsIdentifier, tsEndOfText,
+			},
+		},
 	}
 
 	for _, tc := range testCases {
