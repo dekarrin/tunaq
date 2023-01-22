@@ -14,22 +14,51 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 		expect    []tokenClass
 		expectErr bool
 	}{
-		{name: "blank string", input: "", expect: []tokenClass{tsEndOfText}},
-		{name: "1 digit number", input: "1", expect: []tokenClass{tsNumber, tsEndOfText}},
-		{name: "2 digit number", input: "39", expect: []tokenClass{tsNumber, tsEndOfText}},
-		{name: "3 digit number", input: "026", expect: []tokenClass{tsNumber, tsEndOfText}},
-		{name: "4 digit number", input: "4578", expect: []tokenClass{tsNumber, tsEndOfText}},
-		{name: "2 numbers", input: "3284 1384", expect: []tokenClass{tsUnquotedString, tsEndOfText}},
+		{name: "blank string", input: "", expect: []tokenClass{
+			tsEndOfText,
+		}},
+		{name: "1 digit number", input: "1", expect: []tokenClass{
+			tsNumber, tsEndOfText,
+		}},
+		{name: "2 digit number", input: "39", expect: []tokenClass{
+			tsNumber, tsEndOfText,
+		}},
+		{name: "3 digit number", input: "026", expect: []tokenClass{
+			tsNumber, tsEndOfText,
+		}},
+		{name: "4 digit number", input: "4578", expect: []tokenClass{
+			tsNumber, tsEndOfText,
+		}},
+		{name: "2 numbers", input: "3284 1384", expect: []tokenClass{
+			tsUnquotedString, tsEndOfText,
+		}},
 		{name: "we dont do decimals, thats a string", input: "13.4", expect: []tokenClass{
 			tsUnquotedString, tsEndOfText,
 		}},
-		{name: "bool on", input: "on", expect: []tokenClass{tsBool, tsEndOfText}},
-		{name: "bool off", input: "OFF", expect: []tokenClass{tsBool, tsEndOfText}},
-		{name: "bool true", input: "tRuE", expect: []tokenClass{tsBool, tsEndOfText}},
-		{name: "bool false", input: "False", expect: []tokenClass{tsBool, tsEndOfText}},
-		{name: "bool yes", input: "yeS", expect: []tokenClass{tsBool, tsEndOfText}},
-		{name: "bool no", input: "no", expect: []tokenClass{tsBool, tsEndOfText}},
-		{name: "some string", input: "fdksalfjaskldfj", expect: []tokenClass{tsUnquotedString, tsEndOfText}},
+		{name: "negative number is actually 2 tokens", input: "-12", expect: []tokenClass{
+			tsOpMinus, tsNumber, tsEndOfText,
+		}},
+		{name: "bool on", input: "on", expect: []tokenClass{
+			tsBool, tsEndOfText,
+		}},
+		{name: "bool off", input: "OFF", expect: []tokenClass{
+			tsBool, tsEndOfText,
+		}},
+		{name: "bool true", input: "tRuE", expect: []tokenClass{
+			tsBool, tsEndOfText,
+		}},
+		{name: "bool false", input: "False", expect: []tokenClass{
+			tsBool, tsEndOfText,
+		}},
+		{name: "bool yes", input: "yeS", expect: []tokenClass{
+			tsBool, tsEndOfText,
+		}},
+		{name: "bool no", input: "no", expect: []tokenClass{
+			tsBool, tsEndOfText,
+		}},
+		{name: "some string", input: "fdksalfjaskldfj", expect: []tokenClass{
+			tsUnquotedString, tsEndOfText,
+		}},
 		{name: "a few random values", input: "no yes test string 3 eight", expect: []tokenClass{
 			tsUnquotedString, tsEndOfText,
 		}},
@@ -108,6 +137,18 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 		}},
 		{name: "decset flag, ignore space", input: "$X-=5", expect: []tokenClass{
 			tsIdentifier, tsOpDecset, tsNumber, tsEndOfText,
+		}},
+		{name: "set flag", input: "$X = 249", expect: []tokenClass{
+			tsIdentifier, tsOpSet, tsNumber, tsEndOfText,
+		}},
+		{name: "set flag, ignore space", input: "$X=test string", expect: []tokenClass{
+			tsIdentifier, tsOpSet, tsUnquotedString, tsEndOfText,
+		}},
+		{name: "not flag", input: "!$X", expect: []tokenClass{
+			tsOpNot, tsIdentifier, tsEndOfText,
+		}},
+		{name: "not flag, ignore space", input: "! $X", expect: []tokenClass{
+			tsOpNot, tsIdentifier, tsEndOfText,
 		}},
 		{name: "expr 1", input: "@glubglub@ - exit * 600 /($FLAG_VAR+3)+$ADD(3, 4)", expect: []tokenClass{
 			tsQuotedString, tsOpMinus, tsUnquotedString, tsOpMultiply, tsNumber, tsOpDivide, tsGroupOpen, tsIdentifier,
