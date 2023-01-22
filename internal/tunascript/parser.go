@@ -40,6 +40,9 @@ func Parse(tokens tokenStream) (AST, error) {
 }
 
 func parseOpExpression(stream *tokenStream, rbp int) (*astNode, error) {
+
+	// TODO: consider implementing panic mode to parse rest of the system
+
 	var err error
 
 	if stream.Remaining() < 1 {

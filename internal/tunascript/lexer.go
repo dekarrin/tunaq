@@ -34,6 +34,47 @@ const (
 	literalStrOpNot           = "!"
 )
 
+var regularModeMatchRules = []matchRule{
+	{literal: literalStringQuote, class: tsQuotedString, transitionModeTo: lexString},
+	{literal: literalIdentifierStart, class: tsIdentifier, transitionModeTo: lexIdent},
+	{literal: literalSeparator, class: tsSeparator, lexeme: literalStrSeparator},
+	{literal: literalOpPlus, class: tsOpPlus, lexeme: literalStrOpPlus},
+	{literal: literalOpInc, class: tsOpInc, lexeme: literalStrOpInc},
+	{literal: literalOpIncset, class: tsOpIncset, lexeme: literalStrOpIncset},
+	{literal: literalOpMinus, class: tsOpMinus, lexeme: literalStrOpMinus},
+	{literal: literalOpDec, class: tsOpDec, lexeme: literalStrOpDec},
+	{literal: literalOpDecset, class: tsOpDecset, lexeme: literalStrOpDecset},
+	{literal: literalOpDivide, class: tsOpDivide, lexeme: literalStrOpDivide},
+	{literal: literalOpMultiply, class: tsOpMultiply, lexeme: literalStrOpMultiply},
+	{literal: literalOpNot, class: tsOpNot, lexeme: literalStrOpNot},
+	{literal: literalOpIsNot, class: tsOpIsNot, lexeme: literalStrOpIsNot},
+	{literal: literalOpLessThan, class: tsOpLessThan, lexeme: literalStrOpLessThan},
+	{literal: literalOpLessThanIs, class: tsOpLessThanIs, lexeme: literalStrOpLessThan},
+	{literal: literalOpGreaterThan, class: tsOpGreaterThan, lexeme: literalStrOpGreaterThan},
+	{literal: literalOpGreaterThanIs, class: tsOpGreaterThanIs, lexeme: literalStrOpGreaterThanIs},
+	{literal: literalGroupOpen, class: tsGroupOpen, lexeme: literalStrGroupOpen},
+	{literal: literalGroupClose, class: tsGroupClose, lexeme: literalStrGroupClose},
+	{literal: literalOpAnd, class: tsOpAnd, lexeme: literalStrOpAnd},
+	{literal: literalOpOr, class: tsOpOr, lexeme: literalStrOpOr},
+	{literal: literalOpIs, class: tsOpIs, lexeme: literalStrOpIs},
+	{literal: literalOpSet, class: tsOpSet, lexeme: literalStrOpSet},
+}
+
+type lexMode int
+
+const (
+	lexDefault lexMode = iota
+	lexIdent
+	lexString
+)
+
+type matchRule struct {
+	literal          []rune
+	class            tokenClass
+	lexeme           string
+	transitionModeTo lexMode
+}
+
 type token struct {
 	lexeme   string
 	class    tokenClass
@@ -159,14 +200,6 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 
 	var escaping bool
 
-	type lexMode int
-
-	const (
-		lexDefault lexMode = iota
-		lexIdent
-		lexString
-	)
-
 	mode := lexDefault
 
 	// track our paren-depth in case endAtMatching is set
@@ -222,7 +255,6 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 				writeRuneSlice(sb, literalStringQuote)
 				flushCurrentPendingToken()
 				mode = lexDefault
-				sb.Reset()
 				i += len(literalStringQuote) - 1
 			} else if !escaping && ch == '\\' {
 				// preserve ALL escape sequences not directly linked to
@@ -235,272 +267,82 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 				sb.WriteRune(ch)
 			}
 		case lexDefault:
-			if !escaping && startMatches(sRunes[i:], literalStringQuote) {
-				flushCurrentPendingToken()
-
-				// we are entering a string, set type and current position
-				// (value set on a deferred basis once string is complete)
-				curToken.pos = curLinePos
-				curToken.line = curLine
-				curToken.class = tsQuotedString
-				mode = lexString
-				writeRuneSlice(sb, literalStringQuote)
-				i += len(literalStringQuote) - 1
-			} else if !escaping && startMatches(sRunes[i:], literalIdentifierStart) {
-				flushCurrentPendingToken()
-
-				// we are entering an identifier, set type and current position
-				// (value set on a deferred basis once identifier is complete)
-				curToken.pos = curLinePos
-				curToken.line = curLine
-				curToken.class = tsIdentifier
-				mode = lexIdent
-				writeRuneSlice(sb, literalIdentifierStart)
-				i += len(literalIdentifierStart) - 1
-			} else if !escaping && ch == '\\' {
+			if !escaping && ch == '\\' {
 				escaping = true
-			} else if startMatches(sRunes[i:], literalSeparator) {
-				if escaping {
-					writeRuneSlice(sb, literalSeparator)
-					escaping = false
-				} else {
-					flushCurrentPendingToken()
-					curToken = token{pos: curLinePos, line: curLine, class: tsSeparator, lexeme: literalStrSeparator}
-					curToken.fullLine = currentfullLine
-					tokens = append(tokens, curToken)
-					curToken = token{}
-				}
-				i += len(literalSeparator) - 1
-			} else if ch == '+' {
-				if escaping {
-					sb.WriteRune('+')
-					escaping = false
-				} else {
-					flushCurrentPendingToken()
-					if i+1 < len(sRunes) && sRunes[i+1] == '+' {
-						// it is double-plus
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpInc, lexeme: "++"}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
-						i++
-					} else if i+1 < len(sRunes) && sRunes[i+1] == '=' {
-						// it is inc-by
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpIncset, lexeme: "-="}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
-						i++
-					} else {
-						// it is a plus
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpPlus, lexeme: "+"}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
-					}
-				}
-			} else if ch == '-' {
-				if escaping {
-					sb.WriteRune('-')
-					escaping = false
-				} else {
-					flushCurrentPendingToken()
-					if i+1 < len(sRunes) && sRunes[i+1] == '-' {
-						// it is double-minus
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpDec, lexeme: "--"}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
-						i++
-					} else if i+1 < len(sRunes) && sRunes[i+1] == '=' {
-						// it is dec-by
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpDecset, lexeme: "-="}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
-						i++
-					} else {
-						// it is a minus
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpMinus, lexeme: "-"}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
-					}
-				}
-			} else if ch == '/' {
-				if escaping {
-					sb.WriteRune('/')
-					escaping = false
-				} else {
-					flushCurrentPendingToken()
-					curToken = token{pos: curLinePos, line: curLine, class: tsOpDivide, lexeme: "/"}
-					curToken.fullLine = currentfullLine
-					tokens = append(tokens, curToken)
-					curToken = token{}
-				}
-			} else if ch == '*' {
-				if escaping {
-					sb.WriteRune('*')
-					escaping = false
-				} else {
-					flushCurrentPendingToken()
-					curToken = token{pos: curLinePos, line: curLine, class: tsOpMultiply, lexeme: "*"}
-					curToken.fullLine = currentfullLine
-					tokens = append(tokens, curToken)
-					curToken = token{}
-				}
-			} else if ch == '!' {
-				if escaping {
-					sb.WriteRune('!')
-					escaping = false
-				} else {
-					flushCurrentPendingToken()
+				// TODO: continue but dont actually use that!
+				// I Believe It Would Cause It To Go Out Of Scope Yes.
+			}
 
-					if i+1 < len(sRunes) && sRunes[i+1] == '=' {
-						// it is not-equal
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpIsNot, lexeme: "!="}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
-						i++
-					} else {
-						// it is a negation
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpNot, lexeme: "!"}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
-					}
-				}
-			} else if ch == '<' {
-				if escaping {
-					sb.WriteRune('<')
-					escaping = false
-				} else {
-					flushCurrentPendingToken()
+			// need to not unroll this bc we need to try all and then select
+			// by disambiguation
 
-					if i+1 < len(sRunes) && sRunes[i+1] == '=' {
-						// it is lt/eq
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpLessThanIs, lexeme: "<="}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
-						i++
-					} else {
-						// it is less-than
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpLessThan, lexeme: "<"}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
+			matches := []matchRule{}
+			if !escaping {
+				for j := range regularModeMatchRules {
+					if startMatches(sRunes[i:], regularModeMatchRules[j].literal) {
+						matches = append(matches, regularModeMatchRules[j])
 					}
 				}
-			} else if ch == '>' {
-				if escaping {
-					sb.WriteRune('>')
-					escaping = false
-				} else {
-					flushCurrentPendingToken()
+			}
 
-					if i+1 < len(sRunes) && sRunes[i+1] == '=' {
-						// it is gt/eq
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpGreaterThanIs, lexeme: ">="}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
-						i++
-					} else {
-						// it is greater-than
-						curToken = token{pos: curLinePos, line: curLine, class: tsOpGreaterThan, lexeme: ">"}
-						curToken.fullLine = currentfullLine
-						tokens = append(tokens, curToken)
-						curToken = token{}
+			// TODO This entire section can a8solutely be replaced with a regular
+			// expression! And it wouldn't need a *lot* of modific8ions. Well,
+			// not any that wouldn't 8e worth it, anyways.
+			//
+			// right but i think its super hard to write a regex for a quoted
+			// string that can have backslashes. unless you gave a regex for a
+			// modeswap hmmmm....
+			//
+			// Yeah, we should look into it in the future if we want to
+			// optimize.
+			if len(matches) > 0 {
+				if len(matches) > 1 {
+					// need to decide which one to do, select the largest one
+					longestMatchLen := 0
+					for _, m := range matches {
+						if len(m.literal) > longestMatchLen {
+							longestMatchLen = len(m.literal)
+						}
 					}
+
+					// drop all smaller than largest
+					bettaMatches := []matchRule{}
+					for _, m := range matches {
+						if len(m.literal) == longestMatchLen {
+							bettaMatches = append(bettaMatches, m)
+						}
+					}
+
+					// if we STILL have an ambiguity, take the one at start
+					matches = bettaMatches[:1]
 				}
-			} else if startMatches(sRunes[i:], literalGroupOpen) {
-				if escaping {
-					writeRuneSlice(sb, literalGroupOpen)
-					escaping = false
+				action := matches[0]
+
+				flushCurrentPendingToken()
+				curToken.pos = curLinePos
+				curToken.line = curLine
+				curToken.class = action.class
+				if action.transitionModeTo != lexDefault {
+					mode = action.transitionModeTo
+					writeRuneSlice(sb, action.literal)
 				} else {
-					flushCurrentPendingToken()
-					curToken = token{pos: curLinePos, line: curLine, class: tsGroupOpen, lexeme: literalStrGroupOpen}
+					// for a normal match, just put in the token
+					curToken.lexeme = action.lexeme
 					curToken.fullLine = currentfullLine
 					tokens = append(tokens, curToken)
 					curToken = token{}
+				}
+
+				if action.class == tsGroupOpen {
 					parenDepth++
-				}
-				i += len(literalGroupOpen) - 1
-			} else if startMatches(sRunes[i:], literalGroupClose) {
-				i += len(literalGroupClose) - 1
-				if escaping {
-					writeRuneSlice(sb, literalGroupClose)
-					escaping = false
-				} else {
-					// if we are not the parent this is an error.
-					flushCurrentPendingToken()
-					curToken = token{pos: curLinePos, line: curLine, class: tsGroupClose, lexeme: literalStrGroupClose}
-					curToken.fullLine = currentfullLine
-					tokens = append(tokens, curToken)
-					curToken = token{}
+				} else if action.class == tsGroupClose {
 					parenDepth--
 					if endAtMatchingParen && parenDepth == 0 {
-						runesConsumed = i
+						runesConsumed = i + len(action.literal) - 1
 						break
 					}
 				}
-				// added to i at top
-			} else if ch == '&' {
-				if escaping {
-					sb.WriteRune('&')
-					escaping = false
-				} else if i+1 < len(sRunes) && sRunes[i+1] == '&' {
-					flushCurrentPendingToken()
-					curToken = token{pos: curLinePos, line: curLine, class: tsOpAnd, lexeme: "&&"}
-					curToken.fullLine = currentfullLine
-					tokens = append(tokens, curToken)
-					curToken = token{}
-					i++
-				} else {
-					sb.WriteRune('&')
-				}
-			} else if ch == '|' {
-				if escaping {
-					sb.WriteRune('|')
-					escaping = false
-				} else if i+1 < len(sRunes) && sRunes[i+1] == '|' {
-					flushCurrentPendingToken()
-					curToken = token{pos: curLinePos, line: curLine, class: tsOpOr, lexeme: "||"}
-					curToken.fullLine = currentfullLine
-					tokens = append(tokens, curToken)
-					curToken = token{}
-					i++
-				} else {
-					sb.WriteRune('|')
-				}
-			} else if startMatches(sRunes[i:], literalOpIs) {
-				if escaping {
-					writeRuneSlice(sb, literalOpIs)
-					escaping = false
-				} else {
-					flushCurrentPendingToken()
-
-					curToken = token{pos: curLinePos, line: curLine, class: tsOpIs, lexeme: literalStrOpIs}
-					curToken.fullLine = currentfullLine
-					tokens = append(tokens, curToken)
-					curToken = token{}
-				}
-				i += len(literalOpIs) - 1
-			} else if startMatches(sRunes[i:], literalOpSet) {
-				if escaping {
-					writeRuneSlice(sb, literalOpSet)
-					escaping = false
-				} else {
-					flushCurrentPendingToken()
-
-					curToken = token{pos: curLinePos, line: curLine, class: tsOpIs, lexeme: literalStrOpSet}
-					curToken.fullLine = currentfullLine
-					tokens = append(tokens, curToken)
-					curToken = token{}
-				}
-				i += len(literalOpSet) - 1
+				i += len(action.literal) - 1
 			} else {
 
 				// do not include whitespace unless it is escaped
