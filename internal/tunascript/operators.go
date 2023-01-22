@@ -140,6 +140,9 @@ func (lex token) nud(tokens *tokenStream) (*astNode, error) {
 //
 // err is only non-nil on failure to parse
 func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
+	if left == nil {
+		return nil, syntaxErrorFromLexeme("parser error occured: nil left tree in led func", tokens.Peek())
+	}
 	switch lex.class {
 	case tsOpLessThanIs:
 		right, err := parseExpression(tokens, lex.class.lbp)
@@ -378,6 +381,36 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 			},
 			source: lex,
 		}, nil
+	case tsOpAnd:
+		right, err := parseExpression(tokens, lex.class.lbp)
+		if err != nil {
+			return nil, err
+		}
+		return &astNode{
+			opGroup: &operatorGroupNode{
+				infixOp: &binaryOperatorGroupNode{
+					op:    literalStrOpAnd,
+					left:  left,
+					right: right,
+				},
+			},
+			source: lex,
+		}, nil
+	case tsOpOr:
+		right, err := parseExpression(tokens, lex.class.lbp)
+		if err != nil {
+			return nil, err
+		}
+		return &astNode{
+			opGroup: &operatorGroupNode{
+				infixOp: &binaryOperatorGroupNode{
+					op:    literalStrOpOr,
+					left:  left,
+					right: right,
+				},
+			},
+			source: lex,
+		}, nil
 	case tsGroupOpen:
 		// binary op '(' binds to expr
 		callArgs := []*astNode{}
@@ -404,7 +437,7 @@ func (lex token) led(left *astNode, tokens *tokenStream) (*astNode, error) {
 
 		nextTok := tokens.Next()
 		if nextTok.class != tsGroupClose {
-			return nil, syntaxErrorFromLexeme(fmt.Sprintf("unexpected %s\n(expected a '"+literalStrGroupClose+"' to close the previous '"+literalStrGroupOpen+"')", nextTok.class.human), lex)
+			return nil, syntaxErrorFromLexeme(fmt.Sprintf("unexpected %s\n(expected a '"+literalStrGroupClose+"' to close the previous '"+literalStrGroupOpen+"')", nextTok.class.human), nextTok)
 		}
 
 		return &astNode{

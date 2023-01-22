@@ -1,6 +1,7 @@
 package tunascript
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,7 +20,7 @@ func mockTokens(ofClass ...tokenClass) []token {
 
 	var lineTokens = make([]token, 0)
 
-	const lineEvery = 4
+	const lineEvery = 100
 
 	curLine := 1
 	curLinePos := 1
@@ -170,16 +171,17 @@ func Test_Parse(t *testing.T) {
 			},
 			expectErr: true,
 		},
-
-		// TODO: try parsing all the simple values, then the complex ones. see
-		// tests for ast.String() for some ideas of tests. need to stop. glub.
-		// jello look at this when u can
 		{
-			name: "undefined fails to parse",
+			name: "$FN(text, bool, $FN($FLAG == (num + num) * $FUNC() || bool && -num / num), num, text += @at text@)",
 			input: []tokenClass{
-				tsUndefined, tsEndOfText,
+				tsIdentifier, tsGroupOpen, tsUnquotedString, tsSeparator, tsBool, tsSeparator, tsIdentifier,
+				tsGroupOpen, tsIdentifier, tsOpIs, tsGroupOpen, tsNumber, tsOpPlus, tsNumber, tsGroupClose,
+				tsOpMultiply, tsIdentifier, tsGroupOpen, tsGroupClose, tsOpOr, tsBool, tsOpAnd, tsOpMinus, tsNumber,
+				tsOpDivide, tsNumber, tsGroupClose, tsSeparator, tsNumber, tsSeparator, tsUnquotedString, tsOpIncset,
+				tsQuotedString, tsGroupClose, tsEndOfText,
 			},
-			expectErr: true,
+			expect: `(AST)
+  |-`,
 		},
 	}
 
@@ -197,6 +199,11 @@ func Test_Parse(t *testing.T) {
 				return
 			}
 			assert.Nil(err)
+			if err != nil {
+				if se, ok := err.(SyntaxError); ok {
+					fmt.Print(se.FullMessage() + "\n")
+				}
+			}
 
 			// AST.String() is specifically defined to have a 1-to-1 relation
 			// with semantic equality, which is the thing we care about.

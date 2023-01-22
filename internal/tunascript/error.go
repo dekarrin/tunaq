@@ -73,7 +73,7 @@ func (se SyntaxError) SourceLineWithCursor() string {
 		cursorLine += " "
 	}
 
-	return se.sourceLine + "\n" + cursorLine
+	return se.sourceLine + "\n" + cursorLine + "^"
 }
 
 func syntaxErrorFromLexeme(msg string, lexeme token) SyntaxError {

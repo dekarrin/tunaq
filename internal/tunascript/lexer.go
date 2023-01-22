@@ -210,16 +210,16 @@ var (
 )
 
 var (
-	tsSeparator       = tokenClass{"TS_SEPARATOR", "'" + literalStrSeparator + "'", 0}
+	tsSeparator       = tokenClass{"TS_SEPARATOR", "'" + literalStrSeparator + "'", 1}
 	tsGroupOpen       = tokenClass{"TS_GROUP_OPEN", "'" + literalStrGroupOpen + "'", 100}
-	tsGroupClose      = tokenClass{"TS_GROUP_CLOSE", "'" + literalStrGroupClose + "'", 0}
-	tsIdentifier      = tokenClass{"TS_IDENTIFIER", "identifier", 0}
+	tsGroupClose      = tokenClass{"TS_GROUP_CLOSE", "'" + literalStrGroupClose + "'", 1}
+	tsIdentifier      = tokenClass{"TS_IDENTIFIER", "identifier", 1}
 	tsEndOfText       = tokenClass{"TS_END_OF_TEXT", "end of text", 0}
 	tsUndefined       = tokenClass{"TS_UNDEFINED", "undefined", 0}
-	tsNumber          = tokenClass{"TS_NUMBER", "number", 0}
-	tsBool            = tokenClass{"TS_BOOL", "boolean value", 0}
-	tsUnquotedString  = tokenClass{"TS_UNQUOTED_STRING", "text value", 0}
-	tsQuotedString    = tokenClass{"TS_QUOTED_STRING", literalStrStringQuote + "-text value", 0}
+	tsNumber          = tokenClass{"TS_NUMBER", "number", 1}
+	tsBool            = tokenClass{"TS_BOOL", "boolean value", 1}
+	tsUnquotedString  = tokenClass{"TS_UNQUOTED_STRING", "text value", 1}
+	tsQuotedString    = tokenClass{"TS_QUOTED_STRING", literalStrStringQuote + "-text value", 1}
 	tsOpIs            = tokenClass{"TS_OP_IS", "'" + literalStrOpIs + "'", 5}
 	tsOpIsNot         = tokenClass{"TS_OP_IS_NOT", "'" + literalStrOpIsNot + "'", 5}
 	tsOpLessThan      = tokenClass{"TS_OP_LESS_THAN", "'" + literalStrOpLessThan + "'", 5}
@@ -235,9 +235,9 @@ var (
 	tsOpDecset        = tokenClass{"TS_OP_DECSET", "'" + literalStrOpDecset + "'", 90}
 	tsOpInc           = tokenClass{"TS_OP_INC", "'" + literalStrOpInc + "'", 150}
 	tsOpDec           = tokenClass{"TS_OP_DEC", "'" + literalStrOpDec + "'", 150}
-	tsOpAnd           = tokenClass{"TS_OP_AND", "'" + literalStrOpAnd + "'", 0}
-	tsOpOr            = tokenClass{"TS_OP_OR", "'" + literalStrOpOr + "'", 0}
-	tsOpNot           = tokenClass{"TS_OP_NOT", "'" + literalStrOpNot + "'", 0}
+	tsOpAnd           = tokenClass{"TS_OP_AND", "'" + literalStrOpAnd + "'", 1}
+	tsOpOr            = tokenClass{"TS_OP_OR", "'" + literalStrOpOr + "'", 1}
+	tsOpNot           = tokenClass{"TS_OP_NOT", "'" + literalStrOpNot + "'", 9}
 	tsWhitespace      = tokenClass{"TS_WHITESPACE", "whitespace", 0}
 )
 
