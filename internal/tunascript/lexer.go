@@ -11,18 +11,25 @@ const (
 	// if newline is put in any of these it will break the lexer detection of
 	// position so don't do that
 
+	// also the tests are all hardcoded and that is by design as it implies that
+	// if you change something here, you must also update any tests that rely on
+	// it.
+
 	literalStrStringQuote     = "@"
 	literalStrSeparator       = ","
 	literalStrGroupOpen       = "("
 	literalStrGroupClose      = ")"
 	literalStrIdentifierStart = "$"
+	literalStrOpSet           = "="
 	literalStrOpIs            = "=="
 	literalStrOpIsNot         = "!="
 	literalStrOpLessThan      = "<"
 	literalStrOpGreaterThan   = ">"
 	literalStrOpLessThanIs    = "<="
 	literalStrOpGreaterThanIs = ">="
-	literalStrOpSet           = "="
+	literalStrOpAnd           = "&&"
+	literalStrOpOr            = "||"
+	literalStrOpNot           = "!"
 	literalStrOpPlus          = "+"
 	literalStrOpMinus         = "-"
 	literalStrOpMultiply      = "*"
@@ -31,9 +38,6 @@ const (
 	literalStrOpDecset        = "-="
 	literalStrOpInc           = "++"
 	literalStrOpDec           = "--"
-	literalStrOpAnd           = "&&"
-	literalStrOpOr            = "||"
-	literalStrOpNot           = "!"
 )
 
 var regularModeMatchRules = []matchRule{
@@ -319,6 +323,14 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 				//
 				// Yeah, we should look into it in the future if we want to
 				// optimize.
+				//
+				// Wait, I looked into it! Mode swap isn't needed at all; look,
+				// escape sequences can always be represented as a finite
+				// altern8ive production in a CFG rule, right? Of course it is!
+				// And what does that mean? There's a regular expression for
+				// gog sake for it. So there's literally *no reason* we can't
+				// just describe all of this with a CFG and base the lexer on
+				// the regexes of terminals (and nearly terminals)!!!!!!!!
 				if len(matches) > 0 {
 					if len(matches) > 1 {
 						// need to decide which one to do, select the largest one

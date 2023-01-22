@@ -33,23 +33,6 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 		{name: "a few random values", input: "no yes test string 3 eight", expect: []tokenClass{
 			tsUnquotedString, tsEndOfText,
 		}},
-		{name: "addition", input: "1 + hello", expect: []tokenClass{tsNumber, tsOpPlus, tsUnquotedString, tsEndOfText}},
-		{name: "subtraction", input: "3 -   8", expect: []tokenClass{tsNumber, tsOpMinus, tsNumber, tsEndOfText}},
-		{name: "add negative", input: "3 +-8", expect: []tokenClass{
-			tsNumber, tsOpPlus, tsOpMinus, tsNumber, tsEndOfText,
-		}},
-		{name: "add two strings", input: "@hello glub@ + string 2", expect: []tokenClass{
-			tsQuotedString, tsOpPlus, tsUnquotedString, tsEndOfText,
-		}},
-		{name: "multiply numbers", input: " 2  *    8", expect: []tokenClass{
-			tsNumber, tsOpMultiply, tsNumber, tsEndOfText,
-		}},
-		{name: "multiply string", input: "some unquoted  string * 2", expect: []tokenClass{
-			tsUnquotedString, tsOpMultiply, tsNumber, tsEndOfText,
-		}},
-		{name: "divide numbers", input: "3 / 4", expect: []tokenClass{
-			tsNumber, tsOpDivide, tsNumber, tsEndOfText,
-		}},
 		{name: "flag", input: "$SOME_FLAG", expect: []tokenClass{
 			tsIdentifier, tsEndOfText,
 		}},
@@ -80,6 +63,51 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 		{name: "function call, 3 args", input: "$SOME_FUNC(@a quoted string@, 8293, terezi)", expect: []tokenClass{
 			tsIdentifier, tsGroupOpen, tsQuotedString, tsSeparator, tsNumber, tsSeparator, tsUnquotedString,
 			tsGroupClose, tsEndOfText,
+		}},
+		{name: "addition", input: "1 + hello", expect: []tokenClass{
+			tsNumber, tsOpPlus, tsUnquotedString, tsEndOfText,
+		}},
+		{name: "subtraction", input: "3 -   8", expect: []tokenClass{
+			tsNumber, tsOpMinus, tsNumber, tsEndOfText,
+		}},
+		{name: "add negative", input: "3 +-8", expect: []tokenClass{
+			tsNumber, tsOpPlus, tsOpMinus, tsNumber, tsEndOfText,
+		}},
+		{name: "add two strings", input: "@hello glub@ + string 2", expect: []tokenClass{
+			tsQuotedString, tsOpPlus, tsUnquotedString, tsEndOfText,
+		}},
+		{name: "multiply numbers", input: " 2  *    8", expect: []tokenClass{
+			tsNumber, tsOpMultiply, tsNumber, tsEndOfText,
+		}},
+		{name: "multiply string", input: "some unquoted  string * 2", expect: []tokenClass{
+			tsUnquotedString, tsOpMultiply, tsNumber, tsEndOfText,
+		}},
+		{name: "divide numbers", input: "3 / 4", expect: []tokenClass{
+			tsNumber, tsOpDivide, tsNumber, tsEndOfText,
+		}},
+		{name: "increment flag", input: "$A_FLAG++", expect: []tokenClass{
+			tsIdentifier, tsOpInc, tsEndOfText,
+		}},
+		{name: "increment flag, ignore space", input: "$A_FLAG ++", expect: []tokenClass{
+			tsIdentifier, tsOpInc, tsEndOfText,
+		}},
+		{name: "decrement flag", input: "$X--", expect: []tokenClass{
+			tsIdentifier, tsOpDec, tsEndOfText,
+		}},
+		{name: "decrement flag, ignore space", input: "$X --", expect: []tokenClass{
+			tsIdentifier, tsOpDec, tsEndOfText,
+		}},
+		{name: "incset flag", input: "$X += 5", expect: []tokenClass{
+			tsIdentifier, tsOpIncset, tsNumber, tsEndOfText,
+		}},
+		{name: "incset flag, ignore space", input: "$X+=5", expect: []tokenClass{
+			tsIdentifier, tsOpIncset, tsNumber, tsEndOfText,
+		}},
+		{name: "decset flag", input: "$X -= 5", expect: []tokenClass{
+			tsIdentifier, tsOpDecset, tsNumber, tsEndOfText,
+		}},
+		{name: "decset flag, ignore space", input: "$X-=5", expect: []tokenClass{
+			tsIdentifier, tsOpDecset, tsNumber, tsEndOfText,
 		}},
 		{name: "expr 1", input: "@glubglub@ - exit * 600 /($FLAG_VAR+3)+$ADD(3, 4)", expect: []tokenClass{
 			tsQuotedString, tsOpMinus, tsUnquotedString, tsOpMultiply, tsNumber, tsOpDivide, tsGroupOpen, tsIdentifier,
