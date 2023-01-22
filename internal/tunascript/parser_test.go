@@ -28,16 +28,8 @@ func Test_Parse(t *testing.T) {
 	}
 }*/
 
-func sRef(s string) *string {
+func ref[T any](s T) *T {
 	return &s
-}
-
-func iRef(i int) *int {
-	return &i
-}
-
-func bRef(b bool) *bool {
-	return &b
 }
 
 type wi struct {

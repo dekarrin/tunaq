@@ -41,7 +41,8 @@ func makeASTTreeLevelPrefixLast(msg string) string {
 }
 
 // String returns a prettified representation of the entire AST suitable for use
-// in line-by-line comparisons of tree structure.
+// in line-by-line comparisons of tree structure. Two ASTs are considered
+// semantcally identical if they produce identical String() output.
 func (ast AST) String() string {
 	var sb strings.Builder
 
