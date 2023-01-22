@@ -20,7 +20,7 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Run Tests In Debug Mode",
+            "name": "Current File Tests In Debug Mode",
             "type": "go",
             "request": "launch",
             "mode": "test",

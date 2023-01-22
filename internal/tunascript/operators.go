@@ -2,7 +2,6 @@ package tunascript
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 )
@@ -10,11 +9,6 @@ import (
 // File operators.go contains transpilation functions for turning operator-based
 // TunaScript expressions into function-based ones that can be parsed by the
 // rest of the system.
-
-var (
-	patBool = regexp.MustCompile(`^(?:[Tt][Rr][Uu][Ee])|(?:[Ff][Aa][Ll][Ss][Ee])|(?:[Oo][Nn])|(?:[Oo][Ff][Ff])|(?:[Yy][Ee][Ss])|(?:[Nn][Oo])$`)
-	patNum  = regexp.MustCompile(`^-?[0-9]+$`)
-)
 
 const maxTokenBindingPower = 200
 

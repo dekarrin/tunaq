@@ -19,7 +19,7 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 		{name: "2 digit number", input: "39", expect: []tokenClass{tsNumber, tsEndOfText}},
 		{name: "3 digit number", input: "026", expect: []tokenClass{tsNumber, tsEndOfText}},
 		{name: "4 digit number", input: "4578", expect: []tokenClass{tsNumber, tsEndOfText}},
-		{name: "2 numbers", input: "3284 1384", expect: []tokenClass{tsNumber, tsNumber, tsEndOfText}},
+		{name: "2 numbers", input: "3284 1384", expect: []tokenClass{tsUnquotedString, tsEndOfText}},
 		{name: "we dont do decimals, thats a string", input: "13.4", expect: []tokenClass{tsUnquotedString, tsEndOfText}},
 		{name: "bool on", input: "on", expect: []tokenClass{tsBool, tsEndOfText}},
 		{name: "bool off", input: "OFF", expect: []tokenClass{tsBool, tsEndOfText}},

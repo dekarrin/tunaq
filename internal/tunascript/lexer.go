@@ -1,6 +1,7 @@
 package tunascript
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -180,6 +181,11 @@ var (
 	tsOpAnd           = tokenClass{"TS_OP_AND", "'" + literalStrOpAnd + "'", 0}
 	tsOpOr            = tokenClass{"TS_OP_OR", "'" + literalStrOpOr + "'", 0}
 	tsOpNot           = tokenClass{"TS_OP_NOT", "'" + literalStrOpNot + "'", 0}
+)
+
+var (
+	patBool = regexp.MustCompile(`^(?:[Tt][Rr][Uu][Ee])|(?:[Ff][Aa][Ll][Ss][Ee])|(?:[Oo][Nn])|(?:[Oo][Ff][Ff])|(?:[Yy][Ee][Ss])|(?:[Nn][Oo])$`)
+	patNum  = regexp.MustCompile(`^-?[0-9]+$`)
 )
 
 func Lex(s string) (tokenStream, error) {
