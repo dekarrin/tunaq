@@ -1,6 +1,7 @@
 package tunascript
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode"
@@ -67,6 +68,7 @@ const (
 	lexDefault lexMode = iota
 	lexIdent
 	lexString
+	lexWhitespace
 )
 
 type matchRule struct {
@@ -181,14 +183,20 @@ var (
 	tsOpAnd           = tokenClass{"TS_OP_AND", "'" + literalStrOpAnd + "'", 0}
 	tsOpOr            = tokenClass{"TS_OP_OR", "'" + literalStrOpOr + "'", 0}
 	tsOpNot           = tokenClass{"TS_OP_NOT", "'" + literalStrOpNot + "'", 0}
+	tsWhitespace      = tokenClass{"TS_WHITESPACE", "whitespace", 0}
 )
 
 var (
-	patBool = regexp.MustCompile(`^(?:[Tt][Rr][Uu][Ee])|(?:[Ff][Aa][Ll][Ss][Ee])|(?:[Oo][Nn])|(?:[Oo][Ff][Ff])|(?:[Yy][Ee][Ss])|(?:[Nn][Oo])$`)
-	patNum  = regexp.MustCompile(`^-?[0-9]+$`)
+	boolConsts = []string{"TRUE", "FALSE", "ON", "OFF", "YES", "NO"}
+	patNum     = regexp.MustCompile(`^[0-9]+$`)
 )
 
+var debug = false
+
 func Lex(s string) (tokenStream, error) {
+	if strings.HasPrefix(s, "no ") {
+		debug = true
+	}
 	sRunes := []rune(s)
 	tokens, _, err := lexRunes(sRunes, false)
 	return tokens, err
@@ -220,12 +228,16 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 			sb.Reset()
 
 			// is the cur token literally one of the bool values?
-			vUp := strings.ToUpper(curToken.lexeme)
-			if patBool.MatchString(vUp) {
-				curToken.class = tsBool
-			}
-			if patNum.MatchString(vUp) {
-				curToken.class = tsNumber
+			if curToken.class == tsUnquotedString {
+				vUp := strings.ToUpper(curToken.lexeme)
+				for i := range boolConsts {
+					if boolConsts[i] == vUp {
+						curToken.class = tsBool
+					}
+				}
+				if patNum.MatchString(vUp) {
+					curToken.class = tsNumber
+				}
 			}
 
 			tokens = append(tokens, curToken)
@@ -236,6 +248,10 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 	for i := 0; i < len(sRunes); i++ {
 		ch := sRunes[i]
 
+		if debug {
+			fmt.Printf("glub")
+		}
+
 		// if it's a newline for any reason, get the next line for the current
 		// one
 		if ch == '\n' {
@@ -244,6 +260,18 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 		}
 
 		switch mode {
+		case lexWhitespace:
+			if unicode.IsSpace(ch) {
+				sb.WriteRune(ch)
+			} else {
+				curToken.lexeme = sb.String()
+				sb.Reset()
+				curToken.fullLine = currentfullLine
+				tokens = append(tokens, curToken)
+				curToken = token{}
+				mode = lexDefault
+				i-- // re-lex in normal mode
+			}
 		case lexIdent:
 			if ('A' <= ch && ch <= 'Z') || ('a' <= ch && ch <= 'z') || ('0' <= ch && ch <= '9') || ch == '_' {
 				sb.WriteRune(ch)
@@ -273,7 +301,14 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 				sb.WriteRune(ch)
 			}
 		case lexDefault:
-			if !escaping && ch == '\\' {
+			if unicode.IsSpace(ch) {
+				flushCurrentPendingToken()
+				curToken.pos = curLinePos
+				curToken.line = curLine
+				curToken.class = tsWhitespace
+				mode = lexWhitespace
+				sb.WriteRune(ch)
+			} else if !escaping && ch == '\\' {
 				escaping = true
 			} else {
 				// need to not unroll this bc we need to try all and then select
@@ -347,19 +382,15 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 					}
 					i += len(action.literal) - 1
 				} else {
-
-					// do not include whitespace unless it is escaped
-					if escaping || !unicode.IsSpace(ch) {
-						// is this the first non empty char? set the props for an unquoted string,
-						// the default.
-						if sb.Len() == 0 {
-							curToken.line = curLine
-							curToken.pos = curLinePos
-							curToken.class = tsUnquotedString
-						}
-						sb.WriteRune(ch)
-						escaping = false
+					// is this the first non empty char? set the props for an unquoted string,
+					// the default.
+					if sb.Len() == 0 {
+						curToken.line = curLine
+						curToken.pos = curLinePos
+						curToken.class = tsUnquotedString
 					}
+					sb.WriteRune(ch)
+					escaping = false
 				}
 			}
 		}
@@ -369,6 +400,10 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 			curLine++
 			curLinePos = 1
 		}
+	}
+
+	if debug {
+		fmt.Printf("glub")
 	}
 
 	// do we have leftover parsing string? this is a lexing error, immediately
@@ -381,6 +416,23 @@ func lexRunes(sRunes []rune, endAtMatchingParen bool) (tokenStream, int, error) 
 
 	// do we have leftover unparsed text? add it to the tokens list
 	flushCurrentPendingToken()
+
+	// 2nd pass: glue together whitespace in unquoted and delete it elsewhere
+	newTokens := make([]token, len(tokens))
+	numNew := 0
+	for i := range tokens {
+		if tokens[i].class == tsUnquotedString {
+			var fullToken = token{
+				line:     tokens[i].line,
+				pos:      tokens[i].pos,
+				fullLine: tokens[i].fullLine,
+				class:    tokens[i].class,
+			}
+			fullUnquoted := strings.Builder{}
+			fullUnquoted.WriteString(tokens[i])
+			newTokens = append(newTokens)
+		}
+	}
 
 	// add special EOT token
 	tokens = append(tokens, token{

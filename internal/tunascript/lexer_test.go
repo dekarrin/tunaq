@@ -28,7 +28,12 @@ func Test_Lex_tokenClassSequence(t *testing.T) {
 		{name: "bool yes", input: "yeS", expect: []tokenClass{tsBool, tsEndOfText}},
 		{name: "bool no", input: "no", expect: []tokenClass{tsBool, tsEndOfText}},
 		{name: "some string", input: "fdksalfjaskldfj", expect: []tokenClass{tsUnquotedString, tsEndOfText}},
-		{name: "a few random values", input: "no yes test string 3 eight", expect: []tokenClass{tsBool, tsBool, tsUnquotedString, tsUnquotedString, tsNumber, tsUnquotedString, tsEndOfText}},
+		{name: "a few random values", input: "no yes test string 3 eight", expect: []tokenClass{tsUnquotedString, tsEndOfText}},
+		{name: "addition", input: "1 + hello", expect: []tokenClass{tsNumber, tsOpPlus, tsUnquotedString, tsEndOfText}},
+		{name: "subtraction", input: "3 -   8", expect: []tokenClass{tsNumber, tsOpMinus, tsNumber, tsEndOfText}},
+		{name: "add negative", input: "3 +-8", expect: []tokenClass{tsNumber, tsOpPlus, tsOpMinus, tsNumber, tsEndOfText}},
+		{name: "add two strings", input: "@hello glub@ + string 2", expect: []tokenClass{tsQuotedString, tsOpPlus, tsUnquotedString, tsEndOfText}},
+		{name: "expr 1", input: "@glubglub@ - exit * 600 /($FLAG_VAR+3)+$ADD(3, 4)", expect: []tokenClass{tsQuotedString, tsOpMinus, tsUnquotedString, tsOpMultiply, tsNumber, tsOpDivide, tsGroupOpen, tsIdentifier, tsOpPlus, tsNumber, tsGroupClose, tsOpPlus, tsIdentifier, tsGroupOpen, tsNumber, tsSeparator, tsNumber, tsGroupClose, tsEndOfText}},
 	}
 
 	for _, tc := range testCases {
