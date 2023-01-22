@@ -157,9 +157,28 @@ func Test_AST_String(t *testing.T) {
 					{value: &valueNode{numVal: ref(413)}},
 				},
 			}},
-			expect: "(AST)\n" +
-				`  \---: (UNARY_OP "--")` + "\n" +
-				`          \---: (FLAG "$GLUB")`,
+			// careful, ide's indent can sometimes think tabs are good in a raw
+			// but they are inconsistent and only spaces should be used.
+			expect: `(AST)
+  \---: (FUNCTION "$S_WAKE")
+          |-A0: (BINARY_OP "+")
+          |       |--L: (FLAG "$ARADIA_PAIN")
+          |       \--R: (NUM_VALUE "8")
+          |-A1: (UNARY_OP "!")
+          |       \---: (FLAG "$ANY_HELP")
+          |-A2: (QSTR_VALUE "@F8ck yeah!!!!!!!!@")
+          |-A3: (BOOL_VALUE "false")
+          |-A4: (FUNCTION "$PAYBACK")
+          |       |-A0: (STR_VALUE "S_MAKE_HER_PAY")
+          |       |-A1: (BOOL_VALUE "false")
+          |       \-A2: (BINARY_OP "*")
+          |               |--L: (GROUP)
+          |               |       \---: (BINARY_OP "+")
+          |               |               |--L: (FLAG "$VRISKA_PAIN")
+          |               |               \--R: (NUM_VALUE "16")
+          |               \--R: (UNARY_OP "-")
+          |                       \---: (NUM_VALUE "8")
+          \-A5: (NUM_VALUE "413")`,
 		},
 	}
 
