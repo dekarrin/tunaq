@@ -4,24 +4,83 @@ Grammar is BNFish
 
 e is our epsilon.
 
-S                      ::= expr
+S                      ::= sum-expr
 
-expr                   ::= group-expr
-                         | binary-expr
-                         | single-value-expr
+expr                   ::= p20-expr
 
-group-expr             ::= GROUP_OPEN expr GROUP_OPEN
+p20-expr               ::= p19-expr SEPARATOR p20-expr
+                         | p19-expr
 
-single-value-expr      ::= prefix-op expr
-                         | expr postfix-op
-                         | literal
-                         | func-call
+// right associativity
+p19-expr                ::= p19-expr OP_SET p18-expr
+                          | p18-expr
+
+p18-expr                ::= p18-expr OP_INCSET p17-expr
+                          | p17-expr
+
+p17-expr                ::= p17-expr OP_DECSET p16-expr
+                          | p16-expr
+
+// and back to left
+p16-expr                ::= p15-expr OP_OR p16-expr
+                         |  p15-expr
+
+p15-expr                ::= p14-expr OP_AND p15-expr
+                         |  p14-expr
+
+p14-expr                ::= p13-expr OP_IS p14-expr
+                          | p13-expr
+
+p13-expr               ::= p12-expr OP_IS_NOT p13-expr
+                          | p12-expr
+
+p12-expr                ::= p11-expr OP_LT p12-expr
+                          | p11-expr
+
+p11-expr                ::= p10-expr OP_LE p11-expr
+                          | p10-expr
+
+p10-expr                ::= p9-expr OP_GT p10-expr
+                          | p9-expr
+
+p9-expr                 ::= p8-expr OP_GE p9-expr
+                          | p8-expr
+
+p8-expr                ::= p7-expr OP_PLUS p8-expr
+                          | p7-expr
+
+p7-expr                ::= p6-expr OP_MINUS p7-expr
+                         | p6-expr
+
+p6-epxr                ::= p5-expr OP_MULT p6-expr
+                         | p5-expr
+
+p5-expr                ::= unary-expr OP_DIV p5-expr
+                        | unary-expr
+
+unary-expr             ::= OP_NOT unary-p0
+                         | unary-p0
+                         
+unary-p0               ::= OP_MINUS unary-p1
+                         | unary-p1
+
+unary-p1               ::= unary-p2 OP_INC
+                         | unary-p2
+
+unary-p2               ::= unary-p3 OP_DEC
+                         | unary-p3
+
+unary-p3               ::= unit-val
+                         | GROUP_OPEN expr GROUP_CLOSE
+
+unit-val               ::= func-call
                          | flag
+                         | literal
 
 arg-list               ::= expr separator-list
 
 separator-list         ::= SEPARATOR expr separator-list
-                         | e
+                         | ''
 
 literal                ::= BOOL_VAL
                          | NUM_VAL
@@ -31,39 +90,6 @@ literal                ::= BOOL_VAL
 func-call              ::= IDENTIFIER GROUP_OPEN arg-list GROUP_CLOSE
 
 flag                   ::= IDENTIFIER
-
-prefix-op               ::= OP_MINUS
-                         |  OP_NOT
-
-postfix-op             ::= OP_INC
-                         | OP_DEC
-
-binary-expr             ::= eq-expr
-                          | arith-comp-expr
-                          | product-expr
-                          | sum-expr
-                          | incdec-expr
-                          | logical-expr
-                        
-eq-expr                 ::= expr OP_IS expr
-                          | expr OP_IS_NOT expr
-
-arith-comp-expr         ::= expr OP_LT expr
-                          | expr OP_LE expr
-                          | expr OP_GT expr
-                          | expr OP_GE expr
-
-product-expr            ::= expr OP_MULT expr
-                          | expr OP_DIV expr
-
-sum-expr                ::= expr OP_PLUS expr
-                          | expr OP_MINUS expr
-
-incdec-expr             ::= expr OP_INCSET expr
-                          | expr OP_DECSET expr
-
-logical-expr            ::= expr OP_AND expr
-                          | expr OP_OR expr
 
 
 OP_DECSET       ::= '-='
