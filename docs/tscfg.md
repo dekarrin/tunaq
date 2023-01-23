@@ -2,131 +2,171 @@ Context Free Grammar of Tunascript
 
 Grammar is BNFish
 
-e is our epsilon.
+'' (the empty string) is our epsilon.
 
-S                      ::= sum-expr
+# Productions
 
-expr                   ::= p20-expr
+S                        ::= expr
 
-p20-expr               ::= p19-expr SEPARATOR p20-expr
-                         | p19-expr
+expr                     ::= binary-expr
+
+binary-expr              ::= binary-set-expr
+
+// afaik explicitly including the comma within the op precedence as opposed to
+// within arg list will make it so wherever an expression is expected, comma
+// list is allowed. This is simply untrue semantically, so further analysis
+// may be needed to ensure we dont do something silly like "2 * 4, 5" which is
+// technically permitted by the grammar as-written.
+//
+// Couldn't we just remove 8inary-separ9or from the hierarchy and add something
+// that dips into it, 8ut with separ8or at lowest precedence *specifically* for
+// arg lists? C only keeps it as such 8ecause commas are used frequently there;
+// for us, we only want it in exactly one place: arg lists!
+//
+// TODO: yeah we did the above, ensure still works then delete this and the
+// rule bc its all in arg-list now.
+//
+//binary-separator-expr    ::= binary-set-expr SEPARATOR binary-separator-expr
+//                           | binary-set-expr
 
 // right associativity
-p19-expr                ::= p19-expr OP_SET p18-expr
-                          | p18-expr
+binary-set-expr          ::= binary-set-expr OP_SET binary-incset-expr
+                           | binary-incset-expr
 
-p18-expr                ::= p18-expr OP_INCSET p17-expr
-                          | p17-expr
+// right associativity
+binary-incset-expr       ::= binary-incset-expr OP_INCSET binary-decset-expr
+                           | binary-decset-expr
 
-p17-expr                ::= p17-expr OP_DECSET p16-expr
-                          | p16-expr
+// right associativity
+binary-decset-expr       ::= binary-decset-expr OP_DECSET binary-or-expr
+                           | binary-or-expr
 
 // and back to left
-p16-expr                ::= p15-expr OP_OR p16-expr
-                         |  p15-expr
+binary-or-expr           ::= binary-and-expr OP_OR binary-or-expr
+                           |  binary-and-expr
 
-p15-expr                ::= p14-expr OP_AND p15-expr
-                         |  p14-expr
+binary-and-expr          ::= binary-eq-expr OP_AND binary-and-expr
+                           |  binary-eq-expr
 
-p14-expr                ::= p13-expr OP_IS p14-expr
-                          | p13-expr
+binary-eq-expr           ::= binary-ne-expr OP_IS binary-eq-expr
+                           | binary-ne-expr
 
-p13-expr               ::= p12-expr OP_IS_NOT p13-expr
-                          | p12-expr
+binary-ne-expr           ::= binary-lt-expr OP_IS_NOT binary-ne-expr
+                           | binary-lt-expr
 
-p12-expr                ::= p11-expr OP_LT p12-expr
-                          | p11-expr
+binary-lt-expr           ::= binary-le-expr OP_LT binary-lt-expr
+                           | binary-le-expr
 
-p11-expr                ::= p10-expr OP_LE p11-expr
-                          | p10-expr
+binary-le-expr           ::= binary-gt-expr OP_LE binary-le-expr
+                           | binary-gt-expr
 
-p10-expr                ::= p9-expr OP_GT p10-expr
-                          | p9-expr
+binary-gt-expr           ::= binary-ge-expr OP_GT binary-gt-expr
+                           | binary-ge-expr
 
-p9-expr                 ::= p8-expr OP_GE p9-expr
-                          | p8-expr
+binary-ge-expr           ::= binary-add-expr OP_GE binary-ge-expr
+                           | binary-add-expr
 
-p8-expr                ::= p7-expr OP_PLUS p8-expr
-                          | p7-expr
+binary-add-expr          ::= binary-subtract-expr OP_PLUS binary-add-expr
+                           | binary-subtract-expr
 
-p7-expr                ::= p6-expr OP_MINUS p7-expr
-                         | p6-expr
+binary-subtract-expr     ::= binary-mult-expr OP_MINUS binary-subtract-expr
+                           | binary-mult-expr
 
-p6-epxr                ::= p5-expr OP_MULT p6-expr
-                         | p5-expr
+binary-mult-epxr         ::= binary-div-expr OP_MULT binary-mult-expr
+                           | binary-div-expr
 
-p5-expr                ::= unary-expr OP_DIV p5-expr
-                        | unary-expr
+binary-div-expr          ::= unary-expr OP_DIV binary-div-expr
+                           | unary-expr
 
-unary-expr             ::= OP_NOT unary-p0
-                         | unary-p0
+unary-expr               ::= unary-not-expr
+
+unary-not-expr           ::= OP_NOT unary-negate-expr
+                           | unary-negate-expr
                          
-unary-p0               ::= OP_MINUS unary-p1
-                         | unary-p1
+unary-negate-expr        ::= OP_MINUS unary-inc-expr
+                           | unary-inc-expr
 
-unary-p1               ::= unary-p2 OP_INC
-                         | unary-p2
+unary-inc-expr           ::= unary-dec-expr OP_INC
+                           | unary-dec-expr
 
-unary-p2               ::= unary-p3 OP_DEC
-                         | unary-p3
+unary-dec-expr           ::= expr-group OP_DEC
+                           | expr-group
 
-unary-p3               ::= unit-val
-                         | GROUP_OPEN expr GROUP_CLOSE
+expr-group               ::= GROUP_OPEN expr GROUP_CLOSE
+                           | identified-obj
+                           | literal
 
-unit-val               ::= func-call
-                         | flag
-                         | literal
+identified-obj           ::= IDENTIFIER GROUP_OPEN arg-list GROUP_CLOSE
+                           | IDENTIFIER
+                        
+arg-list                 ::= expr SEPARATOR arg-list
+                           | expr
+                           | ''
 
-arg-list               ::= expr separator-list
-
-separator-list         ::= SEPARATOR expr separator-list
-                         | ''
-
-literal                ::= BOOL_VAL
-                         | NUM_VAL
-                         | QUOTED_VAL
-                         | UNQUOTED_VAL
-
-func-call              ::= IDENTIFIER GROUP_OPEN arg-list GROUP_CLOSE
-
-flag                   ::= IDENTIFIER
+literal                  ::= BOOL_VAL
+                           | NUM_VAL
+                           | QUOTED_VAL
+                           | UNQUOTED_VAL
 
 
-OP_DECSET       ::= '-='
-OP_INCSET       ::= '+='
-OP_LT           ::= '<'
-OP_LE           ::= '<='
-OP_GT           ::= '>'
-OP_GE           ::= '>='
-OP_IS_NOT       ::= '!='
-OP_IS           ::= '=='
-OP_MINUS        ::= '-'
-OP_PLUS         ::= '+'
-OP_MULT         ::= '*'
-OP_DIV          ::= '/'
-OP_NOT          ::= '!'
-OP_AND          ::= '&&'
-OP_OR           ::= '||'
-SEPARATOR       ::= ','
-GROUP_OPEN      ::= '('
-GROUP_CLOSE     ::= ')'
-IDENTIFIER      ::= '$' ['A-Za-z0-9_']*
+# Terminals
+Weird notation bc technically lexer operates at slightly higher level than the
+items described here.
 
-QUOTED_VAL      ::= '@' NONENDING_OR_ESCAPE_SEQ* '@'
+OP_DECSET                  ::= '-='
 
-NONENDING_OR_ESCAPE_SEQ  ::= NONENDING_CHAR
-                           | ESCAPE_SEQ
+OP_INCSET                  ::= '+='
 
-NONENDING_CHAR ::= [^'@\']
+OP_LT                      ::= '<'
 
-CHAR            ::= [ (any character) ]
+OP_LE                      ::= '<='
 
-ESCAPE_SEQ      ::= '\' CHAR
-BOOL_VAL        ::= ['Tt']['Rr']['Uu']['Ee']
-                  | ['Ff']['Aa']['Ll']['Ss']['Ee']
-                  | ['Oo']['Nn']
-                  | ['Oo']['Ff']['Ff']
-                  | ['Yy']['Ee']['Ss']
-                  | ['Nn']['Oo']
+OP_GT                      ::= '>'
 
-UNQUOTED_VAL    ::= [^whitespace]+ ( .* [^whitespace] )?
+OP_GE                      ::= '>='
+
+OP_IS_NOT                  ::= '!='
+
+OP_IS                      ::= '=='
+
+OP_MINUS                   ::= '-'
+
+OP_PLUS                    ::= '+'
+
+OP_MULT                    ::= '*'
+
+OP_DIV                     ::= '/'
+
+OP_NOT                     ::= '!'
+
+OP_AND                     ::= '&&'
+
+OP_OR                      ::= '||'
+
+SEPARATOR                  ::= ','
+
+GROUP_OPEN                 ::= '('
+
+GROUP_CLOSE                ::= ')'
+
+IDENTIFIER                 ::= '$' ['A-Za-z0-9_']*
+
+QUOTED_VAL                 ::= '@' NONENDING_OR_ESCAPE_SEQ* '@'
+
+NONENDING_OR_ESCAPE_SEQ    ::= NONENDING_CHAR
+                             | ESCAPE_SEQ
+
+NONENDING_CHAR             ::= [^'@\']
+
+CHAR                       ::= [ (any character) ]
+
+ESCAPE_SEQ                 ::= '\' CHAR
+
+BOOL_VAL                   ::= ['Tt']['Rr']['Uu']['Ee']
+                             | ['Ff']['Aa']['Ll']['Ss']['Ee']
+                             | ['Oo']['Nn']
+                             | ['Oo']['Ff']['Ff']
+                             | ['Yy']['Ee']['Ss']
+                             | ['Nn']['Oo']
+
+UNQUOTED_VAL               ::= [^whitespace]+ ( .* [^whitespace] )?
