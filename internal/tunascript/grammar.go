@@ -134,6 +134,14 @@ func (g Grammar) Validate() error {
 		g.rulesByName = map[string]int{}
 	}
 
+	// a grammar needs at least one rule and at least one terminal or it makes
+	// no sense.
+	if len(g.rules) < 1 {
+		return fmt.Errorf("no rules defined in grammar")
+	} else if len(g.terminals) < 1 {
+		return fmt.Errorf("no terminals defined in grammar")
+	}
+
 	producedNonTerms := map[string]bool{}
 	producedTerms := map[string]bool{}
 
@@ -147,6 +155,10 @@ func (g Grammar) Validate() error {
 		rule := g.rules[i]
 		for _, alt := range rule.Productions {
 			for _, sym := range alt {
+				// if its empty its the empty non-terminal (episilon production) so skip
+				if sym == "" {
+					continue
+				}
 				if sym == "S" || strings.ToLower(sym) == sym {
 					// non-terminal
 					if _, ok := g.rulesByName[sym]; !ok {
@@ -181,9 +193,19 @@ func (g Grammar) Validate() error {
 
 	// make sure every non-term is used
 	for _, r := range g.rules {
+		// S is used by default, don't check that one
+		if r.NonTerminal == "S" {
+			continue
+		}
+
 		if _, ok := producedNonTerms[r.NonTerminal]; !ok {
 			errStr += fmt.Sprintf("ERR: non-terminal %q not produced by any rule\n", r.NonTerminal)
 		}
+	}
+
+	// make sure we HAVE an S
+	if _, ok := g.rulesByName["S"]; !ok {
+		errStr += "ERR: no rules defined for productions of start symbol 'S'"
 	}
 
 	if len(errStr) > 0 {
@@ -223,7 +245,7 @@ func init() {
 	lang.AddRule("binary-incset-expr", []string{"binary-incset-expr", tsOpIncset.id, "binary-decset-expr"})
 	lang.AddRule("binary-incset-expr", []string{"binary-decset-expr"})
 
-	lang.AddRule("binary-decset-expr", []string{"binary-decset-expr", tsOpDec.id, "binary-or-expr"})
+	lang.AddRule("binary-decset-expr", []string{"binary-decset-expr", tsOpDecset.id, "binary-or-expr"})
 	lang.AddRule("binary-decset-expr", []string{"binary-or-expr"})
 
 	lang.AddRule("binary-or-expr", []string{"binary-and-expr", tsOpOr.id, "binary-or-expr"})
@@ -264,7 +286,7 @@ func init() {
 
 	lang.AddRule("unary-expr", []string{"unary-not-expr"})
 
-	lang.AddRule("unary-not-expr", []string{tsOpNot.id, "unary-negat-expr"})
+	lang.AddRule("unary-not-expr", []string{tsOpNot.id, "unary-negate-expr"})
 	lang.AddRule("unary-not-expr", []string{"unary-negate-expr"})
 
 	lang.AddRule("unary-negate-expr", []string{tsOpMinus.id, "unary-inc-expr"})
@@ -274,7 +296,7 @@ func init() {
 	lang.AddRule("unary-inc-expr", []string{"unary-dec-expr"})
 
 	lang.AddRule("unary-dec-expr", []string{"expr-group", tsOpDec.id})
-	lang.AddRule("unary-dec-expr", []string{"unary-group"})
+	lang.AddRule("unary-dec-expr", []string{"expr-group"})
 
 	lang.AddRule("expr-group", []string{tsGroupOpen.id, "expr", tsGroupClose.id})
 	lang.AddRule("expr-group", []string{"identified-obj"})
@@ -324,5 +346,4 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("malformed CFG definition: %s", err.Error()))
 	}
-
 }
