@@ -101,6 +101,17 @@ func ArticleFor(s string, definite bool) string {
 	return art
 }
 
+// InSlice returns whether s is present in the given slice by checking each item
+// in order.
+func InSlice[V comparable](s V, slice []V) bool {
+	for i := range slice {
+		if slice[i] == s {
+			return true
+		}
+	}
+	return false
+}
+
 // OrderedKeys returns the keys of m, ordered a particular way. The order is
 // guaranteed to be the same on every run.
 //

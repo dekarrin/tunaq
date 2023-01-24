@@ -6,6 +6,16 @@ Grammar is BNFish
 
 # Productions
 
+// NOTE: this is currently left-recursive i think; see any left-assoc bin operator
+// and youll see a possible looping derivation rule.
+//
+// left->right recursion rewrite for recursive-descent parsing algo is described
+// at https://www.youtube.com/watch?v=D6uMYa41Ank @ 49:30ish
+//
+// episilon elimination covered well in https://www.youtube.com/watch?v=j9cNTlGkyZM
+// doing ^ plus single production elimination effectively makes a CFG without any
+// cycles (for A | Non-terminals: there exists no sequence of rules s.t. A -*> A is possible.)
+
 S                        ::= expr
 
 expr                     ::= binary-expr
@@ -28,6 +38,10 @@ binary-expr              ::= binary-set-expr
 //
 //binary-separator-expr    ::= binary-set-expr SEPARATOR binary-separator-expr
 //                           | binary-set-expr
+
+
+// TODO: we appear to have confused right/left associativity here;
+// see p48 of purple dragon book (71 of pdf)
 
 // right associativity
 binary-set-expr          ::= binary-set-expr OP_SET binary-incset-expr

@@ -2,16 +2,141 @@ package tunascript
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
+type Production []string
+
+// Equal returns whether Rule is equal to another value. It will not be equal
+// if the other value cannot be cast to a []string or *[]string.
+func (p Production) Equal(o any) bool {
+	other, ok := o.([]string)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*[]string)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if len(p) != len(other) {
+		return false
+	} else {
+		for i := range p {
+			if p[i] != other[i] {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (p Production) String() string {
+	// separate each by space and call it good
+
+	var sb strings.Builder
+
+	for i := range p {
+		sb.WriteString(p[i])
+		if i+1 < len(p) {
+			sb.WriteRune(' ')
+		}
+	}
+
+	return sb.String()
+}
+
 // terminals will be upper, non-terms will be lower. 'S' is reserved for use as
 // the start symbol.
 type Rule struct {
 	NonTerminal string
-	Productions [][]string
+	Productions []Production
+}
+
+func (r Rule) String() string {
+	var sb strings.Builder
+
+	sb.WriteString(r.NonTerminal)
+	sb.WriteString(" -> ")
+
+	for i := range r.Productions {
+		sb.WriteString(r.Productions[i].String())
+		if i+1 < len(r.Productions) {
+			sb.WriteString(" | ")
+		}
+	}
+
+	return sb.String()
+}
+
+// Equal returns whether Rule is equal to another value. It will not be equal
+// if the other value cannot be casted to a Rule or *Rule.
+func (r Rule) Equal(o any) bool {
+	other, ok := o.(Rule)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*Rule)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if r.NonTerminal != other.NonTerminal {
+		return false
+	} else if !util.EqualSlices(r.Productions, other.Productions) {
+		return false
+	}
+
+	return true
+	// cant do util.EqualSlices here because Productions is a slice of []string
+}
+
+// CanProduceSymbol whether any alternative in productions produces the
+// given term/non-terminal
+func (r Rule) CanProduceSymbol(termOrNonTerm string) bool {
+	for _, alt := range r.Productions {
+		for _, sym := range alt {
+			if sym == termOrNonTerm {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// HasEpsilonProduction is shorthand for HasProduction([]string{""})
+func (r Rule) HasEpsilonProduction() bool {
+	return r.HasProduction([]string{""})
+}
+
+// HasProduction returns whether the rule has a production of the exact sequence
+// of symbols entirely.
+func (r Rule) HasProduction(prod []string) bool {
+	for _, alt := range r.Productions {
+		if len(alt) == len(prod) {
+			eq := true
+			for i := range alt {
+				if alt[i] != prod[i] {
+					eq = false
+					break
+				}
+			}
+			if eq {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Grammar for tunascript language, used by a parsing algorithm to create a
@@ -74,12 +199,12 @@ func (g *Grammar) AddTerm(terminal string, class tokenClass) {
 		panic("empty terminal not allowed")
 	}
 
-	if terminal == "S" {
-		panic("start non-terminal 'S' cannot be used as a terminal")
-	}
-
-	if strings.ToUpper(terminal) != terminal {
-		panic("terminal must be all uppercase")
+	// ensure that it isnt an illegal char, only things used should be 'a-z',
+	// '_', and '-'
+	for _, ch := range terminal {
+		if ('A' > ch || ch > 'Z') && ch != '_' && ch != '-' {
+			panic("terminal name must only be chars A-Z, \"_\", or \"-\"")
+		}
 	}
 
 	if class == tsUndefined {
@@ -99,16 +224,34 @@ func (g *Grammar) AddTerm(terminal string, class tokenClass) {
 //
 // All rules require at least one symbol in the production. For episilon
 // production, give only the empty string.
+//
+// TOOD: disallow dupe prods
 func (g *Grammar) AddRule(nonterminal string, production []string) {
 	if nonterminal == "" {
 		panic("empty nonterminal name not allowed for production rule")
 	}
-	if strings.ToLower(nonterminal) != nonterminal && nonterminal != "S" {
-		panic("nonterminal must be all lowercase or special start symbole \"S\"")
+
+	// ensure that it isnt an illegal char, only things used should be 'A-Z',
+	// '_', and '-'
+	if nonterminal != "S" {
+		for _, ch := range nonterminal {
+			if ('a' > ch || ch > 'z') && ch != '_' && ch != '-' {
+				panic("nonterminal name must only be chars a-z, \"_\", \"-\", or else the start symbol \"S\"")
+			}
+		}
 	}
 
 	if len(production) < 1 {
 		panic("for epsilon production give empty string; all rules must have productions")
+	}
+
+	// check that epsilon, if given, is by itself
+	if len(production) != 1 {
+		for _, sym := range production {
+			if sym == "" {
+				panic("episilon production only allowed as sole production of an alternative")
+			}
+		}
 	}
 
 	if g.rulesByName == nil {
@@ -127,8 +270,228 @@ func (g *Grammar) AddRule(nonterminal string, production []string) {
 	g.rules[curIdx] = curRule
 }
 
+// NonTerminals returns list of all the non-terminal symbols. All will be lower
+// case with the exception of the start symbol S.
+func (g Grammar) NonTerminals() []string {
+	return util.OrderedKeys(g.rulesByName)
+}
+
+// RemoveEpsilons returns a grammar that derives strings equivalent to the first
+// one (with the exception of the empty string) but with all epsilon productions
+// automatically eliminated.
+//
+// Call Validate before this or it may go poorly.
+func (g Grammar) RemoveEpsilons() Grammar {
+	// run this in a loop until all vars have episilon propagated out
+
+	propagated := map[string]bool{}
+	// first find all of the non-terminals that have epsilon productions
+
+	for {
+		// find the first non-terminal with an epsilon production
+		toPropagate := ""
+		for _, A := range g.NonTerminals() {
+			ruleIdx := g.rulesByName[A]
+			rule := g.rules[ruleIdx]
+
+			if rule.HasEpsilonProduction() {
+				toPropagate = A
+				break
+			}
+		}
+
+		// if we didn't find any non-terminals with epsilon productions then
+		// there are none remaining and we are done.
+		if toPropagate == "" {
+			break
+		}
+
+		// let's call the non-terminal whose epsilons are about to be propegated
+		// up 'A'
+		A := toPropagate
+
+		// for each of those, remove them from all others
+		producesA := map[string]bool{}
+
+		ruleA := g.Rule(A)
+		// find all non-terms that produce this, not including self
+		for _, B := range g.NonTerminals() {
+			if B == A {
+				// unit production cycle. will be addressed in later funcs
+				continue
+			}
+
+			ruleIdx := g.rulesByName[B]
+			rule := g.rules[ruleIdx]
+
+			// does b produce A?
+			if rule.CanProduceSymbol(A) {
+				producesA[B] = true
+			}
+		}
+
+		// okay, now for each production that produces A...
+		for B := range producesA {
+			ruleB := g.Rule(B)
+
+			if len(ruleA.Productions) == 1 {
+				// if A is ONLY an epsilon producer, B can safely eliminate every
+				// A from its productions.
+
+				// remove all As from B productions. if it was a unit production,
+				// replace it with an epsilon production
+				for i, bProd := range ruleB.Productions {
+					var newProd []string
+					if len(bProd) == 1 && bProd[0] == A {
+						newProd = append(newProd, "")
+					} else {
+						for _, sym := range bProd {
+							if sym != A {
+								newProd = append(newProd, sym)
+							}
+						}
+					}
+					ruleB.Productions[i] = newProd
+				}
+			} else {
+				// general algorithm, summarized in video:
+				// https://www.youtube.com/watch?v=j9cNTlGkyZM
+
+				// for each production of b
+				var newProds []Production
+				for _, bProd := range ruleB.Productions {
+					if util.InSlice(A, bProd) {
+						// gen all permutations of A being epsi for that
+						// production
+						// AsA -> AsA, sA, s, As
+						// AAsA -> AAsA, AsA, AsA,
+						rewrittenEpsilons := getEpsilonRewrites(A, bProd)
+
+						newProds = append(newProds, rewrittenEpsilons...)
+					} else {
+						// keep it as-is
+						newProds = append(newProds, bProd)
+					}
+				}
+
+				// if B has already propagated epsilons up we can immediately
+				// remove any epsilons it just received
+				if _, propagatedEpsilons := propagated[B]; propagatedEpsilons {
+					newProds = removeEpsilons(newProds)
+				}
+
+				ruleB.Productions = newProds
+			}
+
+			ruleBIdx := g.rulesByName[B]
+			g.rules[ruleBIdx] = ruleB
+		}
+
+		// A is now 'covered'; if it would get an epsilon propagated to it
+		// it can remove it directly bc it having an epsilon prod has already
+		// been propagated up.
+		propagated[A] = true
+		ruleA.Productions = removeEpsilons(ruleA.Productions)
+		g.rules[g.rulesByName[A]] = ruleA
+	}
+
+	// did we just make any rules empty? probably should double-check that.
+
+	// A may be unused by this point, may want to fix that
+	return g
+}
+
+// removeEpsilons removes all epsilon-only productions from a list of
+// productions and returns the result.
+func removeEpsilons(from []Production) []Production {
+	newProds := []Production{}
+
+	for i := range from {
+		if len(from[i]) != 1 || from[i][0] != "" {
+			newProds = append(newProds, from[i])
+		}
+	}
+
+	return newProds
+}
+
+func getEpsilonRewrites(epsilonableNonterm string, prod Production) []Production {
+	// special case, if it occurs exactly once as a unit production we must keep
+	// both the unit AND add an epsilon production
+	if len(prod) == 1 && prod[0] == epsilonableNonterm {
+		return []Production{prod, {epsilonableNonterm}}
+	}
+
+	// how many times does it occur?
+	var numOccurances int
+	for i := range prod {
+		if prod[i] == epsilonableNonterm {
+			numOccurances++
+		}
+	}
+
+	if numOccurances == 0 {
+		return []Production{prod}
+	}
+
+	// generate all numbers of that binary bitsize
+
+	perms := int(math.Pow(2, float64(numOccurances)))
+
+	// we're using the bitfield of above perms to denote which A should be "on"
+	// and which should be "off" in the resulting string.
+
+	newProds := []Production{}
+
+	epsilonablePositions := make([]string, numOccurances)
+	for i := 0; i < perms; i++ {
+		// fill positions from the bitfield making up the cur permutation num
+		for j := range epsilonablePositions {
+			if ((i >> j) & 1) > 0 {
+				epsilonablePositions[j] = epsilonableNonterm
+			} else {
+				epsilonablePositions[j] = ""
+			}
+		}
+
+		// build a new production
+		newProd := []string{}
+		var curEpsilonable int
+		for j := range prod {
+			if prod[j] == epsilonableNonterm {
+				pos := epsilonablePositions[curEpsilonable]
+				if pos != "" {
+					newProd = append(newProd, pos)
+				}
+				curEpsilonable++
+			} else {
+				newProd = append(newProd, prod[j])
+			}
+		}
+		if len(newProd) == 0 {
+			newProd = []string{""}
+		}
+		newProds = append(newProds, newProd)
+	}
+
+	// now eliminate every production that is a duplicate
+	uniqueNewProds := []Production{}
+	seenProductions := map[string]bool{}
+	for i := range newProds {
+		str := strings.Join(newProds[i], " ")
+
+		if _, alreadySeen := seenProductions[str]; alreadySeen {
+			continue
+		}
+
+		seenProductions[str] = true
+	}
+
+	return uniqueNewProds
+}
+
 // Validates that the current rules form a complete grammar with no
-// missing definitions.
+// missing definitions. TODO: should also dupe-check rules.
 func (g Grammar) Validate() error {
 	if g.rulesByName == nil {
 		g.rulesByName = map[string]int{}
@@ -159,7 +522,7 @@ func (g Grammar) Validate() error {
 				if sym == "" {
 					continue
 				}
-				if sym == "S" || strings.ToLower(sym) == sym {
+				if strings.ToLower(sym) == sym || sym == "S" {
 					// non-terminal
 					if _, ok := g.rulesByName[sym]; !ok {
 						errStr += fmt.Sprintf("ERR: no production defined for nonterminal %q produced by %q\n", sym, rule.NonTerminal)
