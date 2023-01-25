@@ -11,12 +11,12 @@ import (
 type Production []string
 
 // Equal returns whether Rule is equal to another value. It will not be equal
-// if the other value cannot be cast to a []string or *[]string.
+// if the other value cannot be cast to Production or *Production.
 func (p Production) Equal(o any) bool {
-	other, ok := o.([]string)
+	other, ok := o.(Production)
 	if !ok {
 		// also okay if its the pointer value, as long as its non-nil
-		otherPtr, ok := o.(*[]string)
+		otherPtr, ok := o.(*Production)
 		if !ok {
 			return false
 		} else if otherPtr == nil {
@@ -114,14 +114,14 @@ func (r Rule) CanProduceSymbol(termOrNonTerm string) bool {
 	return false
 }
 
-// HasEpsilonProduction is shorthand for HasProduction([]string{""})
+// HasEpsilonProduction is shorthand for HasProduction(Production{""})
 func (r Rule) HasEpsilonProduction() bool {
-	return r.HasProduction([]string{""})
+	return r.HasProduction(Production{""})
 }
 
 // HasProduction returns whether the rule has a production of the exact sequence
 // of symbols entirely.
-func (r Rule) HasProduction(prod []string) bool {
+func (r Rule) HasProduction(prod Production) bool {
 	for _, alt := range r.Productions {
 		if len(alt) == len(prod) {
 			eq := true
@@ -148,6 +148,10 @@ type Grammar struct {
 	// rules may have order that matters
 	rules     []Rule
 	terminals map[string]tokenClass
+}
+
+func (g Grammar) String() string {
+	return fmt.Sprintf("(%q, R=%q)", g.terminals, g.rules)
 }
 
 // Rule returns the grammar rule for the given nonterminal symbol.
@@ -202,8 +206,8 @@ func (g *Grammar) AddTerm(terminal string, class tokenClass) {
 	// ensure that it isnt an illegal char, only things used should be 'a-z',
 	// '_', and '-'
 	for _, ch := range terminal {
-		if ('A' > ch || ch > 'Z') && ch != '_' && ch != '-' {
-			panic("terminal name must only be chars A-Z, \"_\", or \"-\"")
+		if ('a' > ch || ch > 'z') && ch != '_' && ch != '-' {
+			panic(fmt.Sprintf("invalid terminal name %q; must only be chars a-z, \"_\", or \"-\"", terminal))
 		}
 	}
 
@@ -233,11 +237,9 @@ func (g *Grammar) AddRule(nonterminal string, production []string) {
 
 	// ensure that it isnt an illegal char, only things used should be 'A-Z',
 	// '_', and '-'
-	if nonterminal != "S" {
-		for _, ch := range nonterminal {
-			if ('a' > ch || ch > 'z') && ch != '_' && ch != '-' {
-				panic("nonterminal name must only be chars a-z, \"_\", \"-\", or else the start symbol \"S\"")
-			}
+	for _, ch := range nonterminal {
+		if ('A' > ch || ch > 'Z') && ch != '_' && ch != '-' {
+			panic(fmt.Sprintf("invalid nonterminal name %q; must only be chars A-Z, \"_\", \"-\", or else the start symbol \"S\"", nonterminal))
 		}
 	}
 
@@ -282,7 +284,7 @@ func (g Grammar) NonTerminals() []string {
 //
 // Call Validate before this or it may go poorly.
 func (g Grammar) RemoveEpsilons() Grammar {
-	// run this in a loop until all vars have episilon propagated out
+	// run this in a loop until all vars have epsilon propagated out
 
 	propagated := map[string]bool{}
 	// first find all of the non-terminals that have epsilon productions
@@ -416,11 +418,8 @@ func removeEpsilons(from []Production) []Production {
 }
 
 func getEpsilonRewrites(epsilonableNonterm string, prod Production) []Production {
-	// special case, if it occurs exactly once as a unit production we must keep
-	// both the unit AND add an epsilon production
-	if len(prod) == 1 && prod[0] == epsilonableNonterm {
-		return []Production{prod, {epsilonableNonterm}}
-	}
+	// TODO: ensure that if the production consists of ONLY the epsilonable,
+	// that we also are adding an epsilon production.
 
 	// how many times does it occur?
 	var numOccurances int
@@ -444,7 +443,7 @@ func getEpsilonRewrites(epsilonableNonterm string, prod Production) []Production
 	newProds := []Production{}
 
 	epsilonablePositions := make([]string, numOccurances)
-	for i := 0; i < perms; i++ {
+	for i := perms - 1; i >= 0; i-- {
 		// fill positions from the bitfield making up the cur permutation num
 		for j := range epsilonablePositions {
 			if ((i >> j) & 1) > 0 {
@@ -484,6 +483,7 @@ func getEpsilonRewrites(epsilonableNonterm string, prod Production) []Production
 			continue
 		}
 
+		uniqueNewProds = append(uniqueNewProds, newProds[i])
 		seenProductions[str] = true
 	}
 
@@ -522,7 +522,7 @@ func (g Grammar) Validate() error {
 				if sym == "" {
 					continue
 				}
-				if strings.ToLower(sym) == sym || sym == "S" {
+				if strings.ToUpper(sym) == sym {
 					// non-terminal
 					if _, ok := g.rulesByName[sym]; !ok {
 						errStr += fmt.Sprintf("ERR: no production defined for nonterminal %q produced by %q\n", sym, rule.NonTerminal)
@@ -593,117 +593,117 @@ func init() {
 	// add lang rules and terminals based off of CFG in docs/tscfg.md
 
 	// production rules
-	lang.AddRule("S", []string{"expr"})
+	lang.AddRule("S", []string{"EXPR"})
 
-	lang.AddRule("expr", []string{"binary-expr"})
+	lang.AddRule("EXPR", []string{"BINARY-EXPR"})
 
-	lang.AddRule("binary-expr", []string{"binary-set-expr"})
+	lang.AddRule("BINARY-EXPR", []string{"BINARY-SET-EXPR"})
 
 	//	lang.AddRule("binary-separator-expr", []string{"binary-set-expr", tsSeparator.id, "binary-separator-expr"})
 	//	lang.AddRule("binary-separator-expr", []string{"binary-set-expr"})
 
-	lang.AddRule("binary-set-expr", []string{"binary-set-expr", tsOpSet.id, "binary-incset-expr"})
-	lang.AddRule("binary-set-expr", []string{"binary-incset-expr"})
+	lang.AddRule("BINARY-SET-EXPR", []string{"BINARY-SET-EXPR", strings.ToLower(tsOpSet.id), "BINARY-INCSET-EXPR"})
+	lang.AddRule("BINARY-SET-EXPR", []string{"BINARY-INCSET-EXPR"})
 
-	lang.AddRule("binary-incset-expr", []string{"binary-incset-expr", tsOpIncset.id, "binary-decset-expr"})
-	lang.AddRule("binary-incset-expr", []string{"binary-decset-expr"})
+	lang.AddRule("BINARY-INCSET-EXPR", []string{"BINARY-INCSET-EXPR", strings.ToLower(tsOpIncset.id), "BINARY-DECSET-EXPR"})
+	lang.AddRule("BINARY-INCSET-EXPR", []string{"BINARY-DECSET-EXPR"})
 
-	lang.AddRule("binary-decset-expr", []string{"binary-decset-expr", tsOpDecset.id, "binary-or-expr"})
-	lang.AddRule("binary-decset-expr", []string{"binary-or-expr"})
+	lang.AddRule("BINARY-DECSET-EXPR", []string{"BINARY-DECSET-EXPR", strings.ToLower(tsOpDecset.id), "BINARY-OR-EXPR"})
+	lang.AddRule("BINARY-DECSET-EXPR", []string{"BINARY-OR-EXPR"})
 
-	lang.AddRule("binary-or-expr", []string{"binary-and-expr", tsOpOr.id, "binary-or-expr"})
-	lang.AddRule("binary-or-expr", []string{"binary-and-expr"})
+	lang.AddRule("BINARY-OR-EXPR", []string{"BINARY-AND-EXPR", strings.ToLower(tsOpOr.id), "BINARY-OR-EXPR"})
+	lang.AddRule("BINARY-OR-EXPR", []string{"BINARY-AND-EXPR"})
 
-	lang.AddRule("binary-and-expr", []string{"binary-eq-expr", tsOpAnd.id, "binary-and-expr"})
-	lang.AddRule("binary-and-expr", []string{"binary-eq-expr"})
+	lang.AddRule("BINARY-AND-EXPR", []string{"BINARY-EQ-EXPR", strings.ToLower(tsOpAnd.id), "BINARY-AND-EXPR"})
+	lang.AddRule("BINARY-AND-EXPR", []string{"BINARY-EQ-EXPR"})
 
-	lang.AddRule("binary-eq-expr", []string{"binary-ne-expr", tsOpIs.id, "binary-eq-expr"})
-	lang.AddRule("binary-eq-expr", []string{"binary-ne-expr"})
+	lang.AddRule("BINARY-EQ-EXPR", []string{"BINARY-NE-EXPR", strings.ToLower(tsOpIs.id), "BINARY-EQ-EXPR"})
+	lang.AddRule("BINARY-EQ-EXPR", []string{"BINARY-NE-EXPR"})
 
-	lang.AddRule("binary-ne-expr", []string{"binary-lt-expr", tsOpIsNot.id, "binary-ne-expr"})
-	lang.AddRule("binary-ne-expr", []string{"binary-lt-expr"})
+	lang.AddRule("BINARY-NE-EXPR", []string{"BINARY-LT-EXPR", strings.ToLower(tsOpIsNot.id), "BINARY-NE-EXPR"})
+	lang.AddRule("BINARY-NE-EXPR", []string{"BINARY-LT-EXPR"})
 
-	lang.AddRule("binary-lt-expr", []string{"binary-le-expr", tsOpLessThan.id, "binary-lt-expr"})
-	lang.AddRule("binary-lt-expr", []string{"binary-le-expr"})
+	lang.AddRule("BINARY-LT-EXPR", []string{"BINARY-LE-EXPR", strings.ToLower(tsOpLessThan.id), "BINARY-LT-EXPR"})
+	lang.AddRule("BINARY-LT-EXPR", []string{"BINARY-LE-EXPR"})
 
-	lang.AddRule("binary-le-expr", []string{"binary-gt-expr", tsOpLessThanIs.id, "binary-le-expr"})
-	lang.AddRule("binary-le-expr", []string{"binary-gt-expr"})
+	lang.AddRule("BINARY-LE-EXPR", []string{"BINARY-GT-EXPR", strings.ToLower(tsOpLessThanIs.id), "BINARY-LE-EXPR"})
+	lang.AddRule("BINARY-LE-EXPR", []string{"BINARY-GT-EXPR"})
 
-	lang.AddRule("binary-gt-expr", []string{"binary-ge-expr", tsOpGreaterThan.id, "binary-gt-expr"})
-	lang.AddRule("binary-gt-expr", []string{"binary-ge-expr"})
+	lang.AddRule("BINARY-GT-EXPR", []string{"BINARY-GE-EXPR", strings.ToLower(tsOpGreaterThan.id), "BINARY-GT-EXPR"})
+	lang.AddRule("BINARY-GT-EXPR", []string{"BINARY-GE-EXPR"})
 
-	lang.AddRule("binary-ge-expr", []string{"binary-add-expr", tsOpGreaterThanIs.id, "binary-ge-expr"})
-	lang.AddRule("binary-ge-expr", []string{"binary-add-expr"})
+	lang.AddRule("BINARY-GE-EXPR", []string{"BINARY-ADD-EXPR", strings.ToLower(tsOpGreaterThanIs.id), "BINARY-GE-EXPR"})
+	lang.AddRule("BINARY-GE-EXPR", []string{"BINARY-ADD-EXPR"})
 
-	lang.AddRule("binary-add-expr", []string{"binary-subtract-expr", tsOpPlus.id, "binary-add-expr"})
-	lang.AddRule("binary-add-expr", []string{"binary-subtract-expr"})
+	lang.AddRule("BINARY-ADD-EXPR", []string{"BINARY-SUBTRACT-EXPR", strings.ToLower(tsOpPlus.id), "BINARY-ADD-EXPR"})
+	lang.AddRule("BINARY-ADD-EXPR", []string{"BINARY-SUBTRACT-EXPR"})
 
-	lang.AddRule("binary-subtract-expr", []string{"binary-mult-expr", tsOpMinus.id, "binary-subtract-expr"})
-	lang.AddRule("binary-subtract-expr", []string{"binary-mult-expr"})
+	lang.AddRule("BINARY-SUBTRACT-EXPR", []string{"BINARY-MULT-EXPR", strings.ToLower(tsOpMinus.id), "BINARY-SUBTRACT-EXPR"})
+	lang.AddRule("BINARY-SUBTRACT-EXPR", []string{"BINARY-MULT-EXPR"})
 
-	lang.AddRule("binary-mult-expr", []string{"binary-div-expr", tsOpMultiply.id, "binary-mult-expr"})
-	lang.AddRule("binary-mult-expr", []string{"binary-div-expr"})
+	lang.AddRule("BINARY-MULT-EXPR", []string{"BINARY-DIV-EXPR", strings.ToLower(tsOpMultiply.id), "BINARY-MULT-EXPR"})
+	lang.AddRule("BINARY-MULT-EXPR", []string{"BINARY-DIV-EXPR"})
 
-	lang.AddRule("binary-div-expr", []string{"unary-expr", tsOpDivide.id, "binary-div-expr"})
-	lang.AddRule("binary-div-expr", []string{"unary-expr"})
+	lang.AddRule("BINARY-DIV-EXPR", []string{"UNARY-EXPR", strings.ToLower(tsOpDivide.id), "BINARY-DIV-EXPR"})
+	lang.AddRule("BINARY-DIV-EXPR", []string{"UNARY-EXPR"})
 
-	lang.AddRule("unary-expr", []string{"unary-not-expr"})
+	lang.AddRule("UNARY-EXPR", []string{"UNARY-NOT-EXPR"})
 
-	lang.AddRule("unary-not-expr", []string{tsOpNot.id, "unary-negate-expr"})
-	lang.AddRule("unary-not-expr", []string{"unary-negate-expr"})
+	lang.AddRule("UNARY-NOT-EXPR", []string{strings.ToLower(tsOpNot.id), "UNARY-NEGATE-EXPR"})
+	lang.AddRule("UNARY-NOT-EXPR", []string{"UNARY-NEGATE-EXPR"})
 
-	lang.AddRule("unary-negate-expr", []string{tsOpMinus.id, "unary-inc-expr"})
-	lang.AddRule("unary-negate-expr", []string{"unary-inc-expr"})
+	lang.AddRule("UNARY-NEGATE-EXPR", []string{strings.ToLower(tsOpMinus.id), "UNARY-INC-EXPR"})
+	lang.AddRule("UNARY-NEGATE-EXPR", []string{"UNARY-INC-EXPR"})
 
-	lang.AddRule("unary-inc-expr", []string{"unary-dec-expr", tsOpInc.id})
-	lang.AddRule("unary-inc-expr", []string{"unary-dec-expr"})
+	lang.AddRule("UNARY-INC-EXPR", []string{"UNARY-DEC-EXPR", strings.ToLower(tsOpInc.id)})
+	lang.AddRule("UNARY-INC-EXPR", []string{"UNARY-DEC-EXPR"})
 
-	lang.AddRule("unary-dec-expr", []string{"expr-group", tsOpDec.id})
-	lang.AddRule("unary-dec-expr", []string{"expr-group"})
+	lang.AddRule("UNARY-DEC-EXPR", []string{"EXPR-GROUP", strings.ToLower(tsOpDec.id)})
+	lang.AddRule("UNARY-DEC-EXPR", []string{"EXPR-GROUP"})
 
-	lang.AddRule("expr-group", []string{tsGroupOpen.id, "expr", tsGroupClose.id})
-	lang.AddRule("expr-group", []string{"identified-obj"})
-	lang.AddRule("expr-group", []string{"literal"})
+	lang.AddRule("EXPR-GROUP", []string{strings.ToLower(tsGroupOpen.id), "EXPR", strings.ToLower(tsGroupClose.id)})
+	lang.AddRule("EXPR-GROUP", []string{"IDENTIFIED-OBJ"})
+	lang.AddRule("EXPR-GROUP", []string{"LITERAL"})
 
-	lang.AddRule("identified-obj", []string{tsIdentifier.id, tsGroupOpen.id, "arg-list", tsGroupClose.id})
-	lang.AddRule("identified-obj", []string{tsIdentifier.id})
+	lang.AddRule("IDENTIFIED-OBJ", []string{strings.ToLower(tsIdentifier.id), strings.ToLower(tsGroupOpen.id), "ARG-LIST", strings.ToLower(tsGroupClose.id)})
+	lang.AddRule("IDENTIFIED-OBJ", []string{strings.ToLower(tsIdentifier.id)})
 
-	lang.AddRule("arg-list", []string{"expr", tsSeparator.id, "arg-list"})
-	lang.AddRule("arg-list", []string{"expr"})
-	lang.AddRule("arg-list", []string{""})
+	lang.AddRule("ARG-LIST", []string{"EXPR", strings.ToLower(tsSeparator.id), "ARG-LIST"})
+	lang.AddRule("ARG-LIST", []string{"EXPR"})
+	lang.AddRule("ARG-LIST", []string{""})
 
-	lang.AddRule("literal", []string{tsBool.id})
-	lang.AddRule("literal", []string{tsNumber.id})
-	lang.AddRule("literal", []string{tsUnquotedString.id})
-	lang.AddRule("literal", []string{tsQuotedString.id})
+	lang.AddRule("LITERAL", []string{strings.ToLower(tsBool.id)})
+	lang.AddRule("LITERAL", []string{strings.ToLower(tsNumber.id)})
+	lang.AddRule("LITERAL", []string{strings.ToLower(tsUnquotedString.id)})
+	lang.AddRule("LITERAL", []string{strings.ToLower(tsQuotedString.id)})
 
 	// terminals
-	lang.AddTerm(tsBool.id, tsBool)
-	lang.AddTerm(tsGroupClose.id, tsGroupClose)
-	lang.AddTerm(tsGroupOpen.id, tsGroupOpen)
-	lang.AddTerm(tsSeparator.id, tsSeparator)
-	lang.AddTerm(tsIdentifier.id, tsIdentifier)
-	lang.AddTerm(tsNumber.id, tsNumber)
-	lang.AddTerm(tsQuotedString.id, tsQuotedString)
-	lang.AddTerm(tsUnquotedString.id, tsUnquotedString)
-	lang.AddTerm(tsOpAnd.id, tsOpAnd)
-	lang.AddTerm(tsOpDec.id, tsOpDec)
-	lang.AddTerm(tsOpDecset.id, tsOpDecset)
-	lang.AddTerm(tsOpDivide.id, tsOpDivide)
-	lang.AddTerm(tsOpGreaterThan.id, tsOpGreaterThan)
-	lang.AddTerm(tsOpGreaterThanIs.id, tsOpGreaterThanIs)
-	lang.AddTerm(tsOpInc.id, tsOpInc)
-	lang.AddTerm(tsOpIncset.id, tsOpIncset)
-	lang.AddTerm(tsOpIs.id, tsOpIs)
-	lang.AddTerm(tsOpIsNot.id, tsOpIsNot)
-	lang.AddTerm(tsOpLessThan.id, tsOpLessThan)
-	lang.AddTerm(tsOpLessThanIs.id, tsOpLessThanIs)
-	lang.AddTerm(tsOpMinus.id, tsOpMinus)
-	lang.AddTerm(tsOpMultiply.id, tsOpMultiply)
-	lang.AddTerm(tsOpNot.id, tsOpNot)
-	lang.AddTerm(tsOpOr.id, tsOpOr)
-	lang.AddTerm(tsOpPlus.id, tsOpPlus)
-	lang.AddTerm(tsOpSet.id, tsOpSet)
+	lang.AddTerm(strings.ToLower(tsBool.id), tsBool)
+	lang.AddTerm(strings.ToLower(tsGroupClose.id), tsGroupClose)
+	lang.AddTerm(strings.ToLower(tsGroupOpen.id), tsGroupOpen)
+	lang.AddTerm(strings.ToLower(tsSeparator.id), tsSeparator)
+	lang.AddTerm(strings.ToLower(tsIdentifier.id), tsIdentifier)
+	lang.AddTerm(strings.ToLower(tsNumber.id), tsNumber)
+	lang.AddTerm(strings.ToLower(tsQuotedString.id), tsQuotedString)
+	lang.AddTerm(strings.ToLower(tsUnquotedString.id), tsUnquotedString)
+	lang.AddTerm(strings.ToLower(tsOpAnd.id), tsOpAnd)
+	lang.AddTerm(strings.ToLower(tsOpDec.id), tsOpDec)
+	lang.AddTerm(strings.ToLower(tsOpDecset.id), tsOpDecset)
+	lang.AddTerm(strings.ToLower(tsOpDivide.id), tsOpDivide)
+	lang.AddTerm(strings.ToLower(tsOpGreaterThan.id), tsOpGreaterThan)
+	lang.AddTerm(strings.ToLower(tsOpGreaterThanIs.id), tsOpGreaterThanIs)
+	lang.AddTerm(strings.ToLower(tsOpInc.id), tsOpInc)
+	lang.AddTerm(strings.ToLower(tsOpIncset.id), tsOpIncset)
+	lang.AddTerm(strings.ToLower(tsOpIs.id), tsOpIs)
+	lang.AddTerm(strings.ToLower(tsOpIsNot.id), tsOpIsNot)
+	lang.AddTerm(strings.ToLower(tsOpLessThan.id), tsOpLessThan)
+	lang.AddTerm(strings.ToLower(tsOpLessThanIs.id), tsOpLessThanIs)
+	lang.AddTerm(strings.ToLower(tsOpMinus.id), tsOpMinus)
+	lang.AddTerm(strings.ToLower(tsOpMultiply.id), tsOpMultiply)
+	lang.AddTerm(strings.ToLower(tsOpNot.id), tsOpNot)
+	lang.AddTerm(strings.ToLower(tsOpOr.id), tsOpOr)
+	lang.AddTerm(strings.ToLower(tsOpPlus.id), tsOpPlus)
+	lang.AddTerm(strings.ToLower(tsOpSet.id), tsOpSet)
 
 	err := lang.Validate()
 	if err != nil {

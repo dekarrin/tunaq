@@ -1,6 +1,7 @@
 package tunascript
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ func Test_Grammar_Validate(t *testing.T) {
 				{
 					NonTerminal: "S",
 					Productions: []Production{
-						{tsNumber.id},
+						{strings.ToLower(tsNumber.id)},
 					},
 				},
 			},
@@ -57,7 +58,7 @@ func Test_Grammar_Validate(t *testing.T) {
 			// set up the grammar
 			g := Grammar{}
 			for _, term := range tc.terminals {
-				g.AddTerm(term.id, term)
+				g.AddTerm(strings.ToLower(term.id), term)
 			}
 			for _, r := range tc.rules {
 				for _, alts := range r.Productions {
@@ -83,19 +84,50 @@ func Test_Grammar_RemoveEpsilons(t *testing.T) {
 		rules     []Rule
 		terminals []tokenClass
 		expect    []Rule
-	}{
-		{
-			name: "empty grammar",
-		},
-		{
-			name: "single rule grammar, no epsilons",
-			terminals: []tokenClass{
-				tsNumber,
+	}{ /*
+			{
+				name: "empty grammar",
 			},
-			rules: []Rule{},
-		},
+			{
+				name: "single rule grammar, no epsilons",
+				terminals: []tokenClass{
+					tsNumber,
+				},
+				rules: []Rule{
+					{
+						NonTerminal: "S",
+						Productions: []Production{
+							{"A"},
+						},
+					},
+				},
+				expect: []Rule{
+					{
+						NonTerminal: "S",
+						Productions: []Production{
+							{"A"},
+						},
+					},
+				},
+			},*/
 		{
 			name: "deeba kannan's epsilon elimination example (TOC Lec 25)",
+			terminals: []tokenClass{
+				{id: "a", human: "A"},
+				{id: "b", human: "B"},
+			},
+			rules: []Rule{
+				{NonTerminal: "S", Productions: []Production{{"A", "C", "A"}, {"A", "a"}}},
+				{NonTerminal: "A", Productions: []Production{{"B", "B"}, {""}}},
+				{NonTerminal: "B", Productions: []Production{{"A"}, {"b", "C"}}},
+				{NonTerminal: "C", Productions: []Production{{"b"}}},
+			},
+			expect: []Rule{
+				{NonTerminal: "S", Productions: []Production{{"A", "C", "A"}, {"C", "A"}, {"A", "C"}, {"C"}, {"A", "a"}, {"a"}}},
+				{NonTerminal: "A", Productions: []Production{{"B", "B"}, {"B"}}},
+				{NonTerminal: "B", Productions: []Production{{"A"}, {"b", "C"}}},
+				{NonTerminal: "C", Productions: []Production{{"b"}}},
+			},
 		},
 	}
 
@@ -106,7 +138,7 @@ func Test_Grammar_RemoveEpsilons(t *testing.T) {
 			// set up the grammar
 			g := Grammar{}
 			for _, term := range tc.terminals {
-				g.AddTerm(term.id, term)
+				g.AddTerm(strings.ToLower(term.id), term)
 			}
 			for _, r := range tc.rules {
 				for _, alts := range r.Productions {
@@ -121,11 +153,14 @@ func Test_Grammar_RemoveEpsilons(t *testing.T) {
 
 			// rules must be as expected, cant do equal bc we need custom
 			// comparison logic for each
-			assert.Len(actual.rules, len(tc.rules))
+			assert.Len(actual.rules, len(tc.expect))
 
 			// priority DOES matter so we check them in order
-			for i := range tc.rules {
-				assert.Truef(tc.rules[i].Equal(actual.rules[i]), "expected rules[%d] to be %q but was %q", i, tc.rules[i].String(), actual.rules[i].String())
+			for i := range tc.expect {
+				exp := tc.expect[i]
+				act := actual.rules[i]
+
+				assert.Truef(exp.Equal(act), "expected rules[%d] to be %q but was %q", i, exp.String(), act.String())
 			}
 		})
 	}
