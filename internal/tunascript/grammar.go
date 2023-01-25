@@ -318,11 +318,6 @@ func (g Grammar) RemoveEpsilons() Grammar {
 		ruleA := g.Rule(A)
 		// find all non-terms that produce this, not including self
 		for _, B := range g.NonTerminals() {
-			if B == A {
-				// unit production cycle. will be addressed in later funcs
-				continue
-			}
-
 			ruleIdx := g.rulesByName[B]
 			rule := g.rules[ruleIdx]
 
@@ -385,6 +380,11 @@ func (g Grammar) RemoveEpsilons() Grammar {
 				ruleB.Productions = newProds
 			}
 
+			if A == B {
+				// update our A rule if we need to
+				ruleA = ruleB
+			}
+
 			ruleBIdx := g.rulesByName[B]
 			g.rules[ruleBIdx] = ruleB
 		}
@@ -401,6 +401,80 @@ func (g Grammar) RemoveEpsilons() Grammar {
 
 	// A may be unused by this point, may want to fix that
 	return g
+}
+
+// parseRule parses a Rule from a string like "S -> X | Y"
+func parseRule(r string) (Rule, error) {
+	sides := strings.Split(r, "->")
+	if len(sides) != 2 {
+		return Rule{}, fmt.Errorf("not a rule of form 'NONTERM -> SYMBOL SYMBOL | SYMBOL ...': %q", r)
+	}
+	nonTerminal := strings.TrimSpace(sides[0])
+
+	if nonTerminal == "" {
+		return Rule{}, fmt.Errorf("empty nonterminal name not allowed for production rule")
+	}
+
+	// ensure that it isnt an illegal char, only things used should be 'A-Z',
+	// '_', and '-'
+	for _, ch := range nonTerminal {
+		if ('A' > ch || ch > 'Z') && ch != '_' && ch != '-' {
+			return Rule{}, fmt.Errorf("invalid nonterminal name %q; must only be chars A-Z, \"_\", \"-\", or else the start symbol \"S\"", nonTerminal)
+		}
+	}
+
+	parsedRule := Rule{NonTerminal: nonTerminal}
+
+	productionsString := strings.TrimSpace(sides[1])
+	prodStrings := strings.Split(productionsString, "|")
+	for _, p := range prodStrings {
+		parsedProd := Production{}
+		// split by spaces
+		p = strings.TrimSpace(p)
+		symbols := strings.Split(p, " ")
+		for _, sym := range symbols {
+			sym = strings.TrimSpace(sym)
+
+			if sym == "" {
+				return Rule{}, fmt.Errorf("empty symbol not allowed")
+			}
+
+			if strings.ToLower(sym) == "ε" {
+				// epsilon production
+				parsedProd = Production{""}
+				continue
+			} else {
+				// is it a terminal?
+				isTerm := strings.ToLower(sym) == sym
+				isNonTerm := strings.ToUpper(sym) == sym
+
+				if !isTerm && !isNonTerm {
+					return Rule{}, fmt.Errorf("cannot tell if symbol is a terminal or non-terminal: %q", sym)
+				}
+
+				for _, ch := range strings.ToLower(sym) {
+					if ('a' > ch || ch > 'z') && ch != '_' && ch != '-' {
+						return Rule{}, fmt.Errorf("invalid symbol: %q", sym)
+					}
+				}
+
+				parsedProd = append(parsedProd, sym)
+			}
+		}
+
+		parsedRule.Productions = append(parsedRule.Productions, parsedProd)
+	}
+
+	return parsedRule, nil
+}
+
+// mustParseRule is like parseRule but panics if it can't.
+func mustParseRule(r string) Rule {
+	rule, err := parseRule(r)
+	if err != nil {
+		panic(err.Error())
+	}
+	return rule
 }
 
 // removeEpsilons removes all epsilon-only productions from a list of

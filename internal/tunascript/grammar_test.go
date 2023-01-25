@@ -117,16 +117,42 @@ func Test_Grammar_RemoveEpsilons(t *testing.T) {
 				{id: "b", human: "B"},
 			},
 			rules: []Rule{
-				{NonTerminal: "S", Productions: []Production{{"A", "C", "A"}, {"A", "a"}}},
-				{NonTerminal: "A", Productions: []Production{{"B", "B"}, {""}}},
-				{NonTerminal: "B", Productions: []Production{{"A"}, {"b", "C"}}},
-				{NonTerminal: "C", Productions: []Production{{"b"}}},
+				mustParseRule("S -> A C A | A a"),
+				mustParseRule("A -> B B | ε"),
+				mustParseRule("B -> A | b C"),
+				mustParseRule("C -> b"),
 			},
 			expect: []Rule{
-				{NonTerminal: "S", Productions: []Production{{"A", "C", "A"}, {"C", "A"}, {"A", "C"}, {"C"}, {"A", "a"}, {"a"}}},
-				{NonTerminal: "A", Productions: []Production{{"B", "B"}, {"B"}}},
-				{NonTerminal: "B", Productions: []Production{{"A"}, {"b", "C"}}},
-				{NonTerminal: "C", Productions: []Production{{"b"}}},
+				mustParseRule("S -> A C A | C A | A C | C | A a | a"),
+				mustParseRule("A -> B B | B"),
+				mustParseRule("B -> A | b C"),
+				mustParseRule("C -> b"),
+			},
+		},
+		{
+			name: "purple dragon book ex. 4.4.6",
+			terminals: []tokenClass{
+				{id: "a", human: "a"},
+				{id: "b", human: "b"},
+			},
+			rules: []Rule{
+				mustParseRule(`
+					S -> a S b S
+					   | b S a S
+					   | ε
+				`),
+			},
+			expect: []Rule{
+				mustParseRule(`
+					S -> a S b S
+					   | a b S
+					   | a S b
+					   | a b
+					   | b S a S
+					   | b a S
+					   | b S a
+					   | b a
+				`),
 			},
 		},
 	}
