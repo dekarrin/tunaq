@@ -10,6 +10,8 @@ import (
 
 type Production []string
 
+var Epsilon = Production{""}
+
 // Equal returns whether Rule is equal to another value. It will not be equal
 // if the other value cannot be cast to Production or *Production.
 func (p Production) Equal(o any) bool {
@@ -40,7 +42,7 @@ func (p Production) Equal(o any) bool {
 
 func (p Production) String() string {
 	// if it's an epsilon production output that symbol only
-	if len(p) == 1 && p[0] == "" {
+	if p.Equal(Epsilon) {
 		return "ε"
 	}
 	// separate each by space and call it good
@@ -60,7 +62,7 @@ func (p Production) String() string {
 
 // IsUnit returns whether this production is a unit production.
 func (p Production) IsUnit() bool {
-	return len(p) == 1 && p[0] != "" && strings.ToUpper(p[0]) == p[0]
+	return len(p) == 1 && !p.Equal(Epsilon) && strings.ToUpper(p[0]) == p[0]
 }
 
 // terminals will be upper, non-terms will be lower. 'S' is reserved for use as
@@ -157,11 +159,6 @@ func (r Rule) CanProduceSymbol(termOrNonTerm string) bool {
 	return false
 }
 
-// HasEpsilonProduction is shorthand for HasProduction(Production{""})
-func (r Rule) HasEpsilonProduction() bool {
-	return r.HasProduction(Production{""})
-}
-
 // HasProduction returns whether the rule has a production of the exact sequence
 // of symbols entirely.
 func (r Rule) HasProduction(prod Production) bool {
@@ -196,8 +193,6 @@ func (r Rule) UnitProductions() []Production {
 
 	return prods
 }
-
-type RuleSet []Rule
 
 // Grammar for tunascript language, used by a parsing algorithm to create a
 // parse tree from some input.
@@ -364,10 +359,23 @@ func (g *Grammar) AddRule(nonterminal string, production []string) {
 	g.rules[curIdx] = curRule
 }
 
-// NonTerminals returns list of all the non-terminal symbols. All will be lower
-// case with the exception of the start symbol S.
+// NonTerminals returns list of all the non-terminal symbols. All will be upper
+// case.
 func (g Grammar) NonTerminals() []string {
 	return util.OrderedKeys(g.rulesByName)
+}
+
+// ReversePriorityNonTerminals returns list of all the non-terminal symbols in
+// reverse order from the order they were defined in. This is handy because it
+// can have the effect of causing iteration to do so in a manner that a human
+// might do looking at a grammar, reversed.
+func (g Grammar) ReversePriorityNonTerminals() []string {
+	termNames := []string{}
+	for _, r := range g.rules {
+		termNames = append([]string{r.NonTerminal}, termNames...)
+	}
+
+	return termNames
 }
 
 // UnitProductions returns all production rules that are of the form A -> B,
@@ -485,34 +493,23 @@ func (g Grammar) RemoveUnitProductions() Grammar {
 
 		g.rules[g.rulesByName[rule.NonTerminal]] = rule
 	}
-	/*// old algo:
-	prods := g.UnitProductions()
-
-	for _, ruleWithUnitProds := range prods {
-		fullRule := g.Rule(ruleWithUnitProds.NonTerminal)
-
-		for _, unitProd := range ruleWithUnitProds.Productions {
-
-			// hoist all productions of that symbol up.
-
-			// by definition unit production has exactly one non-terminal and
-			nonTermToHoist := unitProd[0]
-			hoistedRule := g.Rule(nonTermToHoist)
-			fullRule = fullRule.ReplaceProduction(unitProd, hoistedRule.Productions...)
-		}
-
-		g.rules[g.rulesByName[fullRule.NonTerminal]] = fullRule
-	}*/
 
 	// okay, now just remove the unreachable ones (not strictly necessary for
 	// all interpretations of unit production removal but lets do it anyways for
 	// simplicity)
+	g = g.RemoveUreachableNonTerminals()
+
+	return g
+}
+
+// RemoveUnreachableNonTerminals returns a grammar with all unreachable
+// non-terminals removed.
+func (g Grammar) RemoveUreachableNonTerminals() Grammar {
 	for g.HasUnreachableNonTerminals() {
 		for _, nt := range g.UnreachableNonTerminals() {
 			g.RemoveRule(nt)
 		}
 	}
-
 	return g
 }
 
@@ -534,7 +531,7 @@ func (g Grammar) RemoveEpsilons() Grammar {
 			ruleIdx := g.rulesByName[A]
 			rule := g.rules[ruleIdx]
 
-			if rule.HasEpsilonProduction() {
+			if rule.HasProduction(Epsilon) {
 				toPropagate = A
 				break
 			}
@@ -576,9 +573,9 @@ func (g Grammar) RemoveEpsilons() Grammar {
 				// remove all As from B productions. if it was a unit production,
 				// replace it with an epsilon production
 				for i, bProd := range ruleB.Productions {
-					var newProd []string
+					var newProd Production
 					if len(bProd) == 1 && bProd[0] == A {
-						newProd = append(newProd, "")
+						newProd = Epsilon
 					} else {
 						for _, sym := range bProd {
 							if sym != A {
@@ -641,6 +638,165 @@ func (g Grammar) RemoveEpsilons() Grammar {
 	return g
 }
 
+// RemoveLeftRecursion returns a grammar that has no left recursion, suitable
+// for operations on by a top-down parsing method.
+//
+// This will force immediate removal of epsilon-productions and unit-productions
+// as well, as this algorithem only works on CFGs without those.
+//
+// This is an implementation of Algorithm 4.19 from the purple dragon book,
+// "Eliminating left recursion".
+func (g Grammar) RemoveLeftRecursion() Grammar {
+	// precond: grammar must have no epsilon productions or unit productions
+	g = g.RemoveEpsilons().RemoveUnitProductions()
+
+	grammarUpdated := true
+	for grammarUpdated {
+		grammarUpdated = false
+
+		// arrange the nonterminals in some order A₁, A₂, ..., Aₙ.
+		A := g.ReversePriorityNonTerminals()
+		for i := range A {
+			AiRule := g.Rule(A[i])
+			for j := 0; j < i; j++ {
+				AjRule := g.Rule(A[j])
+
+				// replace each production of the form Aᵢ -> Aⱼγ by the
+				// productions Aᵢ -> δ₁γ | δ₂γ | ... | δₖγ, where
+				// Aⱼ -> δ₁ | δ₂ | ... | δₖ are all current Aⱼ productions
+
+				newProds := []Production{}
+				for k := range AiRule.Productions {
+					if AiRule.Productions[k][0] == A[j] { // if rule is Aᵢ -> Aⱼγ (γ may be ε)
+						grammarUpdated = true
+						gamma := AiRule.Productions[k][1:]
+						deltas := AjRule.Productions
+
+						// add replacement rules
+						for d := range deltas {
+							deltaProd := deltas[d]
+							newProds = append(newProds, append(deltaProd, gamma...))
+						}
+					} else {
+						// add it unchanged
+						newProds = append(newProds, AiRule.Productions[k])
+					}
+				}
+
+				// persist the changes
+				AiRule.Productions = newProds
+				g.rules[g.rulesByName[A[i]]] = AiRule
+			}
+
+			// eliminate the immediate left recursion
+
+			// first, group the productions as
+			//
+			// A -> Aα₁ | Aα₂ | ... | Aαₘ | β₁ | β₂ | βₙ
+			//
+			// where no βᵢ starts with an A.
+			//
+			// ^ That was purple dragon book. 8ut transl8ed, *I* say...
+			// "put all the immediate left recursive productions first."
+			alphas := []Production{}
+			betas := []Production{}
+			for k := range AiRule.Productions {
+				if AiRule.Productions[k][0] == AiRule.NonTerminal {
+					alphas = append(alphas, AiRule.Productions[k][1:])
+				} else {
+					betas = append(betas, AiRule.Productions[k])
+				}
+			}
+
+			if len(alphas) > 0 {
+				grammarUpdated = true
+
+				// then, replace the A-productions by
+				//
+				// A  -> β₁A' | β₂A' | ... | βₙA'
+				// A' -> α₁A' | α₂A' | ... | αₘA' | ε
+				//
+				// (purple dragon book)
+
+				if len(betas) < 1 {
+
+					// if we have zero betas, we need to have A produce A' only.
+					// but if that's the case, then A -> A' becomes a
+					// unit production and since we would be creating A' now, we
+					// know A is the only non-term that would produce it,
+					// therefore there is no point in putting in a new term and
+					// we can immediately just shove all the A' rules into A
+					newARule := Rule{NonTerminal: AiRule.NonTerminal}
+
+					for _, a := range alphas {
+						newARule.Productions = append(newARule.Productions, append(a, AiRule.NonTerminal))
+					}
+					// also add epsilon
+					newARule.Productions = append(newARule.Productions, Epsilon)
+
+					// update A
+					AiRule = newARule
+					g.rules[g.rulesByName[A[i]]] = AiRule
+				} else {
+					APrime := g.GenerateUniqueName(AiRule.NonTerminal)
+					newARule := Rule{NonTerminal: AiRule.NonTerminal}
+					newAprimeRule := Rule{NonTerminal: APrime}
+
+					for _, b := range betas {
+						newARule.Productions = append(newARule.Productions, append(b, APrime))
+					}
+					for _, a := range alphas {
+						newAprimeRule.Productions = append(newAprimeRule.Productions, append(a, APrime))
+					}
+					// also add epsilon to A'
+					newAprimeRule.Productions = append(newAprimeRule.Productions, Epsilon)
+
+					// update A
+					AiRule = newARule
+					g.rules[g.rulesByName[A[i]]] = AiRule
+
+					// insert A' immediately after A (convention)
+					// shouldn't be modifying what we are iterating over bc we are
+					// iterating over a pre-retrieved list of nonterminals
+					AiIndex := g.rulesByName[A[i]]
+
+					// explicitly copy the end of the slice because trying to
+					// save a post list and then modifying has lead to aliasing
+					// issues in past
+
+					var postList []Rule = make([]Rule, len(g.rules)-(AiIndex+1))
+					copy(postList, g.rules[AiIndex+1:])
+					g.rules = append(g.rules[:AiIndex+1], newAprimeRule)
+					g.rules = append(g.rules, postList...)
+
+					// update indexes
+					for i := AiIndex + 1; i < len(g.rules); i++ {
+						g.rulesByName[g.rules[i].NonTerminal] = i
+					}
+
+				}
+			}
+		}
+	}
+
+	g = g.RemoveUreachableNonTerminals()
+
+	return g
+}
+
+// GenerateUniqueName generates a name for a non-terminal gauranteed to be
+// unique within the grammar, based on original if one is provided.
+func (g Grammar) GenerateUniqueName(original string) string {
+	newName := original + "-P"
+	existingRule := g.Rule(newName)
+	for existingRule.NonTerminal != "" {
+		newName += "P"
+		existingRule = g.Rule(newName)
+	}
+
+	return newName
+}
+
 // parseRule parses a Rule from a string like "S -> X | Y"
 func parseRule(r string) (Rule, error) {
 	sides := strings.Split(r, "->")
@@ -679,7 +835,7 @@ func parseRule(r string) (Rule, error) {
 
 			if strings.ToLower(sym) == "ε" {
 				// epsilon production
-				parsedProd = Production{""}
+				parsedProd = Epsilon
 				continue
 			} else {
 				// is it a terminal?
@@ -721,7 +877,7 @@ func removeEpsilons(from []Production) []Production {
 	newProds := []Production{}
 
 	for i := range from {
-		if len(from[i]) != 1 || from[i][0] != "" {
+		if !from[i].Equal(Epsilon) {
 			newProds = append(newProds, from[i])
 		}
 	}
@@ -766,7 +922,7 @@ func getEpsilonRewrites(epsilonableNonterm string, prod Production) []Production
 		}
 
 		// build a new production
-		newProd := []string{}
+		newProd := Production{}
 		var curEpsilonable int
 		for j := range prod {
 			if prod[j] == epsilonableNonterm {
@@ -780,7 +936,7 @@ func getEpsilonRewrites(epsilonableNonterm string, prod Production) []Production
 			}
 		}
 		if len(newProd) == 0 {
-			newProd = []string{""}
+			newProd = Epsilon
 		}
 		newProds = append(newProds, newProd)
 	}
