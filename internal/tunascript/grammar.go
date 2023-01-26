@@ -39,6 +39,10 @@ func (p Production) Equal(o any) bool {
 }
 
 func (p Production) String() string {
+	// if it's an epsilon production output that symbol only
+	if len(p) == 1 && p[0] == "" {
+		return "ε"
+	}
 	// separate each by space and call it good
 
 	var sb strings.Builder
@@ -48,9 +52,15 @@ func (p Production) String() string {
 		if i+1 < len(p) {
 			sb.WriteRune(' ')
 		}
+
 	}
 
 	return sb.String()
+}
+
+// IsUnit returns whether this production is a unit production.
+func (p Production) IsUnit() bool {
+	return len(p) == 1 && p[0] != "" && strings.ToUpper(p[0]) == p[0]
 }
 
 // terminals will be upper, non-terms will be lower. 'S' is reserved for use as
@@ -76,6 +86,29 @@ func (r Rule) String() string {
 	return sb.String()
 }
 
+// ReplaceProduction returns a rule that does not include the given production
+// and subsitutes the given production(s) for it. If no productions are given
+// the specified production is simply removed. If the specified production
+// does not exist, the replacements are added to the end of the rule.
+func (r Rule) ReplaceProduction(p Production, replacements ...Production) Rule {
+	var addedReplacements bool
+	newProds := []Production{}
+	for i := range r.Productions {
+		if !r.Productions[i].Equal(p) {
+			newProds = append(newProds, r.Productions[i])
+		} else if len(replacements) > 0 {
+			newProds = append(newProds, replacements...)
+			addedReplacements = true
+		}
+	}
+	if !addedReplacements {
+		newProds = append(newProds, replacements...)
+	}
+
+	r.Productions = newProds
+	return r
+}
+
 // Equal returns whether Rule is equal to another value. It will not be equal
 // if the other value cannot be casted to a Rule or *Rule.
 func (r Rule) Equal(o any) bool {
@@ -99,6 +132,16 @@ func (r Rule) Equal(o any) bool {
 
 	return true
 	// cant do util.EqualSlices here because Productions is a slice of []string
+}
+
+// CanProduce returns whether this rule can produce the given Production.
+func (r Rule) CanProduce(p Production) bool {
+	for _, alt := range r.Productions {
+		if alt.Equal(p) {
+			return true
+		}
+	}
+	return false
 }
 
 // CanProduceSymbol whether any alternative in productions produces the
@@ -139,6 +182,23 @@ func (r Rule) HasProduction(prod Production) bool {
 	return false
 }
 
+// UnitProductions returns all productions from the Rule that are unit
+// productions; i.e. are of the form A -> B where both A and B are
+// non-terminals.
+func (r Rule) UnitProductions() []Production {
+	prods := []Production{}
+
+	for _, alt := range r.Productions {
+		if alt.IsUnit() {
+			prods = append(prods, alt)
+		}
+	}
+
+	return prods
+}
+
+type RuleSet []Rule
+
 // Grammar for tunascript language, used by a parsing algorithm to create a
 // parse tree from some input.
 type Grammar struct {
@@ -151,7 +211,7 @@ type Grammar struct {
 }
 
 func (g Grammar) String() string {
-	return fmt.Sprintf("(%q, R=%q)", g.terminals, g.rules)
+	return fmt.Sprintf("(%q, R=%q)", util.OrderedKeys(g.terminals), g.rules)
 }
 
 // Rule returns the grammar rule for the given nonterminal symbol.
@@ -222,6 +282,38 @@ func (g *Grammar) AddTerm(terminal string, class tokenClass) {
 	g.terminals[terminal] = class
 }
 
+// RemoveRule eliminates all productions of the given nonterminal from the
+// grammar. The nonterminal will no longer be considered to be a part of the
+// Grammar.
+//
+// If the grammar already does not contain the given non-terminal this function
+// has no effect.
+func (g *Grammar) RemoveRule(nonterminal string) {
+	// is this rule even present?
+
+	ruleIdx, ok := g.rulesByName[nonterminal]
+	if !ok {
+		// that was easy
+		return
+	}
+
+	// delete name -> index mapping
+	delete(g.rulesByName, nonterminal)
+
+	// delete from main store
+	if ruleIdx+1 < len(g.rules) {
+		g.rules = append(g.rules[:ruleIdx], g.rules[ruleIdx+1:]...)
+
+		// Hold on, we just need to adjust the indexes across this quick...
+		for i := ruleIdx; i < len(g.rules); i++ {
+			r := g.rules[i]
+			g.rulesByName[r.NonTerminal] = i
+		}
+	} else {
+		g.rules = g.rules[:ruleIdx]
+	}
+}
+
 // AddRule adds the given production for a nonterminal. If the nonterminal has
 // already been given, the production is added as an alternative for that
 // nonterminal with lower priority than all others already added.
@@ -276,6 +368,152 @@ func (g *Grammar) AddRule(nonterminal string, production []string) {
 // case with the exception of the start symbol S.
 func (g Grammar) NonTerminals() []string {
 	return util.OrderedKeys(g.rulesByName)
+}
+
+// UnitProductions returns all production rules that are of the form A -> B,
+// where A and B are both non-terminals. The returned list contains rules
+// mapping the non-terminal to the other non-terminal; all other productions
+// from the grammar will not be present.
+func (g Grammar) UnitProductions() []Rule {
+	allUnitProductions := []Rule{}
+
+	for _, nonTerm := range g.NonTerminals() {
+		rule := g.Rule(nonTerm)
+		ruleUnitProds := rule.UnitProductions()
+		if len(ruleUnitProds) > 0 {
+			allUnitProductions = append(allUnitProductions, Rule{NonTerminal: nonTerm, Productions: ruleUnitProds})
+		}
+	}
+
+	return allUnitProductions
+}
+
+// HasUnreachables returns whether the grammar currently has unreachle
+// non-terminals.
+func (g Grammar) HasUnreachableNonTerminals() bool {
+	for _, nonTerm := range g.NonTerminals() {
+		if nonTerm == "S" {
+			continue
+		}
+
+		reachable := false
+		for _, otherNonTerm := range g.NonTerminals() {
+			if otherNonTerm == nonTerm {
+				continue
+			}
+
+			r := g.Rule(otherNonTerm)
+			if r.CanProduceSymbol(nonTerm) {
+				reachable = true
+				break
+			}
+		}
+
+		if !reachable {
+			return true
+		}
+
+	}
+
+	return false
+}
+
+// UnreachableNonTerminals returns all non-terminals (excluding the start symbol
+// "S") that are currently unreachable due to not being produced by any other
+// grammar rule.
+func (g Grammar) UnreachableNonTerminals() []string {
+	unreachables := []string{}
+
+	for _, nonTerm := range g.NonTerminals() {
+		if nonTerm == "S" {
+			continue
+		}
+
+		reachable := false
+		for _, otherNonTerm := range g.NonTerminals() {
+			if otherNonTerm == nonTerm {
+				continue
+			}
+
+			r := g.Rule(otherNonTerm)
+			if r.CanProduceSymbol(nonTerm) {
+				reachable = true
+				break
+			}
+		}
+
+		if !reachable {
+			unreachables = append(unreachables, nonTerm)
+		}
+	}
+
+	return unreachables
+}
+
+// RemoveUnitProductions returns a Grammar that derives strings equivalent to
+// this one but with all unit production rules removed.
+func (g Grammar) RemoveUnitProductions() Grammar {
+	for _, nt := range g.NonTerminals() {
+		rule := g.Rule(nt)
+		resolvedSymbols := map[string]bool{}
+		for len(rule.UnitProductions()) > 0 {
+			newProds := []Production{}
+			for _, p := range rule.Productions {
+				if p.IsUnit() && p[0] != nt {
+					hoistedRule := g.Rule(p[0])
+					includedHoistedProds := []Production{}
+					for _, hoistedProd := range hoistedRule.Productions {
+						if len(hoistedProd) == 1 && hoistedProd[0] == nt {
+							// dont add
+						} else if rule.CanProduce(hoistedProd) {
+							// dont add
+						} else if _, ok := resolvedSymbols[p[0]]; ok {
+							// dont add
+						} else {
+							includedHoistedProds = append(includedHoistedProds, hoistedProd)
+						}
+					}
+
+					newProds = append(newProds, includedHoistedProds...)
+					resolvedSymbols[p[0]] = true
+				} else {
+					newProds = append(newProds, p)
+				}
+			}
+			rule.Productions = newProds
+		}
+
+		g.rules[g.rulesByName[rule.NonTerminal]] = rule
+	}
+	/*// old algo:
+	prods := g.UnitProductions()
+
+	for _, ruleWithUnitProds := range prods {
+		fullRule := g.Rule(ruleWithUnitProds.NonTerminal)
+
+		for _, unitProd := range ruleWithUnitProds.Productions {
+
+			// hoist all productions of that symbol up.
+
+			// by definition unit production has exactly one non-terminal and
+			nonTermToHoist := unitProd[0]
+			hoistedRule := g.Rule(nonTermToHoist)
+			fullRule = fullRule.ReplaceProduction(unitProd, hoistedRule.Productions...)
+		}
+
+		g.rules[g.rulesByName[fullRule.NonTerminal]] = fullRule
+	}*/
+
+	// okay, now just remove the unreachable ones (not strictly necessary for
+	// all interpretations of unit production removal but lets do it anyways for
+	// simplicity)
+	for g.HasUnreachableNonTerminals() {
+		for _, nt := range g.UnreachableNonTerminals() {
+			g.RemoveRule(nt)
+		}
+	}
+
+	return g
 }
 
 // RemoveEpsilons returns a grammar that derives strings equivalent to the first
