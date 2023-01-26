@@ -850,8 +850,12 @@ func (g Grammar) LeftFactor() Grammar {
 				if util.HasPrefix(alt, alpha) {
 					beta := alt[len(alpha):]
 					betas = append(betas, beta)
+				} else {
+					gamma = append(gamma, alt)
 				}
 			}
+
+			
 
 		}
 	}
