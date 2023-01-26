@@ -466,6 +466,51 @@ func Test_Grammar_RemoveLeftRecursion(t *testing.T) {
 	}
 }
 
+func Test_Grammar_LeftFactor(t *testing.T) {
+	// TODO: make all tests have this input form its super convenient
+	testCases := []struct {
+		name      string
+		terminals []string
+		rules     []string
+		expect    []string
+	}{
+		{
+			name: "empty grammar",
+		},
+		{
+			name:      "grammar glubglub",
+			terminals: []string{"i", "t", "e", "a", "b"},
+			rules: []string{
+				"S -> i E t S | i E t S e S | a",
+				"E -> b",
+			},
+			expect: []string{
+				"S -> i E t S S-P | a",
+				"E -> b",
+				"S-P -> e S | ε",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+			expect := setupGrammar(tc.terminals, tc.expect)
+			g := setupGrammar(tc.terminals, tc.rules)
+
+			// execute
+			actual := g.LeftFactor()
+
+			// assert
+
+			// terminals must remain unchanged
+			assert.Equal(g.terminals, actual.terminals)
+			assertIdenticalProductionSets(assert, expect, actual)
+		})
+	}
+}
+
 func setupGrammar(terminals []string, rules []string) Grammar {
 	g := Grammar{}
 

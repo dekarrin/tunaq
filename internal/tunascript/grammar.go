@@ -776,20 +776,7 @@ func (g Grammar) RemoveLeftRecursion() Grammar {
 					// iterating over a pre-retrieved list of nonterminals
 					AiIndex := g.rulesByName[A[i]]
 
-					// explicitly copy the end of the slice because trying to
-					// save a post list and then modifying has lead to aliasing
-					// issues in past
-
-					var postList []Rule = make([]Rule, len(g.rules)-(AiIndex+1))
-					copy(postList, g.rules[AiIndex+1:])
-					g.rules = append(g.rules[:AiIndex+1], newAprimeRule)
-					g.rules = append(g.rules, postList...)
-
-					// update indexes
-					for i := AiIndex + 1; i < len(g.rules); i++ {
-						g.rulesByName[g.rules[i].NonTerminal] = i
-					}
-
+					g.insertRule(newAprimeRule, AiIndex)
 				}
 			}
 		}
@@ -800,6 +787,21 @@ func (g Grammar) RemoveLeftRecursion() Grammar {
 	return g
 }
 
+func (g *Grammar) insertRule(r Rule, idx int) {
+	// explicitly copy the end of the slice because trying to
+	// save a post list and then modifying has lead to aliasing
+	// issues in past
+	var postList []Rule = make([]Rule, len(g.rules)-(idx+1))
+	copy(postList, g.rules[idx+1:])
+	g.rules = append(g.rules[:idx+1], r)
+	g.rules = append(g.rules, postList...)
+
+	// update indexes
+	for i := idx + 1; i < len(g.rules); i++ {
+		g.rulesByName[g.rules[i].NonTerminal] = i
+	}
+}
+
 // LeftFactor returns a new Grammar equivalent to this one but with all unclear
 // alternative choices for a top-down parser are left factored to equivalent
 // pairs of statements.
@@ -807,56 +809,74 @@ func (g Grammar) RemoveLeftRecursion() Grammar {
 // This is an implementation of Algorithm 4.21 from the purple dragon book,
 // "Left factoring a grammar".
 func (g Grammar) LeftFactor() Grammar {
-	A := g.NonTerminals()
-	for i := range A {
-		AiRule := g.Rule(A[i])
-		// find the longest common prefix α common to two or more of Aᵢ's
-		// alternatives
+	changes := true
+	for changes {
+		changes = false
+		A := g.NonTerminals()
+		for i := range A {
+			AiRule := g.Rule(A[i])
+			// find the longest common prefix α common to two or more of Aᵢ's
+			// alternatives
 
-		alpha := []string{}
-		for j := range AiRule.Productions {
-			checkingAlt := AiRule.Productions[j]
+			alpha := []string{}
+			for j := range AiRule.Productions {
+				checkingAlt := AiRule.Productions[j]
 
-			for k := j + 1; k < len(AiRule.Productions); k++ {
-				againstAlt := AiRule.Productions[k]
-				longestPref := util.LongestCommonPrefix(checkingAlt, againstAlt)
+				for k := j + 1; k < len(AiRule.Productions); k++ {
+					againstAlt := AiRule.Productions[k]
+					longestPref := util.LongestCommonPrefix(checkingAlt, againstAlt)
 
-				// in this case we will simply always take longest between two
-				// because anyfin else would require far more intense searching.
-				// if more than one matches that, well awesome we'll pick that
-				// up too!! 38D
+					// in this case we will simply always take longest between two
+					// because anyfin else would require far more intense searching.
+					// if more than one matches that, well awesome we'll pick that
+					// up too!! 38D
 
-				if len(longestPref) > len(alpha) {
-					alpha = longestPref
-				}
-			}
-		}
-
-		if len(alpha) > 0 && !Epsilon.Equal(alpha) {
-			// there is a non-trivial common prefix
-
-			// Replace all of the A-productions A -> αβ₁ | αβ₂ | ... | αβₙ | γ,
-			// where γ represents all alternatives that do not begin with α,
-			// by:
-			//
-			// A  -> αA' | γ
-			// A' -> β₁ | β₂ | ... | βₙ
-			//
-			// Where A' is a new-non-terminal.
-			gamma := []Production{}
-			betas := []Production{}
-
-			for _, alt := AiRule.Productions {
-				if util.HasPrefix(alt, alpha) {
-					beta := alt[len(alpha):]
-					betas = append(betas, beta)
-				} else {
-					gamma = append(gamma, alt)
+					if len(longestPref) > len(alpha) {
+						alpha = longestPref
+					}
 				}
 			}
 
-			
+			if len(alpha) > 0 && !Epsilon.Equal(alpha) {
+				// there is a non-trivial common prefix
+				changes = true
 
+				// Replace all of the A-productions A -> αβ₁ | αβ₂ | ... | αβₙ | γ,
+				// where γ represents all alternatives that do not begin with α,
+				// by:
+				//
+				// A  -> αA' | γ
+				// A' -> β₁ | β₂ | ... | βₙ
+				//
+				// Where A' is a new-non-terminal.
+				gamma := []Production{}
+				betas := []Production{}
+
+				for _, alt := range AiRule.Productions {
+					if util.HasPrefix(alt, alpha) {
+						beta := alt[len(alpha):]
+						if len(beta) == 0 {
+							beta = Epsilon
+						}
+						betas = append(betas, beta)
+					} else {
+						gamma = append(gamma, alt)
+					}
+				}
+
+				APrime := g.GenerateUniqueName(AiRule.NonTerminal)
+				APrimeRule := Rule{NonTerminal: APrime, Productions: betas}
+
+				AiRule.Productions = append([]Production{append(Production(alpha), APrime)}, gamma...)
+				// update A
+				g.rules[g.rulesByName[A[i]]] = AiRule
+
+				// insert A' immediately after A (convention)
+				// shouldn't be modifying what we are iterating over bc we are
+				// iterating over a pre-retrieved list of nonterminals
+				AiIndex := g.rulesByName[A[i]]
+				g.insertRule(APrimeRule, AiIndex)
+			}
 		}
 	}
 
