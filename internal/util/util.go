@@ -169,3 +169,43 @@ func EqualSlices[T CustomComparable](sl1 []T, sl2 []T) bool {
 
 	return true
 }
+
+// LongestCommonPrefix gets the longest prefix that the two slices have in
+// common.
+func LongestCommonPrefix[T comparable](sl1 []T, sl2 []T) []T {
+	var pref []T
+
+	minLen := len(sl1)
+	if minLen > len(sl2) {
+		minLen = len(sl2)
+	}
+
+	for i := 0; i < minLen; i++ {
+		if sl1[i] != sl2[i] {
+			break
+		}
+		pref = append(pref, sl1[i])
+	}
+
+	return pref
+}
+
+// HasPrefix returns whether the given slice has the given prefix. If prefix
+// is empty or nil this will always be true regardless of sl's value.
+func HasPrefix[T comparable](sl []T, prefix []T) bool {
+	if len(prefix) > len(sl) {
+		return false
+	}
+
+	if len(prefix) == 0 {
+		return true
+	}
+
+	for i := range prefix {
+		if sl[i] != prefix[i] {
+			return false
+		}
+	}
+
+	return true
+}

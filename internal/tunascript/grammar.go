@@ -20,11 +20,27 @@ func (p Production) Equal(o any) bool {
 		// also okay if its the pointer value, as long as its non-nil
 		otherPtr, ok := o.(*Production)
 		if !ok {
-			return false
+			// also okay if it's a string slice
+			otherSlice, ok := o.([]string)
+
+			if !ok {
+				// also okay if it's a ptr to string slice
+				otherSlicePtr, ok := o.(*[]string)
+				if !ok {
+					return false
+				} else if otherSlicePtr == nil {
+					return false
+				} else {
+					other = Production(*otherSlicePtr)
+				}
+			} else {
+				other = Production(otherSlice)
+			}
 		} else if otherPtr == nil {
 			return false
+		} else {
+			other = *otherPtr
 		}
-		other = *otherPtr
 	}
 
 	if len(p) != len(other) {
@@ -780,6 +796,65 @@ func (g Grammar) RemoveLeftRecursion() Grammar {
 	}
 
 	g = g.RemoveUreachableNonTerminals()
+
+	return g
+}
+
+// LeftFactor returns a new Grammar equivalent to this one but with all unclear
+// alternative choices for a top-down parser are left factored to equivalent
+// pairs of statements.
+//
+// This is an implementation of Algorithm 4.21 from the purple dragon book,
+// "Left factoring a grammar".
+func (g Grammar) LeftFactor() Grammar {
+	A := g.NonTerminals()
+	for i := range A {
+		AiRule := g.Rule(A[i])
+		// find the longest common prefix α common to two or more of Aᵢ's
+		// alternatives
+
+		alpha := []string{}
+		for j := range AiRule.Productions {
+			checkingAlt := AiRule.Productions[j]
+
+			for k := j + 1; k < len(AiRule.Productions); k++ {
+				againstAlt := AiRule.Productions[k]
+				longestPref := util.LongestCommonPrefix(checkingAlt, againstAlt)
+
+				// in this case we will simply always take longest between two
+				// because anyfin else would require far more intense searching.
+				// if more than one matches that, well awesome we'll pick that
+				// up too!! 38D
+
+				if len(longestPref) > len(alpha) {
+					alpha = longestPref
+				}
+			}
+		}
+
+		if len(alpha) > 0 && !Epsilon.Equal(alpha) {
+			// there is a non-trivial common prefix
+
+			// Replace all of the A-productions A -> αβ₁ | αβ₂ | ... | αβₙ | γ,
+			// where γ represents all alternatives that do not begin with α,
+			// by:
+			//
+			// A  -> αA' | γ
+			// A' -> β₁ | β₂ | ... | βₙ
+			//
+			// Where A' is a new-non-terminal.
+			gamma := []Production{}
+			betas := []Production{}
+
+			for _, alt := AiRule.Productions {
+				if util.HasPrefix(alt, alpha) {
+					beta := alt[len(alpha):]
+					betas = append(betas, beta)
+				}
+			}
+
+		}
+	}
 
 	return g
 }
