@@ -905,8 +905,17 @@ func (g Grammar) FOLLOW(X string) map[string]bool {
 
 		for _, prod := range AiRule.Productions {
 			if prod.HasSymbol(X) {
+				// how many occurances of X are there? that says how many times
+				// we need to do this, so find them
+				var Xcount int
+				for k := range prod {
+					if prod[k] == X {
+						Xcount++
+					}
+				}
+
 				// do this for each occurance of X
-				for Xoccurance := 0; Xoccurance < len(prod); Xoccurance++ {
+				for Xoccurance := 0; Xoccurance < Xcount; Xoccurance++ {
 					alpha := []string{}
 					beta := []string{}
 					var doneWithAlpha bool
@@ -914,12 +923,12 @@ func (g Grammar) FOLLOW(X string) map[string]bool {
 					for k := range prod {
 						if prod[k] == X {
 							Xencounter++
-						}
-						if Xencounter > Xoccurance {
-							// only count this as end of alpha if we are at the
-							// occurance of X we are looking for
-							doneWithAlpha = true
-							continue
+							if Xencounter > Xoccurance && !doneWithAlpha {
+								// only count this as end of alpha if we are at the
+								// occurance of X we are looking for
+								doneWithAlpha = true
+								continue
+							}
 						}
 						if !doneWithAlpha {
 							alpha = append(alpha, prod[k])
@@ -931,26 +940,21 @@ func (g Grammar) FOLLOW(X string) map[string]bool {
 					// we now have our alpha, X, and beta
 
 					// is there a FIRST in beta that isnt exclusively delta,
-					// its firsts are in X's FOLLOW.
-					nonEpsBetaFirsts := map[string]bool{}
+					// its firsts are in X's FOLLOW. Stop checking at the first
+					// in beta that is NOT reducible to eps.
 					for b := range beta {
 						betaFirst := g.FIRST(beta[b])
-						var foundNonEpsilon bool
+						_, epsilonPresent := betaFirst[Epsilon[0]]
+
 						for k := range betaFirst {
-							nonEpsBetaFirsts[k] = betaFirst[k]
-							if k == Epsilon[0] {
-								continue
-							} else {
-								foundNonEpsilon = true
+							if k != Epsilon[0] {
+								followSet[k] = true
 							}
 						}
-						if foundNonEpsilon {
+
+						if !epsilonPresent {
+							// stop looping
 							break
-						}
-					}
-					if len(nonEpsBetaFirsts) > 0 {
-						for k := range nonEpsBetaFirsts {
-							followSet[k] = nonEpsBetaFirsts[k]
 						}
 					}
 
