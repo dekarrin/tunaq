@@ -883,6 +883,30 @@ func (g Grammar) LeftFactor() Grammar {
 	return g
 }
 
+func (g Grammar) FIRST(X string) []string {
+	if strings.ToLower(X) == X {
+		// terminal
+		return []string{X}
+	} else {
+		var firsts []string
+		r := g.Rule(X)
+		for ntIdx := range r.Productions {
+			Y := r.Productions[ntIdx]
+			var noFirst bool
+			for k := 0; k < len(Y); k++ {
+				for i := 0; i < k; i++ {
+					alpha := g.FIRST(Y[i])
+					if Epsilon.Equal(alpha) {
+						continue
+					} else {
+						firsts = append(firsts, alpha...)
+					}
+				}
+			}
+		}
+	}
+}
+
 // GenerateUniqueName generates a name for a non-terminal gauranteed to be
 // unique within the grammar, based on original if one is provided.
 func (g Grammar) GenerateUniqueName(original string) string {
