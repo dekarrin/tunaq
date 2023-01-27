@@ -883,6 +883,12 @@ func (g Grammar) LeftFactor() Grammar {
 	return g
 }
 
+func (g Grammar) FOLLOW(A string) map[string]bool {
+	if A == "S" {
+		return map[string]bool{"$": true}
+	}
+}
+
 func (g Grammar) FIRST(X string) map[string]bool {
 	if strings.ToLower(X) == X {
 		// terminal or epsilon
