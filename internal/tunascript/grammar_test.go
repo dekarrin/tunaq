@@ -624,6 +624,136 @@ func Test_Grammar_FIRST(t *testing.T) {
 	}
 }
 
+func Test_Grammar_FOLLOW(t *testing.T) {
+	// TODO: make all tests have this input form its super convenient
+	testCases := []struct {
+		name      string
+		terminals []string
+		rules     []string
+		follow    string
+		expect    []string
+	}{
+		{
+			name: "empty grammar",
+		},
+		{
+			name:      "example 1 - S",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "S",
+			expect: []string{
+				"$",
+			},
+		},
+		{
+			name:      "example 1 - B",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "B",
+			expect: []string{
+				"g", "f", "h",
+			},
+		},
+		{
+			name:      "example 1 - C",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "C",
+			expect: []string{
+				"g", "f", "h",
+			},
+		},
+		{
+			name:      "example 1 - D",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "D",
+			expect: []string{
+				"h",
+			},
+		},
+		{
+			name:      "example 1 - E",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "E",
+			expect: []string{
+				"f", "h",
+			},
+		},
+		{
+			name:      "example 1 - F",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "F",
+			expect: []string{
+				"h",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+			expectMap := map[string]bool{}
+			for i := range tc.expect {
+				expectMap[tc.expect[i]] = true
+			}
+
+			g := setupGrammar(tc.terminals, tc.rules)
+
+			// execute
+			actual := g.FOLLOW(tc.follow)
+
+			// assert
+			assert.Equal(util.OrderedKeys(expectMap), util.OrderedKeys(actual))
+		})
+	}
+}
+
 func setupGrammar(terminals []string, rules []string) Grammar {
 	g := Grammar{}
 

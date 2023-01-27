@@ -81,6 +81,11 @@ func (p Production) IsUnit() bool {
 	return len(p) == 1 && !p.Equal(Epsilon) && strings.ToUpper(p[0]) == p[0]
 }
 
+// HasSymbol returns whether the production has the given symbol in it.
+func (p Production) HasSymbol(sym string) bool {
+	return util.InSlice(sym, p)
+}
+
 // terminals will be upper, non-terms will be lower. 'S' is reserved for use as
 // the start symbol.
 type Rule struct {
@@ -883,10 +888,102 @@ func (g Grammar) LeftFactor() Grammar {
 	return g
 }
 
-func (g Grammar) FOLLOW(A string) map[string]bool {
-	if A == "S" {
-		return map[string]bool{"$": true}
+func (g Grammar) FOLLOW(X string) map[string]bool {
+	followSet := map[string]bool{}
+	if strings.ToLower(X) == X {
+		// there is no follow set. return nil.
+		return nil
 	}
+	if X == "S" {
+		followSet["$"] = true
+	}
+
+	A := g.NonTerminals()
+
+	for i := range A {
+		AiRule := g.Rule(A[i])
+
+		for _, prod := range AiRule.Productions {
+			if prod.HasSymbol(X) {
+				// do this for each occurance of X
+				for Xoccurance := 0; Xoccurance < len(prod); Xoccurance++ {
+					alpha := []string{}
+					beta := []string{}
+					var doneWithAlpha bool
+					var Xencounter int
+					for k := range prod {
+						if prod[k] == X {
+							Xencounter++
+						}
+						if Xencounter > Xoccurance {
+							// only count this as end of alpha if we are at the
+							// occurance of X we are looking for
+							doneWithAlpha = true
+							continue
+						}
+						if !doneWithAlpha {
+							alpha = append(alpha, prod[k])
+						} else {
+							beta = append(beta, prod[k])
+						}
+					}
+
+					// we now have our alpha, X, and beta
+
+					// is there a FIRST in beta that isnt exclusively delta,
+					// its firsts are in X's FOLLOW.
+					nonEpsBetaFirsts := map[string]bool{}
+					for b := range beta {
+						betaFirst := g.FIRST(beta[b])
+						var foundNonEpsilon bool
+						for k := range betaFirst {
+							nonEpsBetaFirsts[k] = betaFirst[k]
+							if k == Epsilon[0] {
+								continue
+							} else {
+								foundNonEpsilon = true
+							}
+						}
+						if foundNonEpsilon {
+							break
+						}
+					}
+					if len(nonEpsBetaFirsts) > 0 {
+						for k := range nonEpsBetaFirsts {
+							followSet[k] = nonEpsBetaFirsts[k]
+						}
+					}
+
+					// if X "can be" at the end of the production (i.e. if
+					// either X is the final symbol of the production or if all
+					// symbols following X are non-terminals with epsilon in
+					// their FIRST sets), then FOLLOW(A) is in FOLLOW(X), where
+					// A is the non-terminal producing X.
+					canBeAtEnd := true
+					for b := range beta {
+						betaFirst := g.FIRST(beta[b])
+						if _, ok := betaFirst[Epsilon[0]]; !ok {
+							canBeAtEnd = false
+							break
+						}
+					}
+					if canBeAtEnd {
+						// dont infinitely recurse; if the producer is the
+						// symbol, there's no need to add the FOLLOW from it bc
+						// we are CURRENTLY calculating it.
+						if A[i] != X {
+							followA := g.FOLLOW(A[i])
+							for k := range followA {
+								followSet[k] = true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return followSet
 }
 
 func (g Grammar) FIRST(X string) map[string]bool {
