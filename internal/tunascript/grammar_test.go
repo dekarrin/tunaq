@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dekarrin/tunaq/internal/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -507,6 +508,118 @@ func Test_Grammar_LeftFactor(t *testing.T) {
 			// terminals must remain unchanged
 			assert.Equal(g.terminals, actual.terminals)
 			assertIdenticalProductionSets(assert, expect, actual)
+		})
+	}
+}
+
+func Test_Grammar_FIRST(t *testing.T) {
+	// TODO: make all tests have this input form its super convenient
+	testCases := []struct {
+		name      string
+		terminals []string
+		rules     []string
+		first     string
+		expect    []string
+	}{
+		{
+			name: "empty grammar",
+			expect: []string{
+				Epsilon[0],
+			},
+		},
+		{
+			name:      "first and follow sets explained example, T",
+			terminals: []string{"p", "g", "b", "a", "q", "s", "d", "f", "m"},
+			rules: []string{
+				"S -> K L p | g Q K",
+				"K -> b L Q T | ε",
+				"L -> Q a K | Q K | q a",
+				"Q -> d s | ε",
+				"T -> g S f | m",
+			},
+			first: "T",
+			expect: []string{
+				"g", "m",
+			},
+		},
+		{
+			name:      "first and follow sets explained example, Q",
+			terminals: []string{"p", "g", "b", "a", "q", "s", "d", "f", "m"},
+			rules: []string{
+				"S -> K L p | g Q K",
+				"K -> b L Q T | ε",
+				"L -> Q a K | Q K | q a",
+				"Q -> d s | ε",
+				"T -> g S f | m",
+			},
+			first: "Q",
+			expect: []string{
+				"d", Epsilon[0],
+			},
+		},
+		{
+			name:      "first and follow sets explained example, K",
+			terminals: []string{"p", "g", "b", "a", "q", "s", "d", "f", "m"},
+			rules: []string{
+				"S -> K L p | g Q K",
+				"K -> b L Q T | ε",
+				"L -> Q a K | Q K | q a",
+				"Q -> d s | ε",
+				"T -> g S f | m",
+			},
+			first: "K",
+			expect: []string{
+				"b", Epsilon[0],
+			},
+		},
+		{
+			name:      "first and follow sets explained example, L",
+			terminals: []string{"p", "g", "b", "a", "q", "s", "d", "f", "m"},
+			rules: []string{
+				"S -> K L p | g Q K",
+				"K -> b L Q T | ε",
+				"L -> Q a K | Q K | q a",
+				"Q -> d s | ε",
+				"T -> g S f | m",
+			},
+			first: "L",
+			expect: []string{
+				"d", Epsilon[0], "q", "a", "b",
+			},
+		},
+		{
+			name:      "first and follow sets explained example, S",
+			terminals: []string{"p", "g", "b", "a", "q", "s", "d", "f", "m"},
+			rules: []string{
+				"S -> K L p | g Q K",
+				"K -> b L Q T | ε",
+				"L -> Q a K | Q K | q a",
+				"Q -> d s | ε",
+				"T -> g S f | m",
+			},
+			first: "S",
+			expect: []string{
+				"b", "d", "q", "a", "b", "p", "g",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+			expectMap := map[string]bool{}
+			for i := range tc.expect {
+				expectMap[tc.expect[i]] = true
+			}
+
+			g := setupGrammar(tc.terminals, tc.rules)
+
+			// execute
+			actual := g.FIRST(tc.first)
+
+			// assert
+			assert.Equal(util.OrderedKeys(expectMap), util.OrderedKeys(actual))
 		})
 	}
 }

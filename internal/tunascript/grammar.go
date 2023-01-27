@@ -883,27 +883,39 @@ func (g Grammar) LeftFactor() Grammar {
 	return g
 }
 
-func (g Grammar) FIRST(X string) []string {
+func (g Grammar) FIRST(X string) map[string]bool {
 	if strings.ToLower(X) == X {
-		// terminal
-		return []string{X}
+		// terminal or epsilon
+		return map[string]bool{X: true}
 	} else {
-		var firsts []string
+		firsts := map[string]bool{}
 		r := g.Rule(X)
 		for ntIdx := range r.Productions {
 			Y := r.Productions[ntIdx]
-			var noFirst bool
+			var gotToEnd bool
 			for k := 0; k < len(Y); k++ {
-				for i := 0; i < k; i++ {
-					alpha := g.FIRST(Y[i])
-					if Epsilon.Equal(alpha) {
-						continue
-					} else {
-						firsts = append(firsts, alpha...)
+				firstY := g.FIRST(Y[k])
+				for str := range firstY {
+					if str != "" {
+						firsts[str] = true
 					}
 				}
+				if len(firstY) == 1 && util.OrderedKeys(firstY)[0] == "" {
+					firsts[""] = true
+				}
+				if _, ok := firstY[Epsilon[0]]; !ok {
+					// if its not, then break
+					break
+				}
+				if k+1 >= len(Y) {
+					gotToEnd = true
+				}
+			}
+			if gotToEnd {
+				firsts[Epsilon[0]] = true
 			}
 		}
+		return firsts
 	}
 }
 
