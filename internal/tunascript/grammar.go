@@ -1061,8 +1061,15 @@ func (g Grammar) LLParseTable() (M LL1Table, err error) {
 	return M, nil
 }
 
-func parseGrammar(gr string) (Grammar, error) {
+func mustParseGrammar(gr string) Grammar {
+	g, err := parseGrammar(gr)
+	if err != nil {
+		panic(err.Error())
+	}
+	return g
+}
 
+func parseGrammar(gr string) (Grammar, error) {
 	lines := strings.Split(gr, ";")
 
 	var g Grammar

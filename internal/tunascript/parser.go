@@ -58,6 +58,41 @@ type parseTree struct {
 	children []*parseTree
 }
 
+// Equal returns whether the parseTree is equal to the given object. If the
+// given object is not a parseTree, returns false, else returns whether the two
+// parse trees have the exact same structure.
+func (pt parseTree) Equal(o any) bool {
+	other, ok := o.(parseTree)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*parseTree)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if pt.terminal != other.terminal {
+		return false
+	} else if pt.value != other.value {
+		return false
+	} else {
+		// check every sub tree
+		if len(pt.children) != len(other.children) {
+			return false
+		}
+
+		for i := range pt.children {
+			if !pt.children[i].Equal(other.children[i]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // LL1PredictiveParse runse a parse of the input using LL(k) parsing rules on
 // the context-free Grammar g (k=1). The grammar must be LL(1); it will not be
 // forced to it.

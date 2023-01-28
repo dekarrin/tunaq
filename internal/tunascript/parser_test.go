@@ -1,6 +1,11 @@
 package tunascript
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 const (
 	mockedBoolLexeme           = "true"
@@ -210,11 +215,92 @@ func Test_Parse(t *testing.T) {
 }
 */
 
+var (
+	// the operations in the grammars used as examples from Prof. Aiken's
+	// video series on compilers, represented as results of tunascript
+	// tokenClasses so we can use them in test functions.
+	termNumber = strings.ToLower(tsNumber.id)
+	termPlus   = strings.ToLower(tsOpPlus.id)
+	termMult   = strings.ToLower(tsOpMultiply.id)
+	termLParen = strings.ToLower(tsGroupOpen.id)
+	termLParen = strings.ToLower(tsGroupClose.id)
+)
+
+func gramToken(tc tokenClass) string {
+	return strings.ToLower(tc.id)
+}
+
 func Test_LL1PredictiveParse(t *testing.T) {
 	testCases := []struct {
-		name   string
-		tokens []tokenClass
-	}{}
+		name      string
+		grammar   string
+		input     []tokenClass
+		expect    parseTree
+		expectErr bool
+	}{
+		{
+			name: "aiken expression LL1 sample",
+			grammar: `
+				S -> T X ;
+
+				T -> ` + termLParen + ` S ` + termRParen + `
+				   | ` + termNumber + ` Y ;
+
+				X -> ` + termPlus + ` S
+				   | ε ;
+
+				Y -> ` + termMult + ` T
+				   | ε ;
+			`,
+			input: []tokenClass{
+				tsNumber, tsOpMultiply, tsNumber, tsEndOfText,
+			},
+			expect: parseTree{
+				value: "E",
+				children: []*parseTree{
+					{
+						value: "T",
+						// TODO: fill in children
+					},
+					{
+						value: "X",
+						children: []*parseTree{
+							{
+								value: "ε",
+								terminal: true,
+							},
+						},
+					}
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+
+			g := mustParseGrammar(tc.grammar)
+			stream := tokenStream{
+				tokens: mockTokens(tc.input...),
+			}
+
+			// execute
+			actual, err := LL1PredictiveParse(g, stream)
+
+			// assert
+			if tc.expectErr {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+
+			// TODO: make a string repr of the parse tree to make it easier to
+			// view diffs like we did for AST
+			assert.True(tc.expect.Equal(actual))
+		})
+	}
 }
 
 func ref[T any](s T) *T {
