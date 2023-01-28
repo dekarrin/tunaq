@@ -6,6 +6,30 @@ import (
 	"unicode"
 )
 
+type Set[E comparable] map[E]bool
+
+func (s Set[E]) DisjointWith(o Set[E]) bool {
+	for k := range s {
+		if _, ok := o[k]; ok {
+			return false
+		}
+	}
+	return true
+}
+
+func (s Set[E]) Has(value E) bool {
+	_, has := s[value]
+	return has
+}
+
+func (s Set[E]) Add(value E) {
+	s[value] = true
+}
+
+func (s Set[E]) Remove(value E) {
+	delete(s, value)
+}
+
 // MakeTextList gives a nice list of things based on their display name.
 //
 // TODO: turn this into a generic function that accepts displayable OR ~string

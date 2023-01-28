@@ -732,6 +732,156 @@ func Test_Grammar_FOLLOW(t *testing.T) {
 				"h",
 			},
 		},
+		{
+			name:      "example 1 - a",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "a",
+			expect: []string{
+				"c",
+			},
+		},
+		{
+			name:      "example 1 - h",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "h",
+			expect: []string{
+				"$",
+			},
+		},
+		{
+			name:      "example 1 - c",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "c",
+			expect: []string{
+				"b", "g", "f", "h",
+			},
+		},
+		{
+			name:      "example 1 - b",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "b",
+			expect: []string{
+				"b", "g", "f", "h",
+			},
+		},
+		{
+			name:      "example 1 - g",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "g",
+			expect: []string{
+				"f", "h",
+			},
+		},
+		{
+			name:      "example 1 - f",
+			terminals: []string{"a", "h", "c", "b", "g", "f"},
+			rules: []string{
+				"S -> a B D h",
+				"B -> c C",
+				"C -> b C | ε",
+				"D -> E F",
+				"E -> g | ε",
+				"F -> f | ε",
+			},
+			follow: "f",
+			expect: []string{
+				"h",
+			},
+		},
+		{
+			name:      "aiken operations - S",
+			terminals: []string{"int", "plus", "times", "lparen", "rparen"},
+			rules:     []string{"S -> T X", "T -> lparen S rparen | int Y", "X -> plus S | ε", "Y -> times T | ε"},
+			follow:    "S", expect: []string{"$", "rparen"},
+		},
+		{
+			name:      "aiken operations - X",
+			terminals: []string{"int", "plus", "times", "lparen", "rparen"},
+			rules:     []string{"S -> T X", "T -> lparen S rparen | int Y", "X -> plus S | ε", "Y -> times T | ε"},
+			follow:    "X", expect: []string{"$", "rparen"},
+		},
+		{
+			name:      "aiken operations - T",
+			terminals: []string{"int", "plus", "times", "lparen", "rparen"},
+			rules:     []string{"S -> T X", "T -> lparen S rparen | int Y", "X -> plus S | ε", "Y -> times T | ε"},
+			follow:    "T", expect: []string{"plus", "$", "rparen"},
+		},
+		{
+			name:      "aiken operations - Y",
+			terminals: []string{"int", "plus", "times", "lparen", "rparen"},
+			rules:     []string{"S -> T X", "T -> lparen S rparen | int Y", "X -> plus S | ε", "Y -> times T | ε"},
+			follow:    "Y", expect: []string{"plus", "$", "rparen"},
+		},
+		{
+			name:      "aiken operations - (",
+			terminals: []string{"int", "plus", "times", "lparen", "rparen"},
+			rules:     []string{"S -> T X", "T -> lparen S rparen | int Y", "X -> plus S | ε", "Y -> times T | ε"},
+			follow:    "lparen", expect: []string{"lparen", "int"},
+		},
+		{
+			name:      "aiken operations - )",
+			terminals: []string{"int", "plus", "times", "lparen", "rparen"},
+			rules:     []string{"S -> T X", "T -> lparen S rparen | int Y", "X -> plus S | ε", "Y -> times T | ε"},
+			follow:    "rparen", expect: []string{"rparen", "plus", "$"},
+		},
+		{
+			name:      "aiken operations - +",
+			terminals: []string{"int", "plus", "times", "lparen", "rparen"},
+			rules:     []string{"S -> T X", "T -> lparen S rparen | int Y", "X -> plus S | ε", "Y -> times T | ε"},
+			follow:    "plus", expect: []string{"lparen", "int"},
+		},
+		{
+			name:      "aiken operations - *",
+			terminals: []string{"int", "plus", "times", "lparen", "rparen"},
+			rules:     []string{"S -> T X", "T -> lparen S rparen | int Y", "X -> plus S | ε", "Y -> times T | ε"},
+			follow:    "times", expect: []string{"lparen", "int"},
+		},
+		{
+			name:      "aiken operations - int",
+			terminals: []string{"int", "plus", "times", "lparen", "rparen"},
+			rules:     []string{"S -> T X", "T -> lparen S rparen | int Y", "X -> plus S | ε", "Y -> times T | ε"},
+			follow:    "int", expect: []string{"times", "plus", "$", "rparen"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -750,6 +900,56 @@ func Test_Grammar_FOLLOW(t *testing.T) {
 
 			// assert
 			assert.Equal(util.OrderedKeys(expectMap), util.OrderedKeys(actual))
+		})
+	}
+}
+
+func Test_Grammar_IsLL1(t *testing.T) {
+	// TODO: make all tests have this input form its super convenient
+	testCases := []struct {
+		name      string
+		terminals []string
+		rules     []string
+		expect    bool
+	}{
+		{
+			name:   "empty grammar",
+			expect: true,
+		},
+		{
+			name:      "example 1 - S",
+			terminals: []string{"plus", "mult", "lp", "rp", "id"},
+			rules: []string{
+				"S -> T A",
+				"A -> plus T A | ε",
+				"T -> F B",
+				"B -> mult F B | ε",
+				"F -> lp S rp | id",
+			},
+			expect: true,
+		},
+		{
+			name:      "same string in two prods",
+			terminals: []string{"a", "b"},
+			rules: []string{
+				"S -> a | a b",
+			},
+			expect: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+
+			g := setupGrammar(tc.terminals, tc.rules)
+
+			// execute
+			actual := g.IsLL1()
+
+			// assert
+			assert.Equal(tc.expect, actual)
 		})
 	}
 }

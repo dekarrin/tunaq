@@ -888,18 +888,18 @@ func (g Grammar) LeftFactor() Grammar {
 	return g
 }
 
-func (g Grammar) FOLLOW(X string) map[string]bool {
-	followSet := map[string]bool{}
-	if strings.ToLower(X) == X {
+// recursiveFindFollowSet
+func (g Grammar) recursiveFindFollowSet(X string, prevFollowChecks map[string]bool) map[string]bool {
+	if X == "" {
 		// there is no follow set. return nil.
 		return nil
 	}
+	followSet := map[string]bool{}
 	if X == "S" {
 		followSet["$"] = true
 	}
 
 	A := g.NonTerminals()
-
 	for i := range A {
 		AiRule := g.Rule(A[i])
 
@@ -975,8 +975,12 @@ func (g Grammar) FOLLOW(X string) map[string]bool {
 						// dont infinitely recurse; if the producer is the
 						// symbol, there's no need to add the FOLLOW from it bc
 						// we are CURRENTLY calculating it.
-						if A[i] != X {
-							followA := g.FOLLOW(A[i])
+						//
+						// similarly, track the symbols we are going through.
+						// don't recheck for the same one.
+						if _, ok := prevFollowChecks[A[i]]; A[i] != X && !ok {
+							prevFollowChecks[X] = true
+							followA := g.recursiveFindFollowSet(A[i], prevFollowChecks)
 							for k := range followA {
 								followSet[k] = true
 							}
@@ -988,6 +992,70 @@ func (g Grammar) FOLLOW(X string) map[string]bool {
 	}
 
 	return followSet
+}
+
+func (g Grammar) IsLL1() bool {
+	nts := g.NonTerminals()
+	for _, A := range nts {
+		AiRule := g.Rule(A)
+
+		// we'll need this later, glubglub 38)
+		followSetA := util.Set[string](g.FOLLOW(A))
+
+		// Whenever A -> α | β are two distinct productions of G:
+		// -purple dragon book
+		for i := range AiRule.Productions {
+			for j := i + 1; j < len(AiRule.Productions); j++ {
+				alphaFIRST := g.FIRST(AiRule.Productions[i][0])
+				betaFIRST := g.FIRST(AiRule.Productions[j][0])
+
+				aFSet := util.Set[string](alphaFIRST)
+				bFSet := util.Set[string](betaFIRST)
+
+				// 1. For no terminal a do both α and β derive strings beginning
+				// with a.
+				//
+				// 2. At most of of α and β derive the empty string.
+				//
+				//
+				// ...or in other words, FIRST(α) and FIRST(β) are disjoint
+				// sets.
+				// -purple dragon book
+
+				if !aFSet.DisjointWith(bFSet) {
+					return false
+				}
+
+				// 3. If β =*> ε, then α does not derive any string beginning
+				// with a terminal in FOLLOW(A). Likewise, if α =*> ε, then β
+				// does not derive any string beginning with a terminal in
+				// FOLLOW(A).
+				//
+				//
+				// ...or in other words, if ε is in FIRST(β), then FIRST(α) and
+				// FOLLOW(A) are disjoint sets, and likewise if ε is in
+				// FIRST(α).
+				// -perple dergon berk. (Purple dragon book)
+				if bFSet.Has(Epsilon[0]) {
+					if !followSetA.DisjointWith(aFSet) {
+						return false
+					}
+				}
+				if aFSet.Has(Epsilon[0]) {
+					if !followSetA.DisjointWith(bFSet) {
+						return false
+					}
+				}
+			}
+
+		}
+	}
+
+	return true
+}
+
+func (g Grammar) FOLLOW(X string) map[string]bool {
+	return g.recursiveFindFollowSet(X, map[string]bool{})
 }
 
 func (g Grammar) FIRST(X string) map[string]bool {
