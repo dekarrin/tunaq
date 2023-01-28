@@ -1,11 +1,6 @@
 package tunascript
 
-import (
-	"fmt"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-)
+import "testing"
 
 const (
 	mockedBoolLexeme           = "true"
@@ -125,6 +120,7 @@ func mockTokens(ofClass ...tokenClass) []token {
 	return mocked
 }
 
+/*
 func Test_Parse(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -170,7 +166,7 @@ func Test_Parse(t *testing.T) {
 				tsUndefined, tsEndOfText,
 			},
 			expectErr: true,
-		}, /* commenting while we get parser stuff reworked
+		}, commenting while we get parser stuff reworked
 		{
 			name: "$FN(text, bool, $FN($FLAG == (num + num) * $FUNC() || bool && -num / num), num, text += @at text@)",
 			input: []tokenClass{
@@ -181,7 +177,7 @@ func Test_Parse(t *testing.T) {
 				tsQuotedString, tsGroupClose, tsEndOfText,
 			},
 			expect: `(AST)
-		},*/
+		},
 	}
 
 	for _, tc := range testCases {
@@ -211,6 +207,14 @@ func Test_Parse(t *testing.T) {
 			assert.Equal(tc.expect, actual)
 		})
 	}
+}
+*/
+
+func Test_LL1PredictiveParse(t *testing.T) {
+	testCases := []struct {
+		name   string
+		tokens []tokenClass
+	}{}
 }
 
 func ref[T any](s T) *T {

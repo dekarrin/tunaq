@@ -1,10 +1,111 @@
 package util
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"unicode"
 )
+
+// Stack is a stack. It is backed by a slice. The zero-value for the stack is
+// ready to use.
+type Stack[E any] struct {
+	Of []E
+}
+
+// Push pushes value onto the stack.
+func (s *Stack[E]) Push(v E) {
+	if s == nil {
+		panic("push to nil stack")
+	}
+	s.Of = append(s.Of, v)
+}
+
+// Pop pops value off of the stack. If the stack is empty, panics.
+func (s *Stack[E]) Pop() E {
+	if s == nil {
+		panic("pop of nil stack")
+	}
+	if len(s.Of) == 0 {
+		panic("pop of empty stack")
+	}
+
+	v := s.Of[len(s.Of)-1]
+	newVals := make([]E, len(s.Of)-1)
+	copy(newVals, s.Of)
+	s.Of = newVals
+	return v
+}
+
+// Peek checks the value at the top of the stack. If the stack is empty, panics.
+func (s Stack[E]) Peek() E {
+	if len(s.Of) == 0 {
+		panic("peek of empty stack")
+	}
+	return s.Of[len(s.Of)-1]
+}
+
+// PeekAt checks the value at the given position of the stack. If the stack is
+// not that long, panics.
+func (s Stack[E]) PeekAt(p int) E {
+	if p >= len(s.Of) {
+		panic(fmt.Sprintf("stack index out of range: %d", p))
+	}
+	return s.Of[p]
+}
+
+// Len returns the length of the stack.
+func (s Stack[E]) Len() int {
+	return len(s.Of)
+}
+
+// Empty returns whether the stack is empty.
+func (s Stack[E]) Empty() bool {
+	return len(s.Of) == 0
+}
+
+// Matrix2 is a 2d mapping of coordinates to values. Do not use a Matrix2 by
+// itself, use NewMatrix2.
+type Matrix2[EX, EY comparable, V any] map[EX]map[EY]V
+
+func NewMatrix2[EX, EY comparable, V any]() Matrix2[EX, EY, V] {
+	return map[EX]map[EY]V{}
+}
+
+func (m2 Matrix2[EX, EY, V]) Set(x EX, y EY, value V) {
+	if m2 == nil {
+		panic("assignment to nil Matrix2")
+	}
+
+	col, colExists := m2[x]
+	if !colExists {
+		col = map[EY]V{}
+		m2[x] = col
+	}
+	col[y] = value
+	m2[x] = col
+}
+
+// Get gets a pointer to the value pointed to by the coordinates. If not at
+// those coordinates, nil is returned. Updating the value of the pointer will
+// not update the matrix; use Set for that.
+func (m2 Matrix2[EX, EY, V]) Get(x EX, y EY) *V {
+	if m2 == nil {
+		return nil
+	}
+
+	col, colExists := m2[x]
+	if !colExists {
+		return nil
+	}
+
+	val, valExists := col[y]
+	if !valExists {
+		return nil
+	}
+
+	return &val
+}
 
 type Set[E comparable] map[E]bool
 

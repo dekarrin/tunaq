@@ -10,7 +10,10 @@ import (
 
 type Production []string
 
-var Epsilon = Production{""}
+var (
+	Epsilon = Production{""}
+	Error   = Production{}
+)
 
 // Equal returns whether Rule is equal to another value. It will not be equal
 // if the other value cannot be cast to Production or *Production.
@@ -994,6 +997,107 @@ func (g Grammar) recursiveFindFollowSet(X string, prevFollowChecks map[string]bo
 	return followSet
 }
 
+type LL1Table util.Matrix2[string, string, Production]
+
+func (M LL1Table) Set(A string, a string, alpha Production) {
+	util.Matrix2[string, string, Production](M).Set(A, a, alpha)
+}
+
+// Get returns an empty Production if it does not exist, or the one at the
+// given coords.
+func (M LL1Table) Get(A string, a string) Production {
+	v := util.Matrix2[string, string, Production](M).Get(A, a)
+	if v == nil {
+		return Error
+	}
+	return *v
+}
+
+func NewLL1Table() LL1Table {
+	return LL1Table(util.NewMatrix2[string, string, Production]())
+}
+
+// LLParseTable builds and returns the LL parsing table for the grammar. If it's
+// not an LL(1) grammar, returns error.
+//
+// This is an implementation of Algorithm 4.31, "Construction of a predictive
+// parsing table" from the peerple deruuuuugon beeeeeerk. (purple dragon book
+// glub)
+func (g Grammar) LLParseTable() (M LL1Table, err error) {
+	if !g.IsLL1() {
+		return nil, fmt.Errorf("not an LL(1) grammar")
+	}
+
+	nts := g.NonTerminals()
+	M = NewLL1Table()
+
+	// For each production A -> α of the grammar, do the following:
+	// -purple dragon book
+	for _, A := range nts {
+		ARule := g.Rule(A)
+		for _, alpha := range ARule.Productions {
+			FIRSTalpha := util.Set[string](g.FIRST(alpha[0]))
+
+			// 1. For each terminal a in FIRST(A), add A -> α to M[A, a].
+			// -purple dragon book
+			for a := range g.FIRST(A) {
+				M.Set(A, a, alpha)
+			}
+
+			// 2. If ε is in FIRST(α), then for each terminal b in FOLLOW(A),
+			// add A -> α to M[A, b]. If ε is in FIRST(α) and $ is in FOLLOW(A),
+			// add A -> α to M[A, $] as well.
+			if FIRSTalpha.Has(Epsilon[0]) {
+				for b := range g.FOLLOW(A) {
+					// we cover the $ case automatically by not rly caring about
+					// them bein glubbin terminals to begin w. W3 SH3LL H4V3
+					// 33LQU4L1TY >38]
+					M.Set(A, b, alpha)
+				}
+			}
+		}
+	}
+
+	return M, nil
+}
+
+func parseGrammar(gr string) (Grammar, error) {
+
+	lines := strings.Split(gr, ";")
+
+	var g Grammar
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		rule, err := parseRule(line)
+		if err != nil {
+			return Grammar{}, err
+		}
+
+		for _, p := range rule.Productions {
+			for _, sym := range p {
+				if strings.ToLower(sym) == sym {
+					g.AddTerm(strings.ToLower(sym), tokenClass{id: strings.ToLower(sym), human: sym})
+				}
+			}
+			g.AddRule(rule.NonTerminal, p)
+		}
+	}
+
+	return g, nil
+}
+
+func (g Grammar) TermFor(tc tokenClass) string {
+	for k := range g.terminals {
+		if g.terminals[k].Equal(tc) {
+			return k
+		}
+	}
+	return ""
+}
+
 func (g Grammar) IsLL1() bool {
 	nts := g.NonTerminals()
 	for _, A := range nts {
@@ -1356,12 +1460,6 @@ func (g Grammar) Validate() error {
 	}
 
 	return nil
-}
-
-type parseTree struct {
-	terminal bool
-	value    string
-	children []parseTree
 }
 
 var lang = Grammar{}
