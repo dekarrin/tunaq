@@ -58,6 +58,41 @@ type parseTree struct {
 	children []*parseTree
 }
 
+// String returns a prettified representation of the entire parse tree suitable
+// for use in line-by-line comparisons of tree structure. Two parse trees are
+// considered semantcally identical if they produce identical String() output.
+func (pt parseTree) String() string {
+	return pt.leveledStr("", "")
+}
+
+func (pt parseTree) leveledStr(firstPrefix, contPrefix string) string {
+	var sb strings.Builder
+
+	sb.WriteString(firstPrefix)
+	if pt.terminal {
+		sb.WriteString(fmt.Sprintf("(TERM %q)", pt.value))
+	} else {
+		sb.WriteString(fmt.Sprintf("( %s )", pt.value))
+	}
+
+	for i := range pt.children {
+		sb.WriteRune('\n')
+		var leveledFirstPrefix string
+		var leveledContPrefix string
+		if i+1 < len(pt.children) {
+			leveledFirstPrefix = contPrefix + makeASTTreeLevelPrefix("")
+			leveledContPrefix = contPrefix + astTreeLevelOngoing
+		} else {
+			leveledFirstPrefix = contPrefix + makeASTTreeLevelPrefixLast("")
+			leveledContPrefix = contPrefix + astTreeLevelEmpty
+		}
+		itemOut := pt.children[i].leveledStr(leveledFirstPrefix, leveledContPrefix)
+		sb.WriteString(itemOut)
+	}
+
+	return sb.String()
+}
+
 // Equal returns whether the parseTree is equal to the given object. If the
 // given object is not a parseTree, returns false, else returns whether the two
 // parse trees have the exact same structure.

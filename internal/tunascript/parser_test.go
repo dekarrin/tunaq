@@ -223,7 +223,7 @@ var (
 	termPlus   = strings.ToLower(tsOpPlus.id)
 	termMult   = strings.ToLower(tsOpMultiply.id)
 	termLParen = strings.ToLower(tsGroupOpen.id)
-	termLParen = strings.ToLower(tsGroupClose.id)
+	termRParen = strings.ToLower(tsGroupClose.id)
 )
 
 func gramToken(tc tokenClass) string {
@@ -235,7 +235,7 @@ func Test_LL1PredictiveParse(t *testing.T) {
 		name      string
 		grammar   string
 		input     []tokenClass
-		expect    parseTree
+		expect    string
 		expectErr bool
 	}{
 		{
@@ -255,24 +255,17 @@ func Test_LL1PredictiveParse(t *testing.T) {
 			input: []tokenClass{
 				tsNumber, tsOpMultiply, tsNumber, tsEndOfText,
 			},
-			expect: parseTree{
-				value: "E",
-				children: []*parseTree{
-					{
-						value: "T",
-						// TODO: fill in children
-					},
-					{
-						value: "X",
-						children: []*parseTree{
-							{
-								value: "ε",
-								terminal: true,
-							},
-						},
-					}
-				},
-			},
+			expect: "(E)\n" +
+				`  |---: (T)` + "\n" +
+				`  |       |---: (TERM: "` + termNumber + `")` + "\n" +
+				`  |       \---: (Y)` + "\n" +
+				`  |               |---: (TERM: "` + termMult + `")` + "\n" +
+				`  |               \---: (T)` + "\n" +
+				`  |                       |---: (TERM: "` + termNumber + `")` + "\n" +
+				`  |                       \---: (Y)` + "\n" +
+				`  |                               \---: (TERM: "")` + "\n" +
+				`  \--: (X)` + "\n" +
+				`         \---: (TERM: "")`,
 		},
 	}
 
@@ -296,9 +289,7 @@ func Test_LL1PredictiveParse(t *testing.T) {
 			}
 			assert.NoError(err)
 
-			// TODO: make a string repr of the parse tree to make it easier to
-			// view diffs like we did for AST
-			assert.True(tc.expect.Equal(actual))
+			assert.Equal(tc.expect, actual.String())
 		})
 	}
 }
