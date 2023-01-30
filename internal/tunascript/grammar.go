@@ -1085,7 +1085,7 @@ func parseGrammar(gr string) (Grammar, error) {
 
 		for _, p := range rule.Productions {
 			for _, sym := range p {
-				if strings.ToLower(sym) == sym {
+				if strings.ToLower(sym) == sym && sym != "" {
 					g.AddTerm(strings.ToLower(sym), tokenClass{id: strings.ToLower(sym), human: sym})
 				}
 			}

@@ -226,10 +226,6 @@ var (
 	termRParen = strings.ToLower(tsGroupClose.id)
 )
 
-func gramToken(tc tokenClass) string {
-	return strings.ToLower(tc.id)
-}
-
 func Test_LL1PredictiveParse(t *testing.T) {
 	testCases := []struct {
 		name      string
