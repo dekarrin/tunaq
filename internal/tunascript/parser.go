@@ -140,16 +140,13 @@ func LL1PredictiveParse(g Grammar, stream tokenStream) (pt parseTree, err error)
 	stack := util.Stack[string]{Of: []string{"S", "$"}}
 	next := stream.Peek()
 	X := stack.Peek()
-	pt = parseTree{}
+	pt = parseTree{value: "S"}
 	ptStack := util.Stack[*parseTree]{Of: []*parseTree{&pt}}
 
 	node := ptStack.Peek()
 	for X != "$" { /* stack is not empty */
 		if strings.ToLower(X) == X {
-			node.value = X
-
 			stream.Next()
-			next = stream.Peek()
 
 			// is terminals
 			t := g.Term(X)
@@ -162,6 +159,8 @@ func LL1PredictiveParse(g Grammar, stream tokenStream) (pt parseTree, err error)
 			} else {
 				return pt, syntaxErrorFromLexeme(fmt.Sprintf("There should be a %s here, but it was %q!", t.human, next.lexeme), next)
 			}
+
+			next = stream.Peek()
 		} else {
 			nextProd := M.Get(X, g.TermFor(next.class))
 			if nextProd.Equal(Error) {
@@ -171,15 +170,28 @@ func LL1PredictiveParse(g Grammar, stream tokenStream) (pt parseTree, err error)
 			stack.Pop()
 			ptStack.Pop()
 			for i := len(nextProd) - 1; i >= 0; i-- {
-				stack.Push(nextProd[i])
+				if nextProd[i] != Epsilon[0] {
+					stack.Push(nextProd[i])
+				}
 
-				child := &parseTree{}
-				node.children = append(node.children, child)
-				ptStack.Push(child)
+				child := &parseTree{value: nextProd[i]}
+				if nextProd[i] == Epsilon[0] {
+					child.terminal = true
+				}
+				node.children = append([]*parseTree{child}, node.children...)
+
+				if nextProd[i] != Epsilon[0] {
+					ptStack.Push(child)
+				}
 			}
 
 			X = stack.Peek()
-			node = ptStack.Peek()
+
+			// node stack will always be one smaller than symbol stack bc
+			// glub, we dont put a node onto the stack for "$".
+			if X != "$" {
+				node = ptStack.Peek()
+			}
 		}
 	}
 

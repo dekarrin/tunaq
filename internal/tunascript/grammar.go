@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
@@ -280,6 +281,10 @@ func (g Grammar) Term(terminal string) tokenClass {
 func (g *Grammar) AddTerm(terminal string, class tokenClass) {
 	if terminal == "" {
 		panic("empty terminal not allowed")
+	}
+
+	if class.Equal(tsEndOfText) {
+		panic("can't add out-of-band signal tsEndOfText as defined terminal")
 	}
 
 	// ensure that it isnt an illegal char, only things used should be 'a-z',
@@ -1003,6 +1008,34 @@ func (M LL1Table) Set(A string, a string, alpha Production) {
 	util.Matrix2[string, string, Production](M).Set(A, a, alpha)
 }
 
+func (M LL1Table) String() string {
+	data := [][]string{}
+
+	terms := M.Terminals()
+	nts := M.NonTerminals()
+
+	topRow := []string{""}
+	for i := range terms {
+		topRow = append(topRow, terms[i])
+	}
+	data = append(data, topRow)
+
+	for i := range nts {
+		dataRow := []string{nts[i]}
+		for j := range terms {
+			prod := M.Get(nts[i], terms[j])
+			dataRow = append(dataRow, prod.String())
+		}
+		data = append(data, dataRow)
+	}
+
+	return rosed.Edit("").
+		InsertTableOpts(0, data, 80, rosed.Options{
+			TableBorders: true,
+		}).
+		String()
+}
+
 // Get returns an empty Production if it does not exist, or the one at the
 // given coords.
 func (M LL1Table) Get(A string, a string) Production {
@@ -1011,6 +1044,28 @@ func (M LL1Table) Get(A string, a string) Production {
 		return Error
 	}
 	return *v
+}
+
+// NonTerminals returns all non-terminals used as the X keys for values in this
+// table.
+func (M LL1Table) NonTerminals() []string {
+	return util.OrderedKeys(M)
+}
+
+// Terminals returns all terminals used as the Y keys for values in this table.
+// Note that the "$" is expected to be present in all LL1 prediction tables.
+func (M LL1Table) Terminals() []string {
+	termSet := map[string]bool{}
+
+	for k := range M {
+		subMap := map[string]map[string]Production(M)[k]
+
+		for term := range subMap {
+			termSet[term] = true
+		}
+	}
+
+	return util.OrderedKeys(termSet)
 }
 
 func NewLL1Table() LL1Table {
@@ -1040,8 +1095,19 @@ func (g Grammar) LLParseTable() (M LL1Table, err error) {
 
 			// 1. For each terminal a in FIRST(A), add A -> α to M[A, a].
 			// -purple dragon book
-			for a := range g.FIRST(A) {
-				M.Set(A, a, alpha)
+			//
+			// (this LOOKS like a typo in that actually following terminology
+			// in these comments, FIRST(A) means "FIRST OF ALL PRODUCTIONS OF
+			// A" but specifically in this section of the book, this
+			// terminalogy means ONLY the first set of production we are looking
+			// at. So really this is a in FIRST(α) by the convention used in
+			// these comments, but purple dragon calls it FIRST(A), which is
+			// technically correct within the bounds of "For each production
+			// A -> α").
+			for a := range FIRSTalpha {
+				if a != Epsilon[0] {
+					M.Set(A, a, alpha)
+				}
 			}
 
 			// 2. If ε is in FIRST(α), then for each terminal b in FOLLOW(A),
@@ -1097,6 +1163,9 @@ func parseGrammar(gr string) (Grammar, error) {
 }
 
 func (g Grammar) TermFor(tc tokenClass) string {
+	if tc.Equal(tsEndOfText) {
+		return "$"
+	}
 	for k := range g.terminals {
 		if g.terminals[k].Equal(tc) {
 			return k
@@ -1176,6 +1245,7 @@ func (g Grammar) FIRST(X string) map[string]bool {
 	} else {
 		firsts := map[string]bool{}
 		r := g.Rule(X)
+
 		for ntIdx := range r.Productions {
 			Y := r.Productions[ntIdx]
 			var gotToEnd bool

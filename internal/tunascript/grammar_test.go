@@ -1,6 +1,7 @@
 package tunascript
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -950,6 +951,77 @@ func Test_Grammar_IsLL1(t *testing.T) {
 
 			// assert
 			assert.Equal(tc.expect, actual)
+		})
+	}
+}
+
+func Test_Grammar_LL1ParseTable(t *testing.T) {
+	testCases := []struct {
+		name      string
+		terminals []string
+		rules     []string
+		expect    map[string]map[string]Production
+	}{
+		{
+			name: "aiken example",
+			terminals: []string{
+				"int", "lparen", "rparen", "p", "m",
+			},
+			rules: []string{
+				"S -> T X",
+				"T -> lparen S rparen | int Y",
+				"X -> p S | ε",
+				"Y -> m T | ε",
+			},
+			expect: map[string]map[string]Production{
+				"S": {"int": Production{"T", "X"}, "lparen": Production{"T", "X"}},
+				"X": {"p": Production{"p", "S"}, "rparen": Epsilon, "$": Epsilon},
+				"T": {"int": Production{"int", "Y"}, "lparen": Production{"lparen", "S", "rparen"}},
+				"Y": {"m": Production{"m", "T"}, "p": Epsilon, "rparen": Epsilon, "$": Epsilon},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+			g := setupGrammar(tc.terminals, tc.rules)
+			expect := LL1Table(tc.expect)
+
+			// execute
+			actual, err := g.LLParseTable()
+
+			// assert
+			assert.NoError(err)
+			if err != nil {
+				return
+			}
+
+			actualNTs := actual.NonTerminals()
+			expectedNTs := expect.NonTerminals()
+			if !assert.ElementsMatch(expectedNTs, actualNTs, "non-terminals set not equal") {
+				fmt.Printf("Actual produced table:\n" + actual.String())
+				return
+			}
+
+			actualTerms := actual.Terminals()
+			expectedTerms := expect.Terminals()
+			if !assert.ElementsMatch(expectedTerms, actualTerms, "terminals set not equal") {
+				fmt.Printf("Actual produced table:\n" + actual.String())
+				return
+			}
+
+			// check each of the entries
+			for i := range expectedNTs {
+				for j := range expectedTerms {
+					A := expectedNTs[i]
+					a := expectedTerms[j]
+					expectEntry := expect.Get(A, a)
+					actualEntry := actual.Get(A, a)
+					assert.Equalf(expectEntry, actualEntry, "incorrect entry in M[%q, %q]", A, a)
+				}
+			}
 		})
 	}
 }

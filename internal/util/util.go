@@ -7,8 +7,8 @@ import (
 	"unicode"
 )
 
-// Stack is a stack. It is backed by a slice. The zero-value for the stack is
-// ready to use.
+// Stack is a stack. It is backed by a slice where the left-most position is the
+// top of the stack. The zero-value for the stack is ready to use.
 type Stack[E any] struct {
 	Of []E
 }
@@ -18,7 +18,7 @@ func (s *Stack[E]) Push(v E) {
 	if s == nil {
 		panic("push to nil stack")
 	}
-	s.Of = append(s.Of, v)
+	s.Of = append([]E{v}, s.Of...)
 }
 
 // Pop pops value off of the stack. If the stack is empty, panics.
@@ -30,9 +30,9 @@ func (s *Stack[E]) Pop() E {
 		panic("pop of empty stack")
 	}
 
-	v := s.Of[len(s.Of)-1]
+	v := s.Of[0]
 	newVals := make([]E, len(s.Of)-1)
-	copy(newVals, s.Of)
+	copy(newVals, s.Of[1:])
 	s.Of = newVals
 	return v
 }
@@ -42,7 +42,7 @@ func (s Stack[E]) Peek() E {
 	if len(s.Of) == 0 {
 		panic("peek of empty stack")
 	}
-	return s.Of[len(s.Of)-1]
+	return s.Of[0]
 }
 
 // PeekAt checks the value at the given position of the stack. If the stack is

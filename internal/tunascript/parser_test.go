@@ -251,17 +251,17 @@ func Test_LL1PredictiveParse(t *testing.T) {
 			input: []tokenClass{
 				tsNumber, tsOpMultiply, tsNumber, tsEndOfText,
 			},
-			expect: "(E)\n" +
-				`  |---: (T)` + "\n" +
-				`  |       |---: (TERM: "` + termNumber + `")` + "\n" +
-				`  |       \---: (Y)` + "\n" +
-				`  |               |---: (TERM: "` + termMult + `")` + "\n" +
-				`  |               \---: (T)` + "\n" +
-				`  |                       |---: (TERM: "` + termNumber + `")` + "\n" +
-				`  |                       \---: (Y)` + "\n" +
-				`  |                               \---: (TERM: "")` + "\n" +
-				`  \--: (X)` + "\n" +
-				`         \---: (TERM: "")`,
+			expect: "( S )\n" +
+				`  |---: ( T )` + "\n" +
+				`  |       |---: (TERM "` + termNumber + `")` + "\n" +
+				`  |       \---: ( Y )` + "\n" +
+				`  |               |---: (TERM "` + termMult + `")` + "\n" +
+				`  |               \---: ( T )` + "\n" +
+				`  |                       |---: (TERM "` + termNumber + `")` + "\n" +
+				`  |                       \---: ( Y )` + "\n" +
+				`  |                               \---: (TERM "")` + "\n" +
+				`  \---: ( X )` + "\n" +
+				`          \---: (TERM "")`,
 		},
 	}
 

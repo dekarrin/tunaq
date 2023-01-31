@@ -142,15 +142,9 @@ func (tc tokenClass) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if tc.id != other.id {
-		return false
-	} else if tc.human != other.human {
-		return false
-	} else if tc.lbp != other.lbp {
-		return false
-	}
-
-	return true
+	// IDs are always case insensitive and are considered sufficient to prove
+	// a tokenClass is equal to another.
+	return strings.EqualFold(tc.id, other.id)
 }
 
 // TODO: Do The Unmarshal Function Thing With The Operator Data Objects. Or
