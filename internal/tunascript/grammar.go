@@ -9,12 +9,38 @@ import (
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
+type LR0Item struct {
+	left  []string
+	right []string
+}
+
 type Production []string
 
 var (
 	Epsilon = Production{""}
 	Error   = Production{}
 )
+
+// AllItems returns all LR0 items of the production.
+func (p Production) AllItems() []LR0Item {
+	if p.Equal(Epsilon) {
+		return []LR0Item{}
+	}
+
+	items := []LR0Item{}
+	for dot := 0; dot < len(p); dot++ {
+		item := LR0Item{
+			left:  p[:dot],
+			right: p[dot:],
+		}
+		items = append(items, item)
+	}
+
+	// finally, add the single dot for the end
+	items = append(items, LR0Item{left: p})
+
+	return items
+}
 
 // Equal returns whether Rule is equal to another value. It will not be equal
 // if the other value cannot be cast to Production or *Production.

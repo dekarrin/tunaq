@@ -197,3 +197,25 @@ func LL1PredictiveParse(g Grammar, stream tokenStream) (pt parseTree, err error)
 
 	return pt, nil
 }
+
+// ShiftReduceParser is a parser that performs shift-reduce moves. These will be
+// generated from a grammar for the purposes of performing bottom-up parsing
+type ShiftReduceParser interface {
+	// Parse parses the given tokenStream.
+	Parse(stream tokenStream) parseTree
+
+	// Shift reads one token of input. For SR parsers that are implemented with
+	// a stack, this will push a terminal onto the stack.
+	//
+	// ABC|xyz => ABCx|yz
+	Shift()
+
+	// Reduce applies an inverse production at the right end of the left string.
+	// For SR parsers that are implemented with a stack, this will pop 0 or more
+	// terminals off of the stack (production rhs), then will push a
+	// non-terminal onto the stack (production lhs).
+	//
+	// Given A -> xy is a production, then:
+	// Cbxy|ijk => CbA|ijk
+	Reduce()
+}
