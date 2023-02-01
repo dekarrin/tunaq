@@ -3,6 +3,8 @@ package tunascript
 import (
 	"fmt"
 	"strings"
+
+	"github.com/dekarrin/tunaq/internal/util"
 )
 
 type FATransition struct {
@@ -10,17 +12,133 @@ type FATransition struct {
 	next  string
 }
 
+func (t FATransition) String() string {
+	inp := t.input
+	if inp == "" {
+		inp = "ε"
+	}
+	return fmt.Sprintf("=(%s)=> %s", inp, t.next)
+}
+
+func mustParseFATransition(s string) FATransition {
+	t, err := parseFATransition(s)
+	if err != nil {
+		panic(err.Error())
+	}
+	return t
+}
+
+func parseFATransition(s string) (FATransition, error) {
+	s = strings.TrimSpace(s)
+	parts := strings.Split(s, " ")
+
+	if len(parts) != 2 {
+		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+	}
+
+	left, right := parts[0], parts[1]
+
+	if len(left) < 3 {
+		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+	}
+
+	if left[0] != '=' {
+		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+	}
+	if left[1] != '(' {
+		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+	}
+	left = left[2:]
+	// also chop off the ending arrow
+	if len(left) < 4 {
+		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+	}
+	if left[len(left)-1] != '>' {
+		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+	}
+	if left[len(left)-2] != '=' {
+		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+	}
+	if left[len(left)-3] != ')' {
+		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+	}
+	input := left[:len(left)-3]
+	if input == "ε" {
+		input = ""
+	}
+
+	// next is EASY af
+	next := right
+	if next == "" {
+		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+	}
+
+	return FATransition{
+		input: input,
+		next:  next,
+	}, nil
+}
+
 type NFAState[E fmt.Stringer] struct {
 	name        string
 	value       E
 	transitions map[string][]FATransition
+	accepting   bool
+}
+
+func (ns NFAState[E]) String() string {
+	var moves strings.Builder
+
+	inputs := util.OrderedKeys(ns.transitions)
+
+	for i, input := range inputs {
+		for tIdx, t := range ns.transitions[input] {
+			moves.WriteString(t.String())
+			if tIdx+1 < len(ns.transitions[input]) || i+1 < len(inputs) {
+				moves.WriteRune(',')
+				moves.WriteRune(' ')
+			}
+		}
+	}
+
+	str := fmt.Sprintf("(%s [%s])", ns.name, moves)
+
+	if ns.accepting {
+		str = "(" + str + ")"
+	}
+
+	return str
 }
 
 type NFA[E fmt.Stringer] struct {
 	states map[string]NFAState[E]
+	start  string
 }
 
-func (nfa *NFA[E]) AddState(state E) {
+func (nfa NFA[E]) String() string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", nfa.start))
+
+	orderedStates := util.OrderedKeys(nfa.states)
+
+	for i := range orderedStates {
+		sb.WriteString("\n\t")
+		sb.WriteString(nfa.states[orderedStates[i]].String())
+
+		if i+1 < len(nfa.states) {
+			sb.WriteRune(',')
+		} else {
+			sb.WriteRune('\n')
+		}
+	}
+
+	sb.WriteRune('>')
+
+	return sb.String()
+}
+
+func (nfa *NFA[E]) AddState(state E, accepting bool) {
 	if _, ok := nfa.states[state.String()]; ok {
 		// Gr8! We are done.
 		return
@@ -30,6 +148,7 @@ func (nfa *NFA[E]) AddState(state E) {
 		name:        state.String(),
 		value:       state,
 		transitions: make(map[string][]FATransition),
+		accepting:   accepting,
 	}
 
 	nfa.states[state.String()] = newState
@@ -63,16 +182,20 @@ func (nfa *NFA[E]) AddTransition(fromState E, input string, toState E) {
 	nfa.states[fromState.String()] = curFromState
 }
 
-func ViablePrefixNDA(g Grammar) {
+func NewViablePrefixNDA(g Grammar) NFA[LR0Item] {
 	// we are about to modify the grammar, get a copy
 	g = g.Copy()
 
 	// add the dummy production
-	dummySym := g.GenerateUniqueName(g.StartSymbol())
-	g.AddRule(dummySym, []string{g.StartSymbol()})
+	oldStart := g.StartSymbol()
+	dummySym := g.GenerateUniqueName(oldStart)
+	g.AddRule(dummySym, []string{oldStart})
 	g.Start = dummySym
 
 	nfa := NFA[LR0Item]{}
+
+	// set the start state
+	nfa.start = LR0Item{NonTerminal: dummySym, Right: []string{oldStart}}.String()
 
 	items := g.LRItems()
 
@@ -82,7 +205,7 @@ func ViablePrefixNDA(g Grammar) {
 	// add all of them first so we don't accidentally panic on adding
 	// transitions
 	for i := range items {
-		nfa.AddState(items[i])
+		nfa.AddState(items[i], true)
 	}
 
 	for i := range items {
@@ -124,4 +247,6 @@ func ViablePrefixNDA(g Grammar) {
 			}
 		}
 	}
+
+	return nfa
 }

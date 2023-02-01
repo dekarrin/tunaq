@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"unicode"
 
 	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/util"
@@ -13,6 +14,79 @@ type LR0Item struct {
 	NonTerminal string
 	Left        []string
 	Right       []string
+}
+
+func mustParseLR0Item(s string) LR0Item {
+	i, err := parseLR0Item(s)
+	if err != nil {
+		panic(err.Error())
+	}
+	return i
+}
+
+func parseLR0Item(s string) (LR0Item, error) {
+	sides := strings.Split(s, "->")
+	if len(sides) != 2 {
+		return LR0Item{}, fmt.Errorf("not an item of form 'NONTERM -> ALPHA.BETA': %q", s)
+	}
+	nonTerminal := strings.TrimSpace(sides[0])
+
+	if nonTerminal == "" {
+		return LR0Item{}, fmt.Errorf("empty nonterminal name not allowed for item")
+	}
+
+	parsedItem := LR0Item{
+		NonTerminal: nonTerminal,
+	}
+
+	productionsString := strings.TrimSpace(sides[1])
+	prodStrings := strings.Split(productionsString, ".")
+	if len(prodStrings) != 2 {
+		return LR0Item{}, fmt.Errorf("item must have exactly one dot")
+	}
+
+	alphaStr := strings.TrimSpace(prodStrings[0])
+	betaStr := strings.TrimSpace(prodStrings[1])
+
+	alphaSymbols := strings.Split(alphaStr, " ")
+	betaSymbols := strings.Split(betaStr, " ")
+
+	var parsedAlpha, parsedBeta []string
+
+	for _, aSym := range alphaSymbols {
+		aSym = strings.TrimSpace(aSym)
+
+		if aSym == "" {
+			continue
+		}
+
+		if strings.ToLower(aSym) == "ε" {
+			// epsilon production
+			aSym = ""
+		}
+
+		parsedAlpha = append(parsedAlpha, aSym)
+	}
+
+	for _, bSym := range betaSymbols {
+		bSym = strings.TrimSpace(bSym)
+
+		if bSym == "" {
+			continue
+		}
+
+		if strings.ToLower(bSym) == "ε" {
+			// epsilon production
+			bSym = ""
+		}
+
+		parsedBeta = append(parsedBeta, bSym)
+	}
+
+	parsedItem.Left = parsedAlpha
+	parsedItem.Right = parsedBeta
+
+	return parsedItem, nil
 }
 
 func (item LR0Item) String() string {
@@ -411,9 +485,13 @@ func (g *Grammar) AddTerm(terminal string, class tokenClass) {
 	// ensure that it isnt an illegal char, only things used should be 'a-z',
 	// '_', and '-'
 	for _, ch := range terminal {
-		if ('a' > ch || ch > 'z') && ch != '_' && ch != '-' {
-			panic(fmt.Sprintf("invalid terminal name %q; must only be chars a-z, \"_\", or \"-\"", terminal))
+		if unicode.IsSpace(ch) || ch == '.' || ch == '|' {
+			panic(fmt.Sprintf("invalid terminal name %q; must only be lower-case chars or symbols with no whitespace or periods or bars", terminal))
 		}
+	}
+	if terminal == "$" {
+		// we cant use this as the terminal name, ever.
+		panic("invalid terminal name '$'; cant use the name of the end-of-text token")
 	}
 
 	if class == tsUndefined {
@@ -1260,6 +1338,7 @@ func parseGrammar(gr string) (Grammar, error) {
 	lines := strings.Split(gr, ";")
 
 	var g Grammar
+	onFirst := true
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
@@ -1270,9 +1349,15 @@ func parseGrammar(gr string) (Grammar, error) {
 			return Grammar{}, err
 		}
 
+		if onFirst {
+			// this becomes the start symbol
+			g.Start = rule.NonTerminal
+			onFirst = false
+		}
+
 		for _, p := range rule.Productions {
 			for _, sym := range p {
-				if strings.ToLower(sym) == sym && sym != "" {
+				if strings.ToUpper(sym) != sym && sym != "" {
 					g.AddTerm(strings.ToLower(sym), tokenClass{id: strings.ToLower(sym), human: sym})
 				}
 			}
@@ -1450,20 +1535,6 @@ func parseRule(r string) (Rule, error) {
 				parsedProd = Epsilon
 				continue
 			} else {
-				// is it a terminal?
-				isTerm := strings.ToLower(sym) == sym
-				isNonTerm := strings.ToUpper(sym) == sym
-
-				if !isTerm && !isNonTerm {
-					return Rule{}, fmt.Errorf("cannot tell if symbol is a terminal or non-terminal: %q", sym)
-				}
-
-				for _, ch := range strings.ToLower(sym) {
-					if ('a' > ch || ch > 'z') && ch != '_' && ch != '-' {
-						return Rule{}, fmt.Errorf("invalid symbol: %q", sym)
-					}
-				}
-
 				parsedProd = append(parsedProd, sym)
 			}
 		}
