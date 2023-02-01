@@ -95,7 +95,17 @@ func (item LR0Item) String() string {
 		nonTermPhrase = fmt.Sprintf("%s -> ", item.NonTerminal)
 	}
 
-	return fmt.Sprintf("%s%s.%s", nonTermPhrase, strings.Join(item.Left, " "), strings.Join(item.Right, " "))
+	left := strings.Join(item.Left, " ")
+	right := strings.Join(item.Right, " ")
+
+	if len(left) > 0 {
+		left = left + " "
+	}
+	if len(right) > 0 {
+		right = " " + right
+	}
+
+	return fmt.Sprintf("%s%s.%s", nonTermPhrase, left, right)
 }
 
 type Production []string
@@ -1496,6 +1506,7 @@ func (g Grammar) GenerateUniqueName(original string) string {
 
 // parseRule parses a Rule from a string like "S -> X | Y"
 func parseRule(r string) (Rule, error) {
+	r = strings.TrimSpace(r)
 	sides := strings.Split(r, "->")
 	if len(sides) != 2 {
 		return Rule{}, fmt.Errorf("not a rule of form 'NONTERM -> SYMBOL SYMBOL | SYMBOL ...': %q", r)

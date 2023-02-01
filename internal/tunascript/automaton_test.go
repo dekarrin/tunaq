@@ -3,6 +3,7 @@ package tunascript
 import (
 	"testing"
 
+	"github.com/dekarrin/tunaq/internal/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -15,8 +16,8 @@ func Test_NewViablePrefixNFA(t *testing.T) {
 		{
 			name: "aiken example",
 			grammar: `
-				E -> T + E | T
-				T -> int * T | int | ( E )
+				E -> T + E | T ;
+				T -> int * T | int | ( E ) ;
 			`,
 			expect: map[string][]string{
 				// first row from vid
@@ -113,7 +114,9 @@ func buildNFA(from map[string][]string) *NFA[LR0Item] {
 		nfa.AddState(stateItem, true)
 	}
 
-	for k := range from {
+	fromKeys := util.OrderedKeys(from)
+
+	for _, k := range fromKeys {
 		fromItem := mustParseLR0Item(k)
 		for i := range from[k] {
 			transition := mustParseFATransition(from[k][i])

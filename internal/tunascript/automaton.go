@@ -30,37 +30,33 @@ func mustParseFATransition(s string) FATransition {
 
 func parseFATransition(s string) (FATransition, error) {
 	s = strings.TrimSpace(s)
-	parts := strings.Split(s, " ")
+	parts := strings.SplitN(s, " ", 2)
 
-	if len(parts) != 2 {
-		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
-	}
-
-	left, right := parts[0], parts[1]
+	left, right := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
 
 	if len(left) < 3 {
-		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+		return FATransition{}, fmt.Errorf("not a valid FATransition: left len < 3: %q", left)
 	}
 
 	if left[0] != '=' {
-		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+		return FATransition{}, fmt.Errorf("not a valid FATransition: left[0] != '=': %q", left)
 	}
 	if left[1] != '(' {
-		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+		return FATransition{}, fmt.Errorf("not a valid FATransition: left[1] != '(': %q", left)
 	}
 	left = left[2:]
 	// also chop off the ending arrow
 	if len(left) < 4 {
-		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+		return FATransition{}, fmt.Errorf("not a valid left: len(chopped) < 4: %q", left)
 	}
 	if left[len(left)-1] != '>' {
-		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+		return FATransition{}, fmt.Errorf("not a valid left: chopped[-1] != '>': %q", left)
 	}
 	if left[len(left)-2] != '=' {
-		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+		return FATransition{}, fmt.Errorf("not a valid left: chopped[-2] != '=': %q", left)
 	}
 	if left[len(left)-3] != ')' {
-		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+		return FATransition{}, fmt.Errorf("not a valid left: chopped[-3] != ')': %q", left)
 	}
 	input := left[:len(left)-3]
 	if input == "ε" {
@@ -70,7 +66,7 @@ func parseFATransition(s string) (FATransition, error) {
 	// next is EASY af
 	next := right
 	if next == "" {
-		return FATransition{}, fmt.Errorf("not a valid FATransition: %q", s)
+		return FATransition{}, fmt.Errorf("not a valid FATransition: bad next: %q", s)
 	}
 
 	return FATransition{
@@ -101,7 +97,7 @@ func (ns NFAState[E]) String() string {
 		}
 	}
 
-	str := fmt.Sprintf("(%s [%s])", ns.name, moves)
+	str := fmt.Sprintf("(%s [%s])", ns.name, moves.String())
 
 	if ns.accepting {
 		str = "(" + str + ")"
@@ -151,17 +147,23 @@ func (nfa *NFA[E]) AddState(state E, accepting bool) {
 		accepting:   accepting,
 	}
 
+	if nfa.states == nil {
+		nfa.states = map[string]NFAState[E]{}
+	}
+
 	nfa.states[state.String()] = newState
 }
 
 func (nfa *NFA[E]) AddTransition(fromState E, input string, toState E) {
-	curFromState, ok := nfa.states[fromState.String()]
+	toName := toState.String()
+	fromName := fromState.String()
+	curFromState, ok := nfa.states[fromName]
 
 	if !ok {
 		// Can't let you do that, Starfox
 		panic(fmt.Sprintf("add transition from non-existent state %q", fromState.String()))
 	}
-	if _, ok := nfa.states[toState.String()]; ok {
+	if _, ok := nfa.states[toName]; !ok {
 		// I'm afraid I can't do that, Dave
 		panic(fmt.Sprintf("add transition to non-existent state %q", toState.String()))
 	}
