@@ -2,6 +2,7 @@ package tunascript
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/dekarrin/tunaq/internal/util"
@@ -88,9 +89,17 @@ func (ns NFAState[E]) String() string {
 	inputs := util.OrderedKeys(ns.transitions)
 
 	for i, input := range inputs {
-		for tIdx, t := range ns.transitions[input] {
-			moves.WriteString(t.String())
-			if tIdx+1 < len(ns.transitions[input]) || i+1 < len(inputs) {
+		var tStrings []string
+
+		for _, t := range ns.transitions[input] {
+			tStrings = append(tStrings, t.String())
+		}
+
+		sort.Strings(tStrings)
+
+		for tIdx, t := range tStrings {
+			moves.WriteString(t)
+			if tIdx+1 < len(tStrings) || i+1 < len(inputs) {
 				moves.WriteRune(',')
 				moves.WriteRune(' ')
 			}

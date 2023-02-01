@@ -9,9 +9,10 @@ import (
 
 func Test_NewViablePrefixNFA(t *testing.T) {
 	testCases := []struct {
-		name    string
-		grammar string
-		expect  map[string][]string
+		name        string
+		grammar     string
+		expect      map[string][]string
+		expectStart string
 	}{
 		{
 			name: "aiken example",
@@ -87,6 +88,7 @@ func Test_NewViablePrefixNFA(t *testing.T) {
 				},
 				"T -> int * T .": {},
 			},
+			expectStart: "E-P -> . E",
 		},
 	}
 
@@ -95,7 +97,7 @@ func Test_NewViablePrefixNFA(t *testing.T) {
 			// setup
 			assert := assert.New(t)
 			g := mustParseGrammar(tc.grammar)
-			expect := buildNFA(tc.expect)
+			expect := buildNFA(tc.expect, tc.expectStart)
 
 			// execute
 			actual := NewViablePrefixNDA(g)
@@ -106,7 +108,7 @@ func Test_NewViablePrefixNFA(t *testing.T) {
 	}
 }
 
-func buildNFA(from map[string][]string) *NFA[LR0Item] {
+func buildNFA(from map[string][]string, start string) *NFA[LR0Item] {
 	nfa := &NFA[LR0Item]{}
 
 	for k := range from {
@@ -125,6 +127,8 @@ func buildNFA(from map[string][]string) *NFA[LR0Item] {
 			nfa.AddTransition(fromItem, input, toItem)
 		}
 	}
+
+	nfa.start = start
 
 	return nfa
 }
