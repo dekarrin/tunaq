@@ -7,6 +7,8 @@ import (
 	"unicode"
 )
 
+// Stringer
+
 // Stack is a stack. It is backed by a slice where the left-most position is the
 // top of the stack. The zero-value for the stack is ready to use.
 type Stack[E any] struct {

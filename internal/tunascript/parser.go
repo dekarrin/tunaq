@@ -137,10 +137,10 @@ func LL1PredictiveParse(g Grammar, stream tokenStream) (pt parseTree, err error)
 		return pt, err
 	}
 
-	stack := util.Stack[string]{Of: []string{"S", "$"}}
+	stack := util.Stack[string]{Of: []string{g.StartSymbol(), "$"}}
 	next := stream.Peek()
 	X := stack.Peek()
-	pt = parseTree{value: "S"}
+	pt = parseTree{value: g.StartSymbol()}
 	ptStack := util.Stack[*parseTree]{Of: []*parseTree{&pt}}
 
 	node := ptStack.Peek()

@@ -10,8 +10,18 @@ import (
 )
 
 type LR0Item struct {
-	left  []string
-	right []string
+	NonTerminal string
+	Left        []string
+	Right       []string
+}
+
+func (item LR0Item) String() string {
+	nonTermPhrase := ""
+	if item.NonTerminal != "" {
+		nonTermPhrase = fmt.Sprintf("%s -> ", item.NonTerminal)
+	}
+
+	return fmt.Sprintf("%s%s.%s", nonTermPhrase, strings.Join(item.Left, " "), strings.Join(item.Right, " "))
 }
 
 type Production []string
@@ -21,7 +31,17 @@ var (
 	Error   = Production{}
 )
 
-// AllItems returns all LR0 items of the production.
+// Copy returns a deep-copied duplicate of this production.
+func (p Production) Copy() Production {
+	p2 := make(Production, len(p))
+	copy(p2, p)
+
+	return p2
+}
+
+// AllItems returns all LR0 items of the production. Note: a Production does not
+// know what non-terminal produces it, so the NonTerminal field of the returned
+// LR0Items will be blank.
 func (p Production) AllItems() []LR0Item {
 	if p.Equal(Epsilon) {
 		return []LR0Item{}
@@ -30,14 +50,14 @@ func (p Production) AllItems() []LR0Item {
 	items := []LR0Item{}
 	for dot := 0; dot < len(p); dot++ {
 		item := LR0Item{
-			left:  p[:dot],
-			right: p[dot:],
+			Left:  p[:dot],
+			Right: p[dot:],
 		}
 		items = append(items, item)
 	}
 
 	// finally, add the single dot for the end
-	items = append(items, LR0Item{left: p})
+	items = append(items, LR0Item{Left: p})
 
 	return items
 }
@@ -116,11 +136,39 @@ func (p Production) HasSymbol(sym string) bool {
 	return util.InSlice(sym, p)
 }
 
-// terminals will be upper, non-terms will be lower. 'S' is reserved for use as
-// the start symbol.
+// terminals will be upper, non-terms will be lower.
 type Rule struct {
 	NonTerminal string
 	Productions []Production
+}
+
+// Returns all LRItems in the Rule with their NonTerminal field properly set.
+func (r Rule) LRItems() []LR0Item {
+	items := []LR0Item{}
+	for _, p := range r.Productions {
+		prodItems := p.AllItems()
+		for i := range prodItems {
+			item := prodItems[i]
+			item.NonTerminal = r.NonTerminal
+			prodItems[i] = item
+		}
+		items = append(items, prodItems...)
+	}
+	return items
+}
+
+// Copy returns a deep-copy duplicate of the given Rule.
+func (r Rule) Copy() Rule {
+	r2 := Rule{
+		NonTerminal: r.NonTerminal,
+		Productions: make([]Production, len(r.Productions)),
+	}
+
+	for i := range r.Productions {
+		r2.Productions[i] = r.Productions[i].Copy()
+	}
+
+	return r2
 }
 
 func (r Rule) String() string {
@@ -254,6 +302,53 @@ type Grammar struct {
 	// rules may have order that matters
 	rules     []Rule
 	terminals map[string]tokenClass
+
+	// name of the start symbol. If not set, assumed to be S.
+	Start string
+}
+
+// LRItems returns all LR0 Items in the grammar.
+func (g Grammar) LRItems() []LR0Item {
+	nonTerms := g.NonTerminals()
+
+	items := []LR0Item{}
+	for _, nt := range nonTerms {
+		r := g.Rule(nt)
+		items = append(items, r.LRItems()...)
+	}
+	return items
+}
+
+// Copy makes a duplicate deep copy of the grammar.
+func (g Grammar) Copy() Grammar {
+	g2 := Grammar{
+		rulesByName: make(map[string]int, len(g.rulesByName)),
+		rules:       make([]Rule, len(g.rules)),
+		terminals:   make(map[string]tokenClass, len(g.terminals)),
+		Start:       g.Start,
+	}
+
+	for k := range g.rulesByName {
+		g2.rulesByName[k] = g.rulesByName[k]
+	}
+
+	for i := range g.rules {
+		g2.rules[i] = g.rules[i].Copy()
+	}
+
+	for k := range g.terminals {
+		g2.terminals[k] = g.terminals[k]
+	}
+
+	return g2
+}
+
+func (g Grammar) StartSymbol() string {
+	if g.Start == "" {
+		return "S"
+	} else {
+		return g.Start
+	}
 }
 
 func (g Grammar) String() string {
@@ -381,7 +476,7 @@ func (g *Grammar) AddRule(nonterminal string, production []string) {
 	// '_', and '-'
 	for _, ch := range nonterminal {
 		if ('A' > ch || ch > 'Z') && ch != '_' && ch != '-' {
-			panic(fmt.Sprintf("invalid nonterminal name %q; must only be chars A-Z, \"_\", \"-\", or else the start symbol \"S\"", nonterminal))
+			panic(fmt.Sprintf("invalid nonterminal name %q; must only be chars A-Z, \"_\", or \"-\"", nonterminal))
 		}
 	}
 
@@ -455,7 +550,7 @@ func (g Grammar) UnitProductions() []Rule {
 // non-terminals.
 func (g Grammar) HasUnreachableNonTerminals() bool {
 	for _, nonTerm := range g.NonTerminals() {
-		if nonTerm == "S" {
+		if nonTerm == g.StartSymbol() {
 			continue
 		}
 
@@ -481,14 +576,14 @@ func (g Grammar) HasUnreachableNonTerminals() bool {
 	return false
 }
 
-// UnreachableNonTerminals returns all non-terminals (excluding the start symbol
-// "S") that are currently unreachable due to not being produced by any other
+// UnreachableNonTerminals returns all non-terminals (excluding the start
+// symbol) that are currently unreachable due to not being produced by any other
 // grammar rule.
 func (g Grammar) UnreachableNonTerminals() []string {
 	unreachables := []string{}
 
 	for _, nonTerm := range g.NonTerminals() {
-		if nonTerm == "S" {
+		if nonTerm == g.StartSymbol() {
 			continue
 		}
 
@@ -929,7 +1024,7 @@ func (g Grammar) recursiveFindFollowSet(X string, prevFollowChecks map[string]bo
 		return nil
 	}
 	followSet := map[string]bool{}
-	if X == "S" {
+	if X == g.StartSymbol() {
 		followSet["$"] = true
 	}
 
@@ -1330,7 +1425,7 @@ func parseRule(r string) (Rule, error) {
 	// '_', and '-'
 	for _, ch := range nonTerminal {
 		if ('A' > ch || ch > 'Z') && ch != '_' && ch != '-' {
-			return Rule{}, fmt.Errorf("invalid nonterminal name %q; must only be chars A-Z, \"_\", \"-\", or else the start symbol \"S\"", nonTerminal)
+			return Rule{}, fmt.Errorf("invalid nonterminal name %q; must only be chars A-Z, \"_\", or \"-\"", nonTerminal)
 		}
 	}
 
@@ -1542,7 +1637,7 @@ func (g Grammar) Validate() error {
 	// make sure every non-term is used
 	for _, r := range g.rules {
 		// S is used by default, don't check that one
-		if r.NonTerminal == "S" {
+		if r.NonTerminal == g.StartSymbol() {
 			continue
 		}
 
@@ -1552,8 +1647,8 @@ func (g Grammar) Validate() error {
 	}
 
 	// make sure we HAVE an S
-	if _, ok := g.rulesByName["S"]; !ok {
-		errStr += "ERR: no rules defined for productions of start symbol 'S'"
+	if _, ok := g.rulesByName[g.StartSymbol()]; !ok {
+		errStr += fmt.Sprintf("ERR: no rules defined for productions of start symbol '%s'", g.StartSymbol())
 	}
 
 	if len(errStr) > 0 {
