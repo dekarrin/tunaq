@@ -97,7 +97,7 @@ func Test_NewViablePrefixNFA(t *testing.T) {
 			// setup
 			assert := assert.New(t)
 			g := mustParseGrammar(tc.grammar)
-			expect := buildNFA(tc.expect, tc.expectStart)
+			expect := buildLR0NFA(tc.expect, tc.expectStart)
 
 			// execute
 			actual := NewViablePrefixNDA(g)
@@ -108,7 +108,186 @@ func Test_NewViablePrefixNFA(t *testing.T) {
 	}
 }
 
-func buildNFA(from map[string][]string, start string) *NFA[LR0Item] {
+func Test_NFA_EpsilonClosure(t *testing.T) {
+	testCases := []struct {
+		name      string
+		nfa       map[string][]string
+		nfaStart  string
+		nfaAccept []string
+		forState  string
+		expect    []string
+	}{
+		{
+			name: "aiken example - B",
+			nfa: map[string][]string{
+				"A": {
+					"=(ε)=> H",
+					"=(ε)=> B",
+				},
+				"B": {
+					"=(ε)=> C",
+					"=(ε)=> D",
+				},
+				"C": {
+					"=(1)=> E",
+				},
+				"D": {
+					"=(0)=> F",
+				},
+				"E": {
+					"=(ε)=> G",
+				},
+				"F": {
+					"=(ε)=> G",
+				},
+				"G": {
+					"=(ε)=> A",
+					"=(ε)=> H",
+				},
+				"H": {
+					"=(ε)=> I",
+				},
+				"I": {
+					"=(1)=> J",
+				},
+				"J": {},
+			},
+			nfaAccept: []string{"J"},
+			nfaStart:  "A",
+			forState:  "B",
+			expect:    []string{"B", "C", "D"},
+		},
+		{
+			name: "aiken example - G",
+			nfa: map[string][]string{
+				"A": {
+					"=(ε)=> H",
+					"=(ε)=> B",
+				},
+				"B": {
+					"=(ε)=> C",
+					"=(ε)=> D",
+				},
+				"C": {
+					"=(1)=> E",
+				},
+				"D": {
+					"=(0)=> F",
+				},
+				"E": {
+					"=(ε)=> G",
+				},
+				"F": {
+					"=(ε)=> G",
+				},
+				"G": {
+					"=(ε)=> A",
+					"=(ε)=> H",
+				},
+				"H": {
+					"=(ε)=> I",
+				},
+				"I": {
+					"=(1)=> J",
+				},
+				"J": {},
+			},
+			nfaAccept: []string{"J"},
+			nfaStart:  "A",
+			forState:  "G",
+			expect:    []string{"A", "B", "C", "D", "G", "H", "I"},
+		},
+		{
+			name: "aiken example, recursive variant - G",
+			nfa: map[string][]string{
+				"A": {
+					"=(ε)=> H",
+					"=(ε)=> B",
+				},
+				"B": {
+					"=(ε)=> C",
+					"=(ε)=> D",
+				},
+				"C": {
+					"=(ε)=> E",
+				},
+				"D": {
+					"=(0)=> F",
+				},
+				"E": {
+					"=(ε)=> G",
+				},
+				"F": {
+					"=(ε)=> G",
+				},
+				"G": {
+					"=(ε)=> A",
+					"=(ε)=> H",
+				},
+				"H": {
+					"=(ε)=> I",
+				},
+				"I": {
+					"=(1)=> J",
+				},
+				"J": {},
+			},
+			nfaAccept: []string{"J"},
+			nfaStart:  "A",
+			forState:  "G",
+			expect:    []string{"A", "B", "C", "D", "G", "H", "I", "E"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+			nfa := buildNFA(tc.nfa, tc.nfaStart, tc.nfaAccept)
+			expectSet := util.SetFromSlice(tc.expect)
+
+			// execute
+			actual := nfa.EpsilonClosure(tc.forState)
+
+			// assert
+			assert.True(actual.Equal(expectSet))
+		})
+	}
+}
+
+type strWrap string
+
+func (s strWrap) String() string {
+	return string(s)
+}
+
+func buildNFA(from map[string][]string, start string, acceptingStates []string) *NFA[strWrap] {
+	nfa := &NFA[strWrap]{}
+
+	acceptSet := util.SetFromSlice(acceptingStates)
+
+	for k := range from {
+		stateItem := strWrap(k)
+		nfa.AddState(stateItem, acceptSet.Has(k))
+	}
+
+	// add transitions AFTER all states are already in or it will cause a panic
+	for k := range from {
+		fromItem := strWrap(k)
+		for i := range from[k] {
+			transition := mustParseFATransition(from[k][i])
+			input := transition.input
+			toItem := strWrap(transition.next)
+			nfa.AddTransition(fromItem, input, toItem)
+		}
+	}
+
+	nfa.start = start
+
+	return nfa
+}
+
+func buildLR0NFA(from map[string][]string, start string) *NFA[LR0Item] {
 	nfa := &NFA[LR0Item]{}
 
 	for k := range from {

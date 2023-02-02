@@ -76,6 +76,35 @@ func parseFATransition(s string) (FATransition, error) {
 	}, nil
 }
 
+type DFAState[E fmt.Stringer] struct {
+	name        string
+	value       E
+	transitions map[string]FATransition
+	accepting   bool
+}
+
+func (ns DFAState[E]) String() string {
+	var moves strings.Builder
+
+	inputs := util.OrderedKeys(ns.transitions)
+
+	for i, input := range inputs {
+		moves.WriteString(ns.transitions[input].String())
+		if i+1 < len(inputs) {
+			moves.WriteRune(',')
+			moves.WriteRune(' ')
+		}
+	}
+
+	str := fmt.Sprintf("(%s [%s])", ns.name, moves.String())
+
+	if ns.accepting {
+		str = "(" + str + ")"
+	}
+
+	return str
+}
+
 type NFAState[E fmt.Stringer] struct {
 	name        string
 	value       E
@@ -115,9 +144,82 @@ func (ns NFAState[E]) String() string {
 	return str
 }
 
+type DFA[E fmt.Stringer] struct {
+	states map[string]DFAState[E]
+	start  string
+}
+
+func (dfa DFA[E]) String() string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", dfa.start))
+
+	orderedStates := util.OrderedKeys(dfa.states)
+
+	for i := range orderedStates {
+		sb.WriteString("\n\t")
+		sb.WriteString(dfa.states[orderedStates[i]].String())
+
+		if i+1 < len(dfa.states) {
+			sb.WriteRune(',')
+		} else {
+			sb.WriteRune('\n')
+		}
+	}
+
+	sb.WriteRune('>')
+
+	return sb.String()
+}
+
 type NFA[E fmt.Stringer] struct {
 	states map[string]NFAState[E]
 	start  string
+}
+
+// EpsilonClosure gives the set of states reachable from state using one or more
+// ε-moves.
+func (nfa NFA[E]) EpsilonClosure(s string) util.Set[string] {
+	stateItem, ok := nfa.states[s]
+	if !ok {
+		panic(fmt.Sprintf("not a state in NFA: %q", s))
+	}
+
+	closure := util.Set[string]{}
+	checkingStates := util.Stack[NFAState[E]]{}
+	checkingStates.Push(stateItem)
+
+	for checkingStates.Len() > 0 {
+		checking := checkingStates.Pop()
+
+		if closure.Has(checking.name) {
+			// we've already checked it. skip.
+			continue
+		}
+
+		// add it to the closure and then check it for recursive closures
+		closure.Add(checking.name)
+
+		epsilonMoves, hasEpsilons := checking.transitions[""]
+		if !hasEpsilons {
+			continue
+		}
+
+		for _, move := range epsilonMoves {
+			stateName := move.next
+			state, ok := nfa.states[stateName]
+			if !ok {
+				// should never happen unless someone manually adds to
+				// unexported properties; AddTransition ensures that only valid
+				// and followable transitions are allowed to be added.
+				panic(fmt.Sprintf("points to invalid state: %q", stateName))
+			}
+
+			checkingStates.Push(state)
+		}
+	}
+
+	return closure
 }
 
 func (nfa NFA[E]) String() string {

@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"unicode"
@@ -64,6 +65,64 @@ func (s Stack[E]) Len() int {
 // Empty returns whether the stack is empty.
 func (s Stack[E]) Empty() bool {
 	return len(s.Of) == 0
+}
+
+// String shows the contents of the stack as a simple slice.
+func (s Stack[E]) String() string {
+	var sb strings.Builder
+
+	sb.WriteString("Stack[")
+	for i := range s.Of {
+		sb.WriteString(fmt.Sprintf("%v", s.Of[i]))
+		if i+1 < len(s.Of) {
+			sb.WriteRune(',')
+			sb.WriteRune(' ')
+		}
+	}
+	sb.WriteRune(']')
+	return sb.String()
+}
+
+// Equal returns whether two stacks have exactly the same contents in the same
+// order. If anything other than a Stack[E], *Stack[E], []E, or *[]E is passed
+// in, they will not be considered equal.
+//
+// A Stack[E] *is* considered equal to a *[]E or []E that has the same contents
+// as the Stack in the same order.
+//
+// This does NOT do Equal on the individual items, but rather a simple equality
+// check. To do full Equal on everything, use EqualSlices on the Ofs of the
+// stacks.
+func (s Stack[E]) Equal(o any) bool {
+	other, ok := o.(Stack[E])
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*Stack[E])
+		if !ok {
+			// also okay if it's a slice
+			otherSlice, ok := o.([]E)
+
+			if !ok {
+				// also okay if it's a ptr to slice
+				otherSlicePtr, ok := o.(*[]E)
+				if !ok {
+					return false
+				} else if otherSlicePtr == nil {
+					return false
+				} else {
+					other = Stack[E]{Of: *otherSlicePtr}
+				}
+			} else {
+				other = Stack[E]{Of: otherSlice}
+			}
+		} else if otherPtr == nil {
+			return false
+		} else {
+			other = *otherPtr
+		}
+	}
+
+	return reflect.DeepEqual(s.Of, other.Of)
 }
 
 // Matrix2 is a 2d mapping of coordinates to values. Do not use a Matrix2 by
@@ -131,6 +190,97 @@ func (s Set[E]) Add(value E) {
 
 func (s Set[E]) Remove(value E) {
 	delete(s, value)
+}
+
+func (s Set[E]) Len() int {
+	return len(s)
+}
+
+// String shows the contents of the set. Items are not guaranteed to be in any
+// particular order.
+func (s Set[E]) String() string {
+	var sb strings.Builder
+
+	totalLen := s.Len()
+	itemsWritten := 0
+
+	sb.WriteRune('{')
+	for k := range s {
+		sb.WriteString(fmt.Sprintf("%v", k))
+		itemsWritten++
+		if itemsWritten < totalLen {
+			sb.WriteRune(',')
+			sb.WriteRune(' ')
+		}
+	}
+	sb.WriteRune('}')
+	return sb.String()
+}
+
+// Equal returns whether two sets have the same items. If anything other than a
+// Set[E], *Set[E], []map[E]bool, or *[]map[E]bool is passed
+// in, they will not be considered equal.
+//
+// A Stack[E] *is* considered equal to a *[]E or []E that has the same contents
+// as the Stack in the same order.
+//
+// This does NOT do Equal on the individual items, but rather a simple equality
+// check. To do full Equal on everything, use EqualSlices on the Ofs of the
+// stacks.
+func (s Set[E]) Equal(o any) bool {
+	other, ok := o.(Set[E])
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*Set[E])
+		if !ok {
+			// also okay if it's a map
+			otherMap, ok := o.(map[E]bool)
+
+			if !ok {
+				// also okay if it's a ptr to map
+				otherMapPtr, ok := o.(*map[E]bool)
+				if !ok {
+					return false
+				} else if otherMapPtr == nil {
+					return false
+				} else {
+					other = Set[E](*otherMapPtr)
+				}
+			} else {
+				other = Set[E](otherMap)
+			}
+		} else if otherPtr == nil {
+			return false
+		} else {
+			other = *otherPtr
+		}
+	}
+
+	if s.Len() != other.Len() {
+		return false
+	}
+
+	for k := range s {
+		if !other.Has(k) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func SetFromSlice[E comparable](sl []E) Set[E] {
+	if sl == nil {
+		return nil
+	}
+
+	s := Set[E]{}
+
+	for i := range sl {
+		s.Add(sl[i])
+	}
+
+	return s
 }
 
 // MakeTextList gives a nice list of things based on their display name.
