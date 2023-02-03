@@ -266,7 +266,7 @@ func Test_NFA_ToDFA(t *testing.T) {
 		expectAccept []string
 	}{
 		{
-			name: "aiken example",
+			name: "aiken example (lexical analysis)",
 			nfa: map[string][]string{
 				"A": {
 					"=(ε)=> H",
@@ -319,6 +319,138 @@ func Test_NFA_ToDFA(t *testing.T) {
 			expectStart:  "{A, B, C, D, H, I}",
 			expectAccept: []string{"{A, B, C, D, E, G, H, I, J}"},
 		},
+		{
+			name: "aiken example (recognizing viable prefixes)",
+			nfa: map[string][]string{
+				// first row from vid
+				"T -> . ( E )": {
+					"=(()=> T -> ( . E )",
+				},
+				"T -> ( . E )": {
+					"=(ε)=> E -> . T",
+					"=(ε)=> E -> . T + E",
+					"=(E)=> T -> ( E . )",
+				},
+				"T -> ( E . )": {
+					"=())=> T -> ( E ) .",
+				},
+				"T -> ( E ) .": {},
+
+				// 2nd row from vid
+				"E-P -> E .": {},
+				"E -> . T + E": {
+					"=(ε)=> T -> . ( E )",
+					"=(T)=> E -> T . + E",
+					"=(ε)=> T -> . int",
+					"=(ε)=> T -> . int * T",
+				},
+				"E -> T . + E": {
+					"=(+)=> E -> T + . E",
+				},
+				"E -> T + . E": {
+					"=(ε)=> E -> . T + E",
+					"=(E)=> E -> T + E .",
+					"=(ε)=> E -> . T",
+				},
+
+				// 3rd row from vid
+				"E-P -> . E": {
+					"=(E)=> E-P -> E .",
+					"=(ε)=> E -> . T + E",
+					"=(ε)=> E -> . T",
+				},
+				"T -> . int": {
+					"=(int)=> T -> int .",
+				},
+				"T -> int .":   {},
+				"E -> T + E .": {},
+
+				// 4th row from vid
+				"E -> . T": {
+					"=(ε)=> T -> . int",
+					"=(ε)=> T -> . int * T",
+					"=(T)=> E -> T .",
+					"=(ε)=> T -> . ( E )",
+				},
+				"T -> int . * T": {
+					"=(*)=> T -> int * . T",
+				},
+
+				// 5th row from vid
+				"E -> T .": {},
+				"T -> . int * T": {
+					"=(int)=> T -> int . * T",
+				},
+				"T -> int * . T": {
+					"=(ε)=> T -> . int",
+					"=(T)=> T -> int * T .",
+					"=(ε)=> T -> . ( E )",
+					"=(ε)=> T -> . int * T",
+				},
+				"T -> int * T .": {},
+			},
+			nfaAccept: []string{
+				// (all of them)
+				"T -> . ( E )", "T -> ( . E )", "T -> ( E . )", "T -> ( E ) .",
+				"E-P -> E .", "E -> . T + E", "E -> T . + E", "E -> T + . E",
+				"E-P -> . E", "T -> . int", "T -> int .", "E -> T + E .",
+				"E -> . T", "T -> int . * T", "E -> T .", "T -> . int * T",
+				"T -> int * . T", "T -> int * T .",
+			},
+			nfaStart: "E-P -> . E",
+			expect: map[string][]string{
+				"{E -> . T, E -> . T + E, E -> T + . E, T -> . ( E ), T -> . int, T -> . int * T}": {
+					"=(E)=> {E -> T + E .}",
+					"=(()=> {E -> . T, E -> . T + E, T -> ( . E ), T -> . ( E ), T -> . int, T -> . int * T}",
+					"=(int)=> {T -> int ., T -> int . * T}",
+					"=(T)=> {E -> T ., E -> T . + E}",
+				},
+				"{E -> . T, E -> . T + E, T -> ( . E ), T -> . ( E ), T -> . int, T -> . int * T}": {
+					"=(()=> {E -> . T, E -> . T + E, T -> ( . E ), T -> . ( E ), T -> . int, T -> . int * T}",
+					"=(E)=> {T -> ( E . )}",
+					"=(int)=> {T -> int ., T -> int . * T}",
+					"=(T)=> {E -> T ., E -> T . + E}",
+				},
+				"{E -> . T, E -> . T + E, E-P -> . E, T -> . ( E ), T -> . int, T -> . int * T}": {
+					"=(T)=> {E -> T ., E -> T . + E}",
+					"=(int)=> {T -> int ., T -> int . * T}",
+					"=(()=> {E -> . T, E -> . T + E, T -> ( . E ), T -> . ( E ), T -> . int, T -> . int * T}",
+					"=(E)=> {E-P -> E .}",
+				},
+				"{T -> . ( E ), T -> . int, T -> . int * T, T -> int * . T}": {
+					"=(T)=> {T -> int * T .}",
+					"=(()=> {E -> . T, E -> . T + E, T -> ( . E ), T -> . ( E ), T -> . int, T -> . int * T}",
+					"=(int)=> {T -> int ., T -> int . * T}",
+				},
+				"{E -> T ., E -> T . + E}": {
+					"=(+)=> {E -> . T, E -> . T + E, E -> T + . E, T -> . ( E ), T -> . int, T -> . int * T}",
+				},
+				"{T -> int ., T -> int . * T}": {
+					"=(*)=> {T -> . ( E ), T -> . int, T -> . int * T, T -> int * . T}",
+				},
+				"{E -> T + E .}":   {},
+				"{E-P -> E .}":     {},
+				"{T -> int * T .}": {},
+				"{T -> ( E . )}": {
+					"=())=> {T -> ( E ) .}",
+				},
+				"{T -> ( E ) .}": {},
+			},
+			expectStart: "{E -> . T, E -> . T + E, E-P -> . E, T -> . ( E ), T -> . int, T -> . int * T}",
+			expectAccept: []string{
+				"{E -> . T, E -> . T + E, E -> T + . E, T -> . ( E ), T -> . int, T -> . int * T}",
+				"{E -> . T, E -> . T + E, T -> ( . E ), T -> . ( E ), T -> . int, T -> . int * T}",
+				"{E -> . T, E -> . T + E, E-P -> . E, T -> . ( E ), T -> . int, T -> . int * T}",
+				"{T -> . ( E ), T -> . int, T -> . int * T, T -> int * . T}",
+				"{E -> T ., E -> T . + E}",
+				"{T -> int ., T -> int . * T}",
+				"{E -> T + E .}",
+				"{E-P -> E .}",
+				"{T -> int * T .}",
+				"{T -> ( E . )}",
+				"{T -> ( E ) .}",
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -354,7 +486,7 @@ func buildDFA(from map[string][]string, start string, acceptingStates []string) 
 		}
 	}
 
-	dfa.start = start
+	dfa.Start = start
 
 	return dfa
 }
@@ -376,7 +508,7 @@ func buildNFA(from map[string][]string, start string, acceptingStates []string) 
 		}
 	}
 
-	nfa.start = start
+	nfa.Start = start
 
 	return nfa
 }
@@ -401,7 +533,7 @@ func buildLR0NFA(from map[string][]string, start string) *NFA {
 		}
 	}
 
-	nfa.start = start
+	nfa.Start = start
 
 	return nfa
 }

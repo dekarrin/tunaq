@@ -144,7 +144,35 @@ func (ns NFAState) String() string {
 
 type DFA struct {
 	states map[string]DFAState
-	start  string
+	Start  string
+}
+
+// IsAccepting returns whether the given state is an accepting (terminating)
+// state. Returns false if the state does not exist.
+func (dfa DFA) IsAccepting(state string) bool {
+	s, ok := dfa.states[state]
+	if !ok {
+		return false
+	}
+
+	return s.accepting
+}
+
+// Next returns the next state of the DFA, given a current state and an input.
+// Will return "" if state is not an existing state or if there is no transition
+// from the given state on the given input.
+func (dfa DFA) Next(fromState string, input string) string {
+	state, ok := dfa.states[fromState]
+	if !ok {
+		return ""
+	}
+
+	transition, ok := state.transitions[input]
+	if !ok {
+		return ""
+	}
+
+	return transition.next
 }
 
 func (dfa *DFA) AddState(state string, accepting bool) {
@@ -190,7 +218,7 @@ func (dfa *DFA) AddTransition(fromState string, input string, toState string) {
 func (dfa DFA) String() string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", dfa.start))
+	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", dfa.Start))
 
 	orderedStates := util.OrderedKeys(dfa.states)
 
@@ -212,7 +240,7 @@ func (dfa DFA) String() string {
 
 type NFA struct {
 	states map[string]NFAState
-	start  string
+	Start  string
 }
 
 // ToDFA converts the NFA into a deterministic finite automaton accepting the
@@ -222,7 +250,7 @@ type NFA struct {
 func (nfa NFA) ToDFA() DFA {
 	inputSymbols := nfa.InputSymbols()
 
-	Dstart := nfa.EpsilonClosure(nfa.start)
+	Dstart := nfa.EpsilonClosure(nfa.Start)
 
 	markedStates := util.Set[string]{}
 	Dstates := map[string]util.Set[string]{}
@@ -268,6 +296,12 @@ func (nfa NFA) ToDFA() DFA {
 
 				U := nfa.EpsilonClosureOfSet(nfa.MOVE(T, a))
 
+				// if its not a symbol that the state can transition on, U will
+				// be empty, skip it
+				if U.Empty() {
+					continue
+				}
+
 				// if U is not in Dstates
 				if !DstateNames.Has(U.StringOrdered()) {
 					// add U as an unmarked state to Dstates
@@ -282,9 +316,9 @@ func (nfa NFA) ToDFA() DFA {
 			// add it to our working DFA states as well
 			dfa.states[Tname] = newDFAState
 
-			if dfa.start == "" {
+			if dfa.Start == "" {
 				// then T is our starting state.
-				dfa.start = Tname
+				dfa.Start = Tname
 			}
 		}
 
@@ -390,7 +424,7 @@ func (nfa NFA) EpsilonClosure(s string) util.Set[string] {
 func (nfa NFA) String() string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", nfa.start))
+	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", nfa.Start))
 
 	orderedStates := util.OrderedKeys(nfa.states)
 
@@ -470,7 +504,7 @@ func NewViablePrefixNDA(g Grammar) NFA {
 	nfa := NFA{}
 
 	// set the start state
-	nfa.start = LR0Item{NonTerminal: dummySym, Right: []string{oldStart}}.String()
+	nfa.Start = LR0Item{NonTerminal: dummySym, Right: []string{oldStart}}.String()
 
 	items := g.LRItems()
 
