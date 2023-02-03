@@ -255,30 +255,124 @@ func Test_NFA_EpsilonClosure(t *testing.T) {
 	}
 }
 
-type strWrap string
+func Test_NFA_ToDFA(t *testing.T) {
+	testCases := []struct {
+		name         string
+		nfa          map[string][]string
+		nfaStart     string
+		nfaAccept    []string
+		expect       map[string][]string
+		expectStart  string
+		expectAccept []string
+	}{
+		{
+			name: "aiken example",
+			nfa: map[string][]string{
+				"A": {
+					"=(ε)=> H",
+					"=(ε)=> B",
+				},
+				"B": {
+					"=(ε)=> C",
+					"=(ε)=> D",
+				},
+				"C": {
+					"=(1)=> E",
+				},
+				"D": {
+					"=(0)=> F",
+				},
+				"E": {
+					"=(ε)=> G",
+				},
+				"F": {
+					"=(ε)=> G",
+				},
+				"G": {
+					"=(ε)=> A",
+					"=(ε)=> H",
+				},
+				"H": {
+					"=(ε)=> I",
+				},
+				"I": {
+					"=(1)=> J",
+				},
+				"J": {},
+			},
+			nfaAccept: []string{"J"},
+			nfaStart:  "A",
+			expect: map[string][]string{
+				"{A, B, C, D, H, I}": {
+					"=(0)=> {A, B, C, D, F, G, H, I}",
+					"=(1)=> {A, B, C, D, E, G, H, I, J}",
+				},
+				"{A, B, C, D, F, G, H, I}": {
+					"=(0)=> {A, B, C, D, F, G, H, I}",
+					"=(1)=> {A, B, C, D, E, G, H, I, J}",
+				},
+				"{A, B, C, D, E, G, H, I, J}": {
+					"=(0)=> {A, B, C, D, F, G, H, I}",
+					"=(1)=> {A, B, C, D, E, G, H, I, J}",
+				},
+			},
+			expectStart:  "{A, B, C, D, H, I}",
+			expectAccept: []string{"{A, B, C, D, E, G, H, I, J}"},
+		},
+	}
 
-func (s strWrap) String() string {
-	return string(s)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+			nfa := buildNFA(tc.nfa, tc.nfaStart, tc.nfaAccept)
+			expect := buildDFA(tc.expect, tc.expectStart, tc.expectAccept)
+
+			// execute
+			actual := nfa.ToDFA()
+
+			// assert
+			assert.Equal(expect.String(), actual.String())
+		})
+	}
 }
 
-func buildNFA(from map[string][]string, start string, acceptingStates []string) *NFA[strWrap] {
-	nfa := &NFA[strWrap]{}
+func buildDFA(from map[string][]string, start string, acceptingStates []string) *DFA {
+	dfa := &DFA{}
 
 	acceptSet := util.SetFromSlice(acceptingStates)
 
 	for k := range from {
-		stateItem := strWrap(k)
-		nfa.AddState(stateItem, acceptSet.Has(k))
+		dfa.AddState(k, acceptSet.Has(k))
 	}
 
 	// add transitions AFTER all states are already in or it will cause a panic
 	for k := range from {
-		fromItem := strWrap(k)
 		for i := range from[k] {
 			transition := mustParseFATransition(from[k][i])
-			input := transition.input
-			toItem := strWrap(transition.next)
-			nfa.AddTransition(fromItem, input, toItem)
+			dfa.AddTransition(k, transition.input, transition.next)
+		}
+	}
+
+	dfa.start = start
+
+	return dfa
+}
+
+func buildNFA(from map[string][]string, start string, acceptingStates []string) *NFA {
+	nfa := &NFA{}
+
+	acceptSet := util.SetFromSlice(acceptingStates)
+
+	for k := range from {
+		nfa.AddState(k, acceptSet.Has(k))
+	}
+
+	// add transitions AFTER all states are already in or it will cause a panic
+	for k := range from {
+		for i := range from[k] {
+			transition := mustParseFATransition(from[k][i])
+			nfa.AddTransition(k, transition.input, transition.next)
 		}
 	}
 
@@ -287,12 +381,12 @@ func buildNFA(from map[string][]string, start string, acceptingStates []string) 
 	return nfa
 }
 
-func buildLR0NFA(from map[string][]string, start string) *NFA[LR0Item] {
-	nfa := &NFA[LR0Item]{}
+func buildLR0NFA(from map[string][]string, start string) *NFA {
+	nfa := &NFA{}
 
 	for k := range from {
 		stateItem := mustParseLR0Item(k)
-		nfa.AddState(stateItem, true)
+		nfa.AddState(stateItem.String(), true)
 	}
 
 	fromKeys := util.OrderedKeys(from)
@@ -303,7 +397,7 @@ func buildLR0NFA(from map[string][]string, start string) *NFA[LR0Item] {
 			transition := mustParseFATransition(from[k][i])
 			toItem := mustParseLR0Item(transition.next)
 			input := transition.input
-			nfa.AddTransition(fromItem, input, toItem)
+			nfa.AddTransition(fromItem.String(), input, toItem.String())
 		}
 	}
 

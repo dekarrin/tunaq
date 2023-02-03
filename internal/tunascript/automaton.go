@@ -76,14 +76,13 @@ func parseFATransition(s string) (FATransition, error) {
 	}, nil
 }
 
-type DFAState[E fmt.Stringer] struct {
+type DFAState struct {
 	name        string
-	value       E
 	transitions map[string]FATransition
 	accepting   bool
 }
 
-func (ns DFAState[E]) String() string {
+func (ns DFAState) String() string {
 	var moves strings.Builder
 
 	inputs := util.OrderedKeys(ns.transitions)
@@ -105,14 +104,13 @@ func (ns DFAState[E]) String() string {
 	return str
 }
 
-type NFAState[E fmt.Stringer] struct {
+type NFAState struct {
 	name        string
-	value       E
 	transitions map[string][]FATransition
 	accepting   bool
 }
 
-func (ns NFAState[E]) String() string {
+func (ns NFAState) String() string {
 	var moves strings.Builder
 
 	inputs := util.OrderedKeys(ns.transitions)
@@ -144,12 +142,52 @@ func (ns NFAState[E]) String() string {
 	return str
 }
 
-type DFA[E fmt.Stringer] struct {
-	states map[string]DFAState[E]
+type DFA struct {
+	states map[string]DFAState
 	start  string
 }
 
-func (dfa DFA[E]) String() string {
+func (dfa *DFA) AddState(state string, accepting bool) {
+	if _, ok := dfa.states[state]; ok {
+		// Gr8! We are done.
+		return
+	}
+
+	newState := DFAState{
+		name:        state,
+		transitions: make(map[string]FATransition),
+		accepting:   accepting,
+	}
+
+	if dfa.states == nil {
+		dfa.states = map[string]DFAState{}
+	}
+
+	dfa.states[state] = newState
+}
+
+func (dfa *DFA) AddTransition(fromState string, input string, toState string) {
+	curFromState, ok := dfa.states[fromState]
+
+	if !ok {
+		// Can't let you do that, Starfox
+		panic(fmt.Sprintf("add transition from non-existent state %q", fromState))
+	}
+	if _, ok := dfa.states[toState]; !ok {
+		// I'm afraid I can't do that, Dave
+		panic(fmt.Sprintf("add transition to non-existent state %q", toState))
+	}
+
+	trans := FATransition{
+		input: input,
+		next:  toState,
+	}
+
+	curFromState.transitions[input] = trans
+	dfa.states[fromState] = curFromState
+}
+
+func (dfa DFA) String() string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", dfa.start))
@@ -172,21 +210,148 @@ func (dfa DFA[E]) String() string {
 	return sb.String()
 }
 
-type NFA[E fmt.Stringer] struct {
-	states map[string]NFAState[E]
+type NFA struct {
+	states map[string]NFAState
 	start  string
+}
+
+// ToDFA converts the NFA into a deterministic finite automaton accepting the
+// same strings.
+//
+// This is an implementation of algorithm 3.20 from the purple dragon book.
+func (nfa NFA) ToDFA() DFA {
+	inputSymbols := nfa.InputSymbols()
+
+	Dstart := nfa.EpsilonClosure(nfa.start)
+
+	markedStates := util.Set[string]{}
+	Dstates := map[string]util.Set[string]{}
+	Dstates[Dstart.StringOrdered()] = Dstart
+
+	// these are Dstates but represented in actual format for placement into
+	// our implement8ion of DFAs, which is also where transition function info
+	// and acceptance info is stored.
+	dfa := DFA{
+		states: map[string]DFAState{},
+	}
+
+	// initially, ε-closure(s₀) is the only state in Dstates, and it is unmarked
+	for {
+		// get unmarked states in Dstates
+		DstateNames := util.SetFromSlice(util.OrderedKeys(Dstates))
+		unmarkedStates := DstateNames.Difference(markedStates)
+
+		if unmarkedStates.Len() < 1 {
+			break
+		}
+		// while ( there is an unmarked state T in Dstates )
+		for Tname := range unmarkedStates {
+			T := Dstates[Tname]
+
+			// mark T
+			markedStates.Add(Tname)
+
+			newDFAState := DFAState{name: Tname, transitions: map[string]FATransition{}}
+
+			if T.Any(func(v string) bool {
+				return nfa.states[v].accepting
+			}) {
+				newDFAState.accepting = true
+			}
+
+			// for ( each input symbol a )
+			for a := range inputSymbols {
+				// (but like, glub, not the epsilon symbol itself)
+				if a == Epsilon[0] {
+					continue
+				}
+
+				U := nfa.EpsilonClosureOfSet(nfa.MOVE(T, a))
+
+				// if U is not in Dstates
+				if !DstateNames.Has(U.StringOrdered()) {
+					// add U as an unmarked state to Dstates
+					DstateNames.Add(U.StringOrdered())
+					Dstates[U.StringOrdered()] = U
+				}
+
+				// Dtran[T, a] = U
+				newDFAState.transitions[a] = FATransition{input: a, next: U.StringOrdered()}
+			}
+
+			// add it to our working DFA states as well
+			dfa.states[Tname] = newDFAState
+
+			if dfa.start == "" {
+				// then T is our starting state.
+				dfa.start = Tname
+			}
+		}
+
+	}
+	return dfa
+}
+
+// InputSymbols returns the set of all input symbols processed by some
+// transition in the NFA.
+func (nfa NFA) InputSymbols() util.Set[string] {
+	symbols := util.Set[string]{}
+	for sName := range nfa.states {
+		st := nfa.states[sName]
+
+		for a := range st.transitions {
+			symbols.Add(a)
+		}
+	}
+
+	return symbols
+}
+
+// MOVE returns the set of states reachable with one transition from some state
+// in X on input a. Purple dragon book calls this function MOVE(T, a) and it is
+// on page 153 as part of algorithm 3.20.
+func (nfa NFA) MOVE(X util.Set[string], a string) util.Set[string] {
+	moves := util.Set[string]{}
+
+	for s := range X {
+		stateItem, ok := nfa.states[s]
+		if !ok {
+			continue
+		}
+
+		transitions := stateItem.transitions[a]
+
+		for _, t := range transitions {
+			moves.Add(t.next)
+		}
+	}
+
+	return moves
+}
+
+// EpsilonClosureOfSet gives the set of states reachable from some state in
+// X using one or more ε-moves.
+func (nfa NFA) EpsilonClosureOfSet(X util.Set[string]) util.Set[string] {
+	allClosures := util.Set[string]{}
+
+	for s := range X {
+		closures := nfa.EpsilonClosure(s)
+		allClosures.AddAll(closures)
+	}
+
+	return allClosures
 }
 
 // EpsilonClosure gives the set of states reachable from state using one or more
 // ε-moves.
-func (nfa NFA[E]) EpsilonClosure(s string) util.Set[string] {
+func (nfa NFA) EpsilonClosure(s string) util.Set[string] {
 	stateItem, ok := nfa.states[s]
 	if !ok {
-		panic(fmt.Sprintf("not a state in NFA: %q", s))
+		return nil
 	}
 
 	closure := util.Set[string]{}
-	checkingStates := util.Stack[NFAState[E]]{}
+	checkingStates := util.Stack[NFAState]{}
 	checkingStates.Push(stateItem)
 
 	for checkingStates.Len() > 0 {
@@ -222,7 +387,7 @@ func (nfa NFA[E]) EpsilonClosure(s string) util.Set[string] {
 	return closure
 }
 
-func (nfa NFA[E]) String() string {
+func (nfa NFA) String() string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", nfa.start))
@@ -245,38 +410,35 @@ func (nfa NFA[E]) String() string {
 	return sb.String()
 }
 
-func (nfa *NFA[E]) AddState(state E, accepting bool) {
-	if _, ok := nfa.states[state.String()]; ok {
+func (nfa *NFA) AddState(state string, accepting bool) {
+	if _, ok := nfa.states[state]; ok {
 		// Gr8! We are done.
 		return
 	}
 
-	newState := NFAState[E]{
-		name:        state.String(),
-		value:       state,
+	newState := NFAState{
+		name:        state,
 		transitions: make(map[string][]FATransition),
 		accepting:   accepting,
 	}
 
 	if nfa.states == nil {
-		nfa.states = map[string]NFAState[E]{}
+		nfa.states = map[string]NFAState{}
 	}
 
-	nfa.states[state.String()] = newState
+	nfa.states[state] = newState
 }
 
-func (nfa *NFA[E]) AddTransition(fromState E, input string, toState E) {
-	toName := toState.String()
-	fromName := fromState.String()
-	curFromState, ok := nfa.states[fromName]
+func (nfa *NFA) AddTransition(fromState string, input string, toState string) {
+	curFromState, ok := nfa.states[fromState]
 
 	if !ok {
 		// Can't let you do that, Starfox
-		panic(fmt.Sprintf("add transition from non-existent state %q", fromState.String()))
+		panic(fmt.Sprintf("add transition from non-existent state %q", fromState))
 	}
-	if _, ok := nfa.states[toName]; !ok {
+	if _, ok := nfa.states[toState]; !ok {
 		// I'm afraid I can't do that, Dave
-		panic(fmt.Sprintf("add transition to non-existent state %q", toState.String()))
+		panic(fmt.Sprintf("add transition to non-existent state %q", toState))
 	}
 
 	curInputTransitions, ok := curFromState.transitions[input]
@@ -286,16 +448,16 @@ func (nfa *NFA[E]) AddTransition(fromState E, input string, toState E) {
 
 	newTransition := FATransition{
 		input: input,
-		next:  toState.String(),
+		next:  toState,
 	}
 
 	curInputTransitions = append(curInputTransitions, newTransition)
 
 	curFromState.transitions[input] = curInputTransitions
-	nfa.states[fromState.String()] = curFromState
+	nfa.states[fromState] = curFromState
 }
 
-func NewViablePrefixNDA(g Grammar) NFA[LR0Item] {
+func NewViablePrefixNDA(g Grammar) NFA {
 	// we are about to modify the grammar, get a copy
 	g = g.Copy()
 
@@ -305,7 +467,7 @@ func NewViablePrefixNDA(g Grammar) NFA[LR0Item] {
 	g.AddRule(dummySym, []string{oldStart})
 	g.Start = dummySym
 
-	nfa := NFA[LR0Item]{}
+	nfa := NFA{}
 
 	// set the start state
 	nfa.start = LR0Item{NonTerminal: dummySym, Right: []string{oldStart}}.String()
@@ -318,7 +480,7 @@ func NewViablePrefixNDA(g Grammar) NFA[LR0Item] {
 	// add all of them first so we don't accidentally panic on adding
 	// transitions
 	for i := range items {
-		nfa.AddState(items[i], true)
+		nfa.AddState(items[i].String(), true)
 	}
 
 	for i := range items {
@@ -341,7 +503,7 @@ func NewViablePrefixNDA(g Grammar) NFA[LR0Item] {
 			Left:        append(alpha, X),
 			Right:       beta,
 		}
-		nfa.AddTransition(item, X, toItem)
+		nfa.AddTransition(item.String(), X, toItem.String())
 
 		// For item E -> α.Xβ and production X -> γ (X is a non-terminal), add
 		// transition:
@@ -356,7 +518,7 @@ func NewViablePrefixNDA(g Grammar) NFA[LR0Item] {
 					Right:       gamma,
 				}
 
-				nfa.AddTransition(item, "", prodState)
+				nfa.AddTransition(item.String(), "", prodState.String())
 			}
 		}
 	}

@@ -170,6 +170,43 @@ func (m2 Matrix2[EX, EY, V]) Get(x EX, y EY) *V {
 
 type Set[E comparable] map[E]bool
 
+// Union returns a new Set that is the union of s and o.
+func (s Set[E]) Union(o Set[E]) Set[E] {
+	newSet := Set[E]{}
+
+	newSet.AddAll(s)
+	newSet.AddAll(o)
+
+	return newSet
+}
+
+// Intersection returns a new Set that contains the elements that are in both
+// s and o.
+func (s Set[E]) Intersection(o Set[E]) Set[E] {
+	newSet := Set[E]{}
+
+	for k := range s {
+		if o.Has(k) {
+			newSet.Add(k)
+		}
+	}
+
+	return newSet
+}
+
+// Difference returns a new Set that contains the elements that are in s but not
+// in o.
+func (s Set[E]) Difference(o Set[E]) Set[E] {
+	newSet := Set[E]{}
+	newSet.AddAll(s)
+
+	for k := range o {
+		newSet.Remove(k)
+	}
+
+	return newSet
+}
+
 func (s Set[E]) DisjointWith(o Set[E]) bool {
 	for k := range s {
 		if _, ok := o[k]; ok {
@@ -177,6 +214,19 @@ func (s Set[E]) DisjointWith(o Set[E]) bool {
 		}
 	}
 	return true
+}
+
+func (s Set[E]) Empty() bool {
+	return s.Len() == 0
+}
+
+func (s Set[E]) Any(predicate func(v E) bool) bool {
+	for k := range s {
+		if predicate(k) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s Set[E]) Has(value E) bool {
@@ -194,6 +244,37 @@ func (s Set[E]) Remove(value E) {
 
 func (s Set[E]) Len() int {
 	return len(s)
+}
+
+func (s Set[E]) AddAll(from Set[E]) {
+	for element := range from {
+		s.Add(element)
+	}
+}
+
+// StringOrdered shows the contents of the set. Items are guaranteed to be
+// alphabetized.
+func (s Set[E]) StringOrdered() string {
+	convs := []string{}
+
+	for k := range s {
+		convs = append(convs, fmt.Sprintf("%v", k))
+	}
+
+	sort.Strings(convs)
+
+	var sb strings.Builder
+
+	sb.WriteRune('{')
+	for i := range convs {
+		sb.WriteString(convs[i])
+		if i+1 < len(convs) {
+			sb.WriteRune(',')
+			sb.WriteRune(' ')
+		}
+	}
+	sb.WriteRune('}')
+	return sb.String()
 }
 
 // String shows the contents of the set. Items are not guaranteed to be in any
