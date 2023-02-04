@@ -10,6 +10,24 @@ import (
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
+var (
+	// expressionGrammar_4_1 is the Grammar corresponding to expression
+	// grammar (4.1) from the dragon book.
+	//
+	// It has start symbol E, non-terminals {E, T, F}, terminals {+, *, (, ),
+	// id}, and the following rules:
+	//
+	// E -> E + T | T
+	// T -> T * F | F
+	// F -> ( E ) | id
+	//
+	expressionGrammar_4_1 = mustParseGrammar(`
+		E -> E + T | T
+		T -> T * F | F
+		F -> ( E ) | id
+	`)
+)
+
 type LR0Item struct {
 	NonTerminal string
 	Left        []string
@@ -389,6 +407,38 @@ type Grammar struct {
 
 	// name of the start symbol. If not set, assumed to be S.
 	Start string
+}
+
+// Terminals returns an ordered list of the terminals in the grammar.
+func (g Grammar) Terminals() []string {
+	return util.OrderedKeys(g.rulesByName)
+}
+
+// Augmented returns a new grammar that is a copy of this one but with the start
+// symbol S changed to a new rule, S' -> S.
+func (g Grammar) Augmented() Grammar {
+	// get a copy, this will modify g
+	g = g.Copy()
+
+	oldStart := g.StartSymbol()
+	dummySym := g.GenerateUniqueName(oldStart)
+
+	g.AddRule(dummySym, []string{oldStart})
+	g.Start = dummySym
+
+	return g
+}
+
+// IsTerminal returns whether the given symbol is a terminal.
+func (g Grammar) IsTerminal(sym string) bool {
+	_, ok := g.terminals[sym]
+	return ok
+}
+
+// IsNonTerminal returns whether the given symbol is a non-terminal.
+func (g Grammar) IsNonTerminal(sym string) bool {
+	_, ok := g.rulesByName[sym]
+	return ok
 }
 
 // LRItems returns all LR0 Items in the grammar.
@@ -1450,7 +1500,7 @@ func (g Grammar) IsLL1() bool {
 	return true
 }
 
-func (g Grammar) FOLLOW(X string) map[string]bool {
+func (g Grammar) FOLLOW(X string) util.Set[string] {
 	return g.recursiveFindFollowSet(X, map[string]bool{})
 }
 

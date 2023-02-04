@@ -294,6 +294,7 @@ func ref[T any](s T) *T {
 	return &s
 }
 
+/*
 type wi struct {
 	inInven bool
 	move    bool
@@ -315,3 +316,4 @@ func (w wi) Output(str string) bool {
 func worldInterFixture() WorldInterface {
 	return wi{}
 }
+*/

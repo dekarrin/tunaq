@@ -469,13 +469,14 @@ func Test_NFA_ToDFA(t *testing.T) {
 	}
 }
 
-func buildDFA(from map[string][]string, start string, acceptingStates []string) *DFA {
-	dfa := &DFA{}
+func buildDFA(from map[string][]string, start string, acceptingStates []string) *DFA[string] {
+	dfa := &DFA[string]{}
 
 	acceptSet := util.SetFromSlice(acceptingStates)
 
 	for k := range from {
 		dfa.AddState(k, acceptSet.Has(k))
+		dfa.SetValue(k, k)
 	}
 
 	// add transitions AFTER all states are already in or it will cause a panic
@@ -491,13 +492,14 @@ func buildDFA(from map[string][]string, start string, acceptingStates []string) 
 	return dfa
 }
 
-func buildNFA(from map[string][]string, start string, acceptingStates []string) *NFA {
-	nfa := &NFA{}
+func buildNFA(from map[string][]string, start string, acceptingStates []string) *NFA[string] {
+	nfa := &NFA[string]{}
 
 	acceptSet := util.SetFromSlice(acceptingStates)
 
 	for k := range from {
 		nfa.AddState(k, acceptSet.Has(k))
+		nfa.SetValue(k, k)
 	}
 
 	// add transitions AFTER all states are already in or it will cause a panic
@@ -513,8 +515,8 @@ func buildNFA(from map[string][]string, start string, acceptingStates []string) 
 	return nfa
 }
 
-func buildLR0NFA(from map[string][]string, start string) *NFA {
-	nfa := &NFA{}
+func buildLR0NFA(from map[string][]string, start string) *NFA[string] {
+	nfa := &NFA[string]{}
 
 	for k := range from {
 		stateItem := mustParseLR0Item(k)

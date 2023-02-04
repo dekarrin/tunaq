@@ -198,17 +198,79 @@ func LL1PredictiveParse(g Grammar, stream tokenStream) (pt parseTree, err error)
 	return pt, nil
 }
 
-// ShiftReduceParser is a parser that performs shift-reduce moves. These will be
-// generated from a grammar for the purposes of performing bottom-up parsing
-type ShiftReduceParser interface {
-	// Parse parses the given tokenStream.
-	Parse(stream tokenStream) parseTree
+type LRActionType int
 
+const (
+	LRShift LRActionType = iota
+	LRReduce
+	LRAccept
+	LRError
+)
+
+type LRAction struct {
+	Type LRActionType
+
+	// Production is used when Type is LRReduce. It is the production which
+	// should be reduced; the β of A -> β.
+	Production Production
+
+	// Symbol is used when Type is LRReduce. It is the symbol to reduce the
+	// production to; the A of A -> β.
+	Symbol string
+
+	// State is the state to shift to. It is used only when Type is LRShift.
+	State string
+}
+
+func (act LRAction) String() string {
+	switch act.Type {
+	case LRAccept:
+		return "ACTION<accept>"
+	case LRError:
+		return "ACTION<error>"
+	case LRReduce:
+		return fmt.Sprintf("ACTION<reduce %s -> %s>", act.Symbol, act.Production.String())
+	case LRShift:
+		return fmt.Sprintf("ACTION<shift %s>", act.State)
+	default:
+		return fmt.Sprintf("ACTION<unknown>")
+	}
+}
+
+func (act LRAction) Equal(o any) bool {
+	other, ok := o.(LRAction)
+	if !ok {
+		otherPtr := o.(*LRAction)
+		if !ok {
+			return false
+		}
+		if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if act.Type != other.Type {
+		return false
+	} else if !act.Production.Equal(other.Production) {
+		return false
+	} else if act.State != other.State {
+		return false
+	} else if act.Symbol != other.Symbol {
+		return false
+	}
+
+	return true
+}
+
+// LRParseTable is a table of information passed to an LR parser. These will be
+// generated from a grammar for the purposes of performing bottom-up parsing.
+type LRParseTable interface {
 	// Shift reads one token of input. For SR parsers that are implemented with
 	// a stack, this will push a terminal onto the stack.
 	//
 	// ABC|xyz => ABCx|yz
-	Shift()
+	//Shift()
 
 	// Reduce applies an inverse production at the right end of the left string.
 	// For SR parsers that are implemented with a stack, this will pop 0 or more
@@ -217,5 +279,281 @@ type ShiftReduceParser interface {
 	//
 	// Given A -> xy is a production, then:
 	// Cbxy|ijk => CbA|ijk
-	Reduce()
+	//Reduce()
+
+	// Initial returns the initial state of the parse table, if that is
+	// applicable for the table.
+	Initial() string
+
+	// Action gets the next action to take based on a state i and terminal a.
+	Action(state, symbol string) LRAction
+
+	// Goto maps a state and a grammar symbol to some other state.
+	Goto(state, symbol string) (string, error)
+}
+
+type slrTable struct {
+	gPrime    Grammar
+	gStart    string
+	lr0       DFA[util.Set[string]]
+	itemCache map[string]LR0Item
+}
+
+func (slr *slrTable) Initial() string {
+	return slr.lr0.Start
+}
+
+func (slr *slrTable) Goto(state, symbol string) (string, error) {
+	// as purple  dragon book mentions, "intuitively, the GOTO function is used
+	// to define the transitions in the LR(0) automaton for a grammar." We will
+	// take advantage of the corollary; we already have the automaton defined,
+	// so consequently the transitions of it can be used to derive the value of
+	// GOTO(i, a).
+
+	// assume the state is the concatenated items in the set. Up to caller to
+	// enshore this is the glubbin case.
+
+	// step 3 of algorithm 4.46, "Constructing an SLR-parsing table", for
+	// reference
+
+	// 3. The goto transitions for state i are constructed for all nonterminals
+	// A using the rule: If GOTO(Iᵢ, A) = Iⱼ, then GOTO[i, A] = j.
+
+	newState := slr.lr0.Next(state, symbol)
+
+	if newState == "" {
+		return "", fmt.Errorf("GOTO[%q, %q] is an error entry")
+	}
+	return newState, nil
+}
+
+func (slr *slrTable) Action(i, a string) LRAction {
+	// step 2 of algorithm 4.46, "Constructing an SLR-parsing table", for
+	// reference
+
+	// 2. State i is constructed from Iᵢ. The parsing actions for state i are
+	// determined as follows:
+
+	// get our set back from current state so we can check it; this is our Iᵢ
+	itemSet := slr.lr0.GetValue(i)
+
+	// we have gauranteed that these dont conflict during construction; still,
+	// check it so we can panic if it conflicts
+	var alreadySet bool
+	var act LRAction
+
+	// Okay, "[some random item] is in Iᵢ" is suuuuuuuuper vague. We're
+	// basically going to have to check each item and see if it is in the
+	// pattern. I *guess* ::::/
+	for itemStr := range itemSet {
+		item := slr.itemCache[itemStr]
+
+		// given item is [A -> α.β]:
+		A := item.NonTerminal
+		alpha := item.Left
+		beta := item.Right
+
+		followA := util.Set[string]{}
+		if A != slr.gPrime.StartSymbol() {
+			// we'll need this later, glub 38)
+			followA = slr.gPrime.FOLLOW(A)
+		}
+
+		// (a) If [A -> α.aβ] is in Iᵢ and GOTO(Iᵢ, a) = Iⱼ, then set
+		// ACTION[i, a] to "shift j." Here a must be a terminal.
+		//
+		// we'll assume α can be ε.
+		// β can also be ε but note this β is rly β[1:] from earlier notation
+		// used to assign beta (beta := item.Right).
+		if slr.gPrime.IsTerminal(a) && len(beta) > 0 && beta[0] == a {
+			j, err := slr.Goto(i, a)
+
+			// it's okay if we get an error; it just means there is no
+			// transition defined (i think, glub, the purple dragon book's
+			// method of constructing GOTO would have it returning an empty
+			// set in this case but unshore), so it is not a match.
+			if err == nil {
+				// match found
+				newAct := LRAction{Type: LRShift, State: j}
+				if alreadySet && !newAct.Equal(act) {
+					panic(fmt.Sprintf("grammar is not SLR: found both %s and %s actions for input %q", act.String(), newAct.String(), a))
+				}
+				act = newAct
+				alreadySet = true
+			}
+		}
+
+		// (b) If [A -> α.] is in Iᵢ, then set ACTION[i, a] to "reduce A -> α"
+		// for all a in FOLLOW(A); here A may not be S'.
+		//
+		// we'll assume α can be empty.
+		// the beta we previously retrieved MUST be empty
+		if len(beta) == 0 && followA.Has(a) && A != slr.gPrime.StartSymbol() {
+			newAct := LRAction{Type: LRReduce, Symbol: A, Production: Production(alpha)}
+			if alreadySet && !newAct.Equal(act) {
+				panic(fmt.Sprintf("grammar is not SLR(1): found both %s and %s actions for input %q", act.String(), newAct.String(), a))
+			}
+			act = newAct
+			alreadySet = true
+		}
+
+		// (c) If [S' -> S.] is in Iᵢ, then set ACTION[i, $] to "accept".
+		if a == "$" && A == slr.gPrime.StartSymbol() && len(alpha) == 1 && alpha[0] == slr.gStart && len(beta) == 0 {
+			newAct := LRAction{Type: LRAccept}
+			if alreadySet && !newAct.Equal(act) {
+				panic(fmt.Sprintf("grammar is not SLR(1): found both %s and %s actions for input %q", act.String(), newAct.String(), a))
+			}
+			act = newAct
+			alreadySet = true
+		}
+	}
+
+	// if we haven't found one, error
+	if !alreadySet {
+		act.Type = LRError
+	}
+
+	return act
+}
+
+// ConstructSimpleLRParseTable constructs the SLR(1) table for G. It augments
+// grammar G to produce G', then the canonical collection of sets of items of G'
+// is used to construct a table with applicable GOTO and ACTION columns.
+//
+// This is an implementation of Algorithm 4.46, "Constructing an SLR-parsing
+// table", from the purple dragon book. In the comments, most of which is lifted
+// directly from the textbook, GOTO[i, A] refers to the vaue of the table's
+// GOTO column at state i, symbol A, while GOTO(i, A) refers to the "precomputed
+// GOTO function for grammar G'".
+func GenerateSimpleLRParseTable(g Grammar) (LRParseTable, error) {
+	// we will skip a few steps here and simply grab the LR0 DFA for G' which
+	// will pretty immediately give us our GOTO() function, since as purple
+	// dragon book mentions, "intuitively, the GOTO function is used to define
+	// the transitions in the LR(0) automaton for a grammar."
+	lr0Automaton := NewViablePrefixNDA(g).ToDFA()
+
+	table := &slrTable{
+		gPrime:    g.Augmented(),
+		gStart:    g.StartSymbol(),
+		lr0:       lr0Automaton,
+		itemCache: map[string]LR0Item{},
+	}
+
+	for _, item := range table.gPrime.LRItems() {
+		table.itemCache[item.String()] = item
+	}
+
+	// check ahead to see if we would get conflicts in ACTION function
+	for i := range lr0Automaton.States() {
+		for _, a := range table.gPrime.Terminals() {
+			itemSet := table.lr0.GetValue(i)
+			var matchFound bool
+			var act LRAction
+			for itemStr := range itemSet {
+				item := table.itemCache[itemStr]
+				A := item.NonTerminal
+				alpha := item.Left
+				beta := item.Right
+
+				followA := util.Set[string]{}
+				if A != table.gPrime.StartSymbol() {
+					// we'll need this later, glub 38)
+					followA = table.gPrime.FOLLOW(A)
+				}
+
+				if table.gPrime.IsTerminal(a) && len(beta) > 0 && beta[0] == a {
+					j, err := table.Goto(i, a)
+					if err == nil {
+						// match found
+						newAct := LRAction{Type: LRShift, State: j}
+						if matchFound && !newAct.Equal(act) {
+							return nil, fmt.Errorf("grammar is not SLR: found both %s and %s actions for input %q", act.String(), newAct.String(), a)
+						}
+						act = newAct
+						matchFound = true
+					}
+				}
+
+				if len(beta) == 0 && followA.Has(a) && A != table.gPrime.StartSymbol() {
+					newAct := LRAction{Type: LRReduce, Symbol: A, Production: Production(alpha)}
+					if matchFound && !newAct.Equal(act) {
+						return nil, fmt.Errorf("grammar is not SLR(1): found both %s and %s actions for input %q", act.String(), newAct.String(), a)
+					}
+					act = newAct
+					matchFound = true
+				}
+
+				if a == "$" && A == table.gPrime.StartSymbol() && len(alpha) == 1 && alpha[0] == table.gStart && len(beta) == 0 {
+					newAct := LRAction{Type: LRAccept}
+					if matchFound && !newAct.Equal(act) {
+						return nil, fmt.Errorf("grammar is not SLR(1): found both %s and %s actions for input %q", act.String(), newAct.String(), a)
+					}
+					act = newAct
+					matchFound = true
+				}
+			}
+		}
+	}
+
+	return table, nil
+}
+
+// LRParse parses the input stream using the provided LRParser.
+//
+// This is an implementation of Algorithm 4.44, "LR-parsing algorithm", from
+// the purple dragon book.
+func LRParse(parser LRParseTable, stream tokenStream) (parseTree, error) {
+	stateStack := util.Stack[string]{Of: []string{parser.Initial()}}
+	pt := parseTree{value: parser.Initial()}
+	//ptStack := util.Stack[*parseTree]{Of: []*parseTree{&pt}}
+
+	// let a be the first symbol of w$;
+	a := stream.Next()
+
+	for { /* repeat forever */
+		// let s be the state on top of the stack;
+		s := stateStack.Peek()
+
+		ACTION := parser.Action(s, a.class.id)
+
+		switch ACTION.Type {
+		case LRShift: // if ( ACTION[s, a] = shift t )
+			t := ACTION.State
+
+			// push t onto the stack
+			stateStack.Push(t)
+
+			// let a be the next input symbol
+			a = stream.Next()
+		case LRReduce: // else if ( ACTION[s, a] = reduce A -> β )
+			A := ACTION.Symbol
+			beta := ACTION.Production
+
+			// pop |β| symbols off the stack;
+			for i := 0; i < len(beta); i++ {
+				stateStack.Pop()
+			}
+
+			// let state t now be on top of the stack
+			t := stateStack.Peek()
+
+			// push GOTO[t, A] onto the stack
+			toPush, err := parser.Goto(t, A)
+			if err != nil {
+				return pt, syntaxErrorFromLexeme("parsing failed", a)
+			}
+			stateStack.Push(toPush)
+
+			// output the production A -> β
+			// TODO: put it on the parse tree
+			fmt.Printf("PUT %q -> %q ON PARSE TREE\n", A, beta)
+		case LRAccept: // else if ( ACTION[s, a] = accept )
+			// parsing is done
+			return pt, nil
+		case LRError:
+			// call error-recovery routine
+			// TODO: error recovery, for now, just report it
+			return pt, syntaxErrorFromLexeme("parsing failed", a)
+		}
+	}
 }
