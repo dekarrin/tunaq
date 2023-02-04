@@ -226,6 +226,18 @@ var (
 	termRParen = strings.ToLower(tsGroupClose.id)
 )
 
+func Test_SLR1Parse(t *testing.T) {
+	testCases := []struct {
+		name      string
+		grammar   string
+		input     []tokenClass
+		expect    string
+		expectErr bool
+	}{}
+
+	for _, 
+}
+
 func Test_LL1PredictiveParse(t *testing.T) {
 	testCases := []struct {
 		name      string
