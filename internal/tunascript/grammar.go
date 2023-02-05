@@ -34,6 +34,11 @@ type LR0Item struct {
 	Right       []string
 }
 
+type LR1Item struct {
+	LR0Item
+	Lookahead string
+}
+
 func mustParseLR0Item(s string) LR0Item {
 	i, err := parseLR0Item(s)
 	if err != nil {
@@ -107,6 +112,24 @@ func parseLR0Item(s string) (LR0Item, error) {
 	return parsedItem, nil
 }
 
+func parseLR1Item(s string) (LR1Item, error) {
+	sides := strings.Split(s, ",")
+	if len(sides) != 2 {
+		return LR1Item{}, fmt.Errorf("not an item of form 'NONTERM -> ALPHA.BETA, a': %q", s)
+	}
+
+	item := LR1Item{}
+	var err error
+	item.LR0Item, err = parseLR0Item(sides[0])
+	if err != nil {
+		return item, err
+	}
+
+	item.Lookahead = strings.TrimSpace(sides[1])
+
+	return item, nil
+}
+
 func (item LR0Item) String() string {
 	nonTermPhrase := ""
 	if item.NonTerminal != "" {
@@ -126,6 +149,10 @@ func (item LR0Item) String() string {
 	return fmt.Sprintf("%s%s.%s", nonTermPhrase, left, right)
 }
 
+func (item LR1Item) String() string {
+	return fmt.Sprintf("%s, %s", item.LR0Item.String(), item.Lookahead)
+}
+
 type Production []string
 
 var (
@@ -141,10 +168,10 @@ func (p Production) Copy() Production {
 	return p2
 }
 
-// AllItems returns all LR0 items of the production. Note: a Production does not
+// AllLR0Items returns all LR0 items of the production. Note: a Production does not
 // know what non-terminal produces it, so the NonTerminal field of the returned
 // LR0Items will be blank.
-func (p Production) AllItems() []LR0Item {
+func (p Production) AllLR0Items() []LR0Item {
 	if p.Equal(Epsilon) {
 		return []LR0Item{}
 	}
@@ -248,7 +275,7 @@ type Rule struct {
 func (r Rule) LRItems() []LR0Item {
 	items := []LR0Item{}
 	for _, p := range r.Productions {
-		prodItems := p.AllItems()
+		prodItems := p.AllLR0Items()
 		for i := range prodItems {
 			item := prodItems[i]
 			item.NonTerminal = r.NonTerminal
@@ -441,8 +468,8 @@ func (g Grammar) IsNonTerminal(sym string) bool {
 	return ok
 }
 
-// LRItems returns all LR0 Items in the grammar.
-func (g Grammar) LRItems() []LR0Item {
+// LR0Items returns all LR0 Items in the grammar.
+func (g Grammar) LR0Items() []LR0Item {
 	nonTerms := g.NonTerminals()
 
 	items := []LR0Item{}
@@ -450,6 +477,53 @@ func (g Grammar) LRItems() []LR0Item {
 		r := g.Rule(nt)
 		items = append(items, r.LRItems()...)
 	}
+	return items
+}
+
+func (g Grammar) LR1Items() util.Set[*LR1Item] {
+	gp := g.Augmented()
+
+	CLOSURE := func(I util.Set[*LR1Item]) util.Set[*LR1Item] {
+		retI := I.Copy()
+		updated := true
+		for updated {
+			for it := range retI {
+				if len(it.Right) >= 1 {
+					B := it.Right[0]
+					ruleB := gp.Rule(B)
+					if ruleB.NonTerminal == "" {
+						continue
+					}
+
+					for _, gamma := range ruleB.Productions {
+						fullArgs := make([]string, len(it.Right[1:]))
+						copy(fullArgs, it.Right[1:])
+						fullArgs = append(fullArgs, it.Lookahead)
+						for b := range gp.FIRST_STRING(fullArgs...) {
+							if strings.ToLower(b) != b {
+								continue // terminals only
+							}
+							newItem := LR1Item{
+								LR0Item: LR0Item{
+									NonTerminal: B,
+									Right:       gamma,
+								},
+								Lookahead: b,
+							}
+
+							oldLen := retI.Len()
+							retI.Add(newItem)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	items := util.Set[*LR1Item]{}
+
+	g.LR0Items()
+
 	return items
 }
 
@@ -1507,6 +1581,30 @@ func (g Grammar) IsLL1() bool {
 
 func (g Grammar) FOLLOW(X string) util.Set[string] {
 	return g.recursiveFindFollowSet(X, map[string]bool{})
+}
+
+func (g Grammar) FIRST_STRING(X ...string) util.Set[string] {
+	first := util.Set[string]{}
+	epsilonPresent := false
+	for i := range X {
+		fXi := g.FIRST(X[i])
+		epsilonPresent = false
+		for j := range fXi {
+			if j != Epsilon[0] {
+				first.Add(j)
+			} else {
+				epsilonPresent = true
+			}
+		}
+		if !epsilonPresent {
+			break
+		}
+	}
+	if epsilonPresent {
+		first.Add(Epsilon[0])
+	}
+
+	return first
 }
 
 func (g Grammar) FIRST(X string) map[string]bool {

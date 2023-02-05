@@ -133,6 +133,33 @@ func NewMatrix2[EX, EY comparable, V any]() Matrix2[EX, EY, V] {
 	return map[EX]map[EY]V{}
 }
 
+// Hashable is somefin that returns a unique comparable value for itself. It can
+// also turn itself back from that.
+type Hashable[E comparable] interface {
+	CustomComparable
+	String() string
+	Hash() E
+	Unhash(val E)
+}
+
+type HString string
+
+func (hs HString) String() string {
+	return string(hs)
+}
+
+func (hs HString) Hash() string {
+	return hs.String()
+}
+
+func (hs HString) Equal(o any) bool {
+	other, ok := o.(HString)
+	if !ok {
+		otherPtr, ok := o.(*HString)
+
+	}
+}
+
 func (m2 Matrix2[EX, EY, V]) Set(x EX, y EY, value V) {
 	if m2 == nil {
 		panic("assignment to nil Matrix2")
@@ -169,6 +196,16 @@ func (m2 Matrix2[EX, EY, V]) Get(x EX, y EY) *V {
 }
 
 type Set[E comparable] map[E]bool
+
+func (s Set[E]) Copy() Set[E] {
+	newS := Set[E]{}
+
+	for k := range s {
+		newS[k] = true
+	}
+
+	return newS
+}
 
 // Union returns a new Set that is the union of s and o.
 func (s Set[E]) Union(o Set[E]) Set[E] {

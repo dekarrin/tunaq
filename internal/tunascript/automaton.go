@@ -563,7 +563,7 @@ func NewViablePrefixNDA(g Grammar) NFA[string] {
 	// set the start state
 	nfa.Start = LR0Item{NonTerminal: g.StartSymbol(), Right: []string{oldStart}}.String()
 
-	items := g.LRItems()
+	items := g.LR0Items()
 
 	// The NFA states are the items of G
 	// (including the extra production)

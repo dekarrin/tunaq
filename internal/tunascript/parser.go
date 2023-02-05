@@ -543,7 +543,7 @@ func GenerateSimpleLRParseTable(g Grammar) (LRParseTable, error) {
 		itemCache: map[string]LR0Item{},
 	}
 
-	for _, item := range table.gPrime.LRItems() {
+	for _, item := range table.gPrime.LR0Items() {
 		table.itemCache[item.String()] = item
 	}
 
