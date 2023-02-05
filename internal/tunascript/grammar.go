@@ -1418,7 +1418,8 @@ func parseGrammar(gr string) (Grammar, error) {
 		for _, p := range rule.Productions {
 			for _, sym := range p {
 				if strings.ToLower(sym) == sym && sym != "" {
-					g.AddTerm(strings.ToLower(sym), tokenClass{id: strings.ToLower(sym), human: sym})
+					tc := defaultTokenClassFor(sym)
+					g.AddTerm(tc.id, tc)
 				}
 			}
 			g.AddRule(rule.NonTerminal, p)
@@ -1426,6 +1427,10 @@ func parseGrammar(gr string) (Grammar, error) {
 	}
 
 	return g, nil
+}
+
+func defaultTokenClassFor(sym string) tokenClass {
+	return tokenClass{id: strings.ToLower(sym), human: sym}
 }
 
 func (g Grammar) TermFor(tc tokenClass) string {

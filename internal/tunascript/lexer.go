@@ -208,7 +208,7 @@ var (
 	tsGroupOpen       = tokenClass{"TS_GROUP_OPEN", "'" + literalStrGroupOpen + "'", 100}
 	tsGroupClose      = tokenClass{"TS_GROUP_CLOSE", "'" + literalStrGroupClose + "'", 1}
 	tsIdentifier      = tokenClass{"TS_IDENTIFIER", "identifier", 1}
-	tsEndOfText       = tokenClass{"TS_END_OF_TEXT", "end of text", 0}
+	tsEndOfText       = tokenClass{"$", "end of text", 0}
 	tsUndefined       = tokenClass{"TS_UNDEFINED", "undefined", 0}
 	tsNumber          = tokenClass{"TS_NUMBER", "number", 1}
 	tsBool            = tokenClass{"TS_BOOL", "boolean value", 1}

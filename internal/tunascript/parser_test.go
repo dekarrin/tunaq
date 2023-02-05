@@ -15,7 +15,56 @@ const (
 	mockedIdentifierLexeme     = "$VRISKA"
 )
 
-func mockTokens(ofClass ...tokenClass) []token {
+func mockTerminalTokens(ofTerm ...string) []token {
+	buildingLine := ""
+
+	var lineTokens = make([]token, 0)
+
+	const lineEvery = 100
+
+	curLine := 1
+	curLinePos := 1
+	var mocked []token
+	for i := range ofTerm {
+		tc := defaultTokenClassFor(ofTerm[i])
+		m := token{class: tc, line: curLine, pos: curLinePos, lexeme: tc.id}
+		lineTokens = append(lineTokens, m)
+		if tc != tsEndOfText && tc != tsWhitespace && tc != tsUndefined {
+			buildingLine += m.lexeme + " "
+			curLinePos += len(m.lexeme) + 1 // for the space
+		}
+		if i > 0 && i%lineEvery == 0 {
+			// this is a full line
+
+			buildingLine = buildingLine[:len(buildingLine)-1] // trailing space
+			for j := range lineTokens {
+				m := lineTokens[j]
+				m.fullLine = buildingLine
+				mocked = append(mocked, m)
+			}
+			buildingLine = ""
+			curLine++
+			curLinePos = 1
+			lineTokens = make([]token, 0)
+		}
+	}
+
+	if len(lineTokens) > 0 {
+		// this is a partial line
+		if len(buildingLine) > 0 {
+			buildingLine = buildingLine[:len(buildingLine)-1] // trailing space
+		}
+		for i := range lineTokens {
+			m := lineTokens[i]
+			m.fullLine = buildingLine
+			mocked = append(mocked, m)
+		}
+	}
+
+	return mocked
+}
+
+func mockTunascriptTokens(ofClass ...tokenClass) []token {
 	buildingLine := ""
 
 	var lineTokens = make([]token, 0)
@@ -282,10 +331,20 @@ func Test_SLR1Parse(t *testing.T) {
 	testCases := []struct {
 		name      string
 		grammar   string
-		input     []tokenClass
+		input     []string
 		expect    string
 		expectErr bool
-	}{}
+	}{
+		{
+			name: "purple dragon example 4.45",
+			grammar: `
+				E -> E + T | T ;
+				T -> T * F | F ;
+				F -> ( E ) | id ;
+				`,
+			input: []string{"id", "*", "id", "+", "id", "$"},
+		},
+	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -293,7 +352,7 @@ func Test_SLR1Parse(t *testing.T) {
 			assert := assert.New(t)
 			g := mustParseGrammar(tc.grammar)
 			stream := tokenStream{
-				tokens: mockTokens(tc.input...),
+				tokens: mockTerminalTokens(tc.input...),
 			}
 
 			// execute
@@ -359,7 +418,7 @@ func Test_LL1PredictiveParse(t *testing.T) {
 
 			g := mustParseGrammar(tc.grammar)
 			stream := tokenStream{
-				tokens: mockTokens(tc.input...),
+				tokens: mockTunascriptTokens(tc.input...),
 			}
 
 			// execute
