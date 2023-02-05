@@ -21,10 +21,10 @@ var (
 	// T -> T * F | F
 	// F -> ( E ) | id
 	//
-	expressionGrammar_4_1 = mustParseGrammar(`
-		E -> E + T | T
-		T -> T * F | F
-		F -> ( E ) | id
+	ExpressionGrammar_4_1 = mustParseGrammar(`
+		E -> E + T | T;
+		T -> T * F | F;
+		F -> ( E ) | id;
 	`)
 )
 
@@ -411,7 +411,7 @@ type Grammar struct {
 
 // Terminals returns an ordered list of the terminals in the grammar.
 func (g Grammar) Terminals() []string {
-	return util.OrderedKeys(g.rulesByName)
+	return util.OrderedKeys(g.terminals)
 }
 
 // Augmented returns a new grammar that is a copy of this one but with the start
@@ -1417,7 +1417,7 @@ func parseGrammar(gr string) (Grammar, error) {
 
 		for _, p := range rule.Productions {
 			for _, sym := range p {
-				if strings.ToUpper(sym) != sym && sym != "" {
+				if strings.ToLower(sym) == sym && sym != "" {
 					g.AddTerm(strings.ToLower(sym), tokenClass{id: strings.ToLower(sym), human: sym})
 				}
 			}

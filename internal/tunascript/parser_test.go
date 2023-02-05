@@ -226,6 +226,44 @@ var (
 	termRParen = strings.ToLower(tsGroupClose.id)
 )
 
+func Test_GenerateSimpleLRParseTable(t *testing.T) {
+	testCases := []struct {
+		name      string
+		grammar   string
+		expect    string
+		expectErr bool
+	}{
+		{
+			name: "purple dragon example 4.45",
+			grammar: `
+				E -> E + T | T ;
+				T -> T * F | F ;
+				F -> ( E ) | id ;
+			`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+			g := mustParseGrammar(tc.grammar)
+
+			// execute
+			actual, err := GenerateSimpleLRParseTable(g)
+
+			// assert
+			if tc.expectErr {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+			assert.Equal(tc.expect, actual.String())
+		})
+	}
+
+}
+
 func Test_SLR1Parse(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -235,7 +273,30 @@ func Test_SLR1Parse(t *testing.T) {
 		expectErr bool
 	}{}
 
-	for _, 
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+			g := mustParseGrammar(tc.grammar)
+			stream := tokenStream{
+				tokens: mockTokens(tc.input...),
+			}
+
+			// execute
+			SLRTable, err := GenerateSimpleLRParseTable(g)
+			assert.NoError(err, "generating LRParseTable failed")
+			actual, err := LRParse(SLRTable, stream)
+
+			// assert
+			if tc.expectErr {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+			assert.Equal(tc.expect, actual.String())
+
+		})
+	}
 }
 
 func Test_LL1PredictiveParse(t *testing.T) {

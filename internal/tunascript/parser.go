@@ -2,8 +2,10 @@ package tunascript
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
+	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
@@ -233,7 +235,7 @@ func (act LRAction) String() string {
 	case LRShift:
 		return fmt.Sprintf("ACTION<shift %s>", act.State)
 	default:
-		return fmt.Sprintf("ACTION<unknown>")
+		return "ACTION<unknown>"
 	}
 }
 
@@ -290,6 +292,10 @@ type LRParseTable interface {
 
 	// Goto maps a state and a grammar symbol to some other state.
 	Goto(state, symbol string) (string, error)
+
+	// String prints a string representation of the table. If two LRParseTables
+	// produce the same String() output, they are considered equal.
+	String() string
 }
 
 type slrTable struct {
@@ -297,6 +303,95 @@ type slrTable struct {
 	gStart    string
 	lr0       DFA[util.Set[string]]
 	itemCache map[string]LR0Item
+	gTerms    []string
+	gNonTerms []string
+}
+
+func (slr *slrTable) String() string {
+	// need mapping of state to indexes
+	stateRefs := map[string]string{}
+
+	// need to gaurantee order
+	stateNames := slr.lr0.States().Slice()
+	sort.Strings(stateNames)
+
+	// put the initial state first
+	for i := range stateNames {
+		if stateNames[i] == slr.lr0.Start {
+			old := stateNames[0]
+			stateNames[0] = stateNames[i]
+			stateNames[i] = old
+			break
+		}
+	}
+	for i := range stateNames {
+		stateRefs[stateNames[i]] = fmt.Sprintf("%d", i)
+	}
+
+	allTerms := make([]string, len(slr.gTerms))
+	copy(allTerms, slr.gTerms)
+	allTerms = append(allTerms, "$")
+
+	// okay now do data setup
+	data := [][]string{}
+
+	// set up the headers
+	headers := []string{"STATE"}
+
+	for _, t := range allTerms {
+		headers = append(headers, fmt.Sprintf("A(%s)", t))
+	}
+
+	for _, nt := range slr.gNonTerms {
+		headers = append(headers, fmt.Sprintf("G(%s)", nt))
+	}
+	data = append(data, headers)
+
+	// now need to do each state
+	for stateIdx := range stateNames {
+		i := stateNames[stateIdx]
+		row := []string{stateRefs[i]}
+
+		for _, t := range allTerms {
+			act := slr.Action(i, t)
+
+			cell := ""
+			switch act.Type {
+			case LRAccept:
+				cell = "acc"
+			case LRReduce:
+				// reduces to the state that corresponds with the symbol
+				cell = fmt.Sprintf("r%s -> %s", act.Symbol, act.Production.String())
+			case LRShift:
+				cell = fmt.Sprintf("s%s", stateRefs[act.State])
+			case LRError:
+				// do nothing, err is blank
+			}
+
+			row = append(row, cell)
+		}
+
+		for _, nt := range slr.gNonTerms {
+			var cell = ""
+
+			gotoState, err := slr.Goto(i, nt)
+			if err == nil {
+				cell = stateRefs[gotoState]
+			}
+
+			row = append(row, cell)
+		}
+
+		data = append(data, row)
+	}
+
+	// *8et* on that glubbin '120' width. lol.
+	return rosed.
+		Edit("").
+		InsertTableOpts(0, data, 120, rosed.Options{
+			TableHeaders: true,
+		}).
+		String()
 }
 
 func (slr *slrTable) Initial() string {
@@ -322,7 +417,7 @@ func (slr *slrTable) Goto(state, symbol string) (string, error) {
 	newState := slr.lr0.Next(state, symbol)
 
 	if newState == "" {
-		return "", fmt.Errorf("GOTO[%q, %q] is an error entry")
+		return "", fmt.Errorf("GOTO[%q, %q] is an error entry", state, symbol)
 	}
 	return newState, nil
 }
@@ -435,6 +530,8 @@ func GenerateSimpleLRParseTable(g Grammar) (LRParseTable, error) {
 	table := &slrTable{
 		gPrime:    g.Augmented(),
 		gStart:    g.StartSymbol(),
+		gTerms:    g.Terminals(),
+		gNonTerms: g.NonTerminals(),
 		lr0:       lr0Automaton,
 		itemCache: map[string]LR0Item{},
 	}

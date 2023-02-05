@@ -350,6 +350,22 @@ func (s Set[E]) Equal(o any) bool {
 	return true
 }
 
+// Slice returns the elements of s as a slice. No particular order is
+// guaranteed nor should it be relied on.
+func (s Set[E]) Slice() []E {
+	if s == nil {
+		return nil
+	}
+
+	sl := make([]E, 0)
+
+	for item := range s {
+		sl = append(sl, item)
+	}
+
+	return sl
+}
+
 func SetFromSlice[E comparable](sl []E) Set[E] {
 	if sl == nil {
 		return nil
