@@ -240,6 +240,20 @@ func Test_GenerateSimpleLRParseTable(t *testing.T) {
 				T -> T * F | F ;
 				F -> ( E ) | id ;
 			`,
+			expect: `S   |  A:(  A:)          A:*          A:+          A:ID  A:$          |  G:E  G:F  G:T
+--------------------------------------------------------------------------------------
+0   |  s1                                          s9                 |  4    10   6  
+1   |  s1                                          s9                 |  5    10   6  
+2   |  s1                                          s9                 |       10   3  
+3   |       rE -> E + T  s8           rE -> E + T        rE -> E + T  |               
+4   |                                 s2                 acc          |               
+5   |       s7                        s2                              |               
+6   |       rE -> T      s8           rE -> T            rE -> T      |               
+7   |       rF -> ( E )  rF -> ( E )  rF -> ( E )        rF -> ( E )  |               
+8   |  s1                                          s9                 |       11      
+9   |       rF -> id     rF -> id     rF -> id           rF -> id     |               
+10  |       rT -> F      rT -> F      rT -> F            rT -> F      |               
+11  |       rT -> T * F  rT -> T * F  rT -> T * F        rT -> T * F  |               `,
 		},
 	}
 

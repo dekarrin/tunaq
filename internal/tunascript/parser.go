@@ -336,21 +336,23 @@ func (slr *slrTable) String() string {
 	data := [][]string{}
 
 	// set up the headers
-	headers := []string{"STATE"}
+	headers := []string{"S", "|"}
 
 	for _, t := range allTerms {
-		headers = append(headers, fmt.Sprintf("A(%s)", t))
+		headers = append(headers, fmt.Sprintf("A:%s", t))
 	}
 
+	headers = append(headers, "|")
+
 	for _, nt := range slr.gNonTerms {
-		headers = append(headers, fmt.Sprintf("G(%s)", nt))
+		headers = append(headers, fmt.Sprintf("G:%s", nt))
 	}
 	data = append(data, headers)
 
 	// now need to do each state
 	for stateIdx := range stateNames {
 		i := stateNames[stateIdx]
-		row := []string{stateRefs[i]}
+		row := []string{stateRefs[i], "|"}
 
 		for _, t := range allTerms {
 			act := slr.Action(i, t)
@@ -371,6 +373,8 @@ func (slr *slrTable) String() string {
 			row = append(row, cell)
 		}
 
+		row = append(row, "|")
+
 		for _, nt := range slr.gNonTerms {
 			var cell = ""
 
@@ -385,11 +389,12 @@ func (slr *slrTable) String() string {
 		data = append(data, row)
 	}
 
-	// *8et* on that glubbin '120' width. lol.
+	// This used to be 120 width. Glu88in' *8et* on that. lol.
 	return rosed.
 		Edit("").
-		InsertTableOpts(0, data, 120, rosed.Options{
-			TableHeaders: true,
+		InsertTableOpts(0, data, 10, rosed.Options{
+			TableHeaders:             true,
+			NoTrailingLineSeparators: true,
 		}).
 		String()
 }
