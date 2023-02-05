@@ -57,6 +57,7 @@ func parseExpression(stream *tokenStream, rbp int) (*astNode, error) {
 type parseTree struct {
 	terminal bool
 	value    string
+	source   token
 	children []*parseTree
 }
 
@@ -154,6 +155,7 @@ func LL1PredictiveParse(g Grammar, stream tokenStream) (pt parseTree, err error)
 			t := g.Term(X)
 			if next.class.Equal(t) {
 				node.terminal = true
+				node.source = next
 				stack.Pop()
 				X = stack.Peek()
 				ptStack.Pop()
@@ -606,8 +608,10 @@ func GenerateSimpleLRParseTable(g Grammar) (LRParseTable, error) {
 // the purple dragon book.
 func LRParse(parser LRParseTable, stream tokenStream) (parseTree, error) {
 	stateStack := util.Stack[string]{Of: []string{parser.Initial()}}
-	pt := parseTree{value: parser.Initial()}
-	//ptStack := util.Stack[*parseTree]{Of: []*parseTree{&pt}}
+
+	// we will use these to build our parse tree
+	tokenBuffer := util.Stack[token]{}
+	subTreeRoots := util.Stack[*parseTree]{}
 
 	// let a be the first symbol of w$;
 	a := stream.Next()
@@ -620,6 +624,9 @@ func LRParse(parser LRParseTable, stream tokenStream) (parseTree, error) {
 
 		switch ACTION.Type {
 		case LRShift: // if ( ACTION[s, a] = shift t )
+			// add token to our buffer
+			tokenBuffer.Push(a)
+
 			t := ACTION.State
 
 			// push t onto the stack
@@ -630,6 +637,27 @@ func LRParse(parser LRParseTable, stream tokenStream) (parseTree, error) {
 		case LRReduce: // else if ( ACTION[s, a] = reduce A -> β )
 			A := ACTION.Symbol
 			beta := ACTION.Production
+
+			// use the reduce to create a node in the parse tree
+			node := &parseTree{value: A, children: make([]*parseTree, 0)}
+			// we need to go from right to left of the production to pop things
+			// from the stacks in the correct order
+			for i := len(beta) - 1; i >= 0; i-- {
+				sym := beta[i]
+				if strings.ToLower(sym) == sym {
+					// it is a terminal. read the source from the token buffer
+					tok := tokenBuffer.Pop()
+					subNode := &parseTree{terminal: true, value: tok.class.id, source: tok}
+					node.children = append([]*parseTree{subNode}, node.children...)
+				} else {
+					// it is a non-terminal. it should be in our stack of
+					// current tree roots.
+					subNode := subTreeRoots.Pop()
+					node.children = append([]*parseTree{subNode}, node.children...)
+				}
+			}
+			// remember it for next time
+			subTreeRoots.Push(node)
 
 			// pop |β| symbols off the stack;
 			for i := 0; i < len(beta); i++ {
@@ -642,7 +670,7 @@ func LRParse(parser LRParseTable, stream tokenStream) (parseTree, error) {
 			// push GOTO[t, A] onto the stack
 			toPush, err := parser.Goto(t, A)
 			if err != nil {
-				return pt, syntaxErrorFromLexeme("parsing failed", a)
+				return parseTree{}, syntaxErrorFromLexeme("parsing failed", a)
 			}
 			stateStack.Push(toPush)
 
@@ -650,12 +678,13 @@ func LRParse(parser LRParseTable, stream tokenStream) (parseTree, error) {
 			// TODO: put it on the parse tree
 			fmt.Printf("PUT %q -> %q ON PARSE TREE\n", A, beta)
 		case LRAccept: // else if ( ACTION[s, a] = accept )
-			// parsing is done
-			return pt, nil
+			// parsing is done. there should be at least one item on the stack
+			pt := subTreeRoots.Pop()
+			return *pt, nil
 		case LRError:
 			// call error-recovery routine
 			// TODO: error recovery, for now, just report it
-			return pt, syntaxErrorFromLexeme("parsing failed", a)
+			return parseTree{}, syntaxErrorFromLexeme("parsing failed", a)
 		}
 	}
 }
