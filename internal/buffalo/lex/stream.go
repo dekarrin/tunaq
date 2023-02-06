@@ -10,6 +10,6 @@ type TokenStream interface {
 	// Peek returns the next token in the stream without advancing the stream.
 	Peek() Token
 
-	// HasMore returns whether the stream has any additional tokens.
-	HasMore() bool
+	// HasNext returns whether the stream has any additional tokens.
+	HasNext() bool
 }
