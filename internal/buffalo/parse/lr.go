@@ -50,7 +50,7 @@ type lrParser struct {
 //
 // This is an implementation of Algorithm 4.44, "LR-parsing algorithm", from
 // the purple dragon book.
-func (lr lrParser) Parse(stream lex.TokenStream) (Tree, *bufferrors.SyntaxError) {
+func (lr lrParser) Parse(stream lex.TokenStream) (Tree, error) {
 	stateStack := util.Stack[string]{Of: []string{lr.table.Initial()}}
 
 	// we will use these to build our parse tree

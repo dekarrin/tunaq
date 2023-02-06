@@ -11,7 +11,6 @@
 package buffalo
 
 import (
-	"github.com/dekarrin/tunaq/internal/buffalo/bufferrors"
 	"github.com/dekarrin/tunaq/internal/buffalo/lex"
 	"github.com/dekarrin/tunaq/internal/buffalo/parse"
 )
@@ -19,5 +18,5 @@ import (
 type Parser interface {
 	// Parse parses input text and returns the parse tree built from it, or a
 	// SyntaxError with the description of the problem.
-	Parse(stream lex.TokenStream) (parse.Tree, *bufferrors.SyntaxError)
+	Parse(stream lex.TokenStream) (parse.Tree, error)
 }

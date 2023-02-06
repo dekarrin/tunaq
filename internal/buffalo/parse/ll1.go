@@ -29,7 +29,7 @@ func GenerateLL1Parser(g grammar.Grammar) (ll1Parser, error) {
 	return ll1Parser{table: M, g: g.Copy()}, nil
 }
 
-func (ll1 ll1Parser) Parse(stream lex.TokenStream) (Tree, *bufferrors.SyntaxError) {
+func (ll1 ll1Parser) Parse(stream lex.TokenStream) (Tree, error) {
 	stack := util.Stack[string]{Of: []string{ll1.g.StartSymbol(), "$"}}
 	next := stream.Peek()
 	X := stack.Peek()
