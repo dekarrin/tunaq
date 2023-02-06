@@ -1,8 +1,9 @@
-package tunascript
+package automaton
 
 import (
 	"testing"
 
+	"github.com/dekarrin/tunaq/internal/buffalo/grammar"
 	"github.com/dekarrin/tunaq/internal/util"
 	"github.com/stretchr/testify/assert"
 )
@@ -96,7 +97,7 @@ func Test_NewViablePrefixNFA(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// setup
 			assert := assert.New(t)
-			g := mustParseGrammar(tc.grammar)
+			g := grammar.MustParse(tc.grammar)
 			expect := buildLR0NFA(tc.expect, tc.expectStart)
 
 			// execute
@@ -519,17 +520,17 @@ func buildLR0NFA(from map[string][]string, start string) *NFA[string] {
 	nfa := &NFA[string]{}
 
 	for k := range from {
-		stateItem := mustParseLR0Item(k)
+		stateItem := grammar.MustParseLR0Item(k)
 		nfa.AddState(stateItem.String(), true)
 	}
 
 	fromKeys := util.OrderedKeys(from)
 
 	for _, k := range fromKeys {
-		fromItem := mustParseLR0Item(k)
+		fromItem := grammar.MustParseLR0Item(k)
 		for i := range from[k] {
 			transition := mustParseFATransition(from[k][i])
-			toItem := mustParseLR0Item(transition.next)
+			toItem := grammar.MustParseLR0Item(transition.next)
 			input := transition.input
 			nfa.AddTransition(fromItem.String(), input, toItem.String())
 		}

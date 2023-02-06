@@ -1,9 +1,13 @@
 package tunascript
 
+// TODO: genericize this and move it to buffalo package.
+
 import (
 	"regexp"
 	"strings"
 	"unicode"
+
+	"github.com/dekarrin/tunaq/internal/buffalo/lex"
 )
 
 const (
@@ -89,6 +93,26 @@ type token struct {
 	fullLine string
 }
 
+func (tok token) Class() lex.TokenClass {
+	return tok.class
+}
+
+func (tok token) Lexeme() string {
+	return tok.lexeme
+}
+
+func (tok token) LinePos() int {
+	return tok.pos
+}
+
+func (tok token) Line() int {
+	return tok.line
+}
+
+func (tok token) FullLine() string {
+	return tok.fullLine
+}
+
 func (tok token) Equal(o any) bool {
 	other, ok := o.(token)
 	if !ok {
@@ -129,11 +153,15 @@ type tokenClass struct {
 	lbp   int
 }
 
+func (tc tokenClass) ID() string {
+	return tc.id
+}
+
 func (tc tokenClass) Equal(o any) bool {
-	other, ok := o.(tokenClass)
+	other, ok := o.(lex.TokenClass)
 	if !ok {
 		// also okay if its the pointer value, as long as its non-nil
-		otherPtr, ok := o.(*tokenClass)
+		otherPtr, ok := o.(*lex.TokenClass)
 		if !ok {
 			return false
 		} else if otherPtr == nil {
@@ -144,7 +172,7 @@ func (tc tokenClass) Equal(o any) bool {
 
 	// IDs are always case insensitive and are considered sufficient to prove
 	// a tokenClass is equal to another.
-	return strings.EqualFold(tc.id, other.id)
+	return tc.ID() == other.ID()
 }
 
 // TODO: Do The Unmarshal Function Thing With The Operator Data Objects. Or
@@ -167,6 +195,10 @@ func (ts *tokenStream) Next() token {
 
 func (ts *tokenStream) Peek() token {
 	return ts.tokens[ts.cur]
+}
+
+func (ts *tokenStream) HasNext() bool {
+	return ts.Remaining() > 0
 }
 
 func (ts tokenStream) Len() int {

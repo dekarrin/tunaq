@@ -22,7 +22,7 @@ var (
 	// T -> T * F | F
 	// F -> ( E ) | id
 	//
-	ExpressionGrammar_4_1 = mustParseGrammar(`
+	ExpressionGrammar_4_1 = MustParse(`
 		E -> E + T | T;
 		T -> T * F | F;
 		F -> ( E ) | id;
@@ -1481,15 +1481,15 @@ func (g Grammar) LLParseTable() (M LL1Table, err error) {
 	return M, nil
 }
 
-func mustParseGrammar(gr string) Grammar {
-	g, err := parseGrammar(gr)
+func MustParse(gr string) Grammar {
+	g, err := Parse(gr)
 	if err != nil {
 		panic(err.Error())
 	}
 	return g
 }
 
-func parseGrammar(gr string) (Grammar, error) {
+func Parse(gr string) (Grammar, error) {
 	lines := strings.Split(gr, ";")
 
 	var g Grammar

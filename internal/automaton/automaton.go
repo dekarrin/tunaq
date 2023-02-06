@@ -1,10 +1,11 @@
-package tunascript
+package automaton
 
 import (
 	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/dekarrin/tunaq/internal/buffalo/grammar"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
@@ -326,7 +327,7 @@ func (nfa NFA[E]) ToDFA() DFA[util.Set[E]] {
 			// for ( each input symbol a )
 			for a := range inputSymbols {
 				// (but like, glub, not the epsilon symbol itself)
-				if a == Epsilon[0] {
+				if a == grammar.Epsilon[0] {
 					continue
 				}
 
@@ -544,21 +545,21 @@ func (nfa *NFA[E]) AddTransition(fromState string, input string, toState string)
 	nfa.states[fromState] = curFromState
 }
 
-func NewLR1ViablePrefixDFA(g Grammar) DFA[util.BSet[string, LR1Item]] {
+func NewLR1ViablePrefixDFA(g grammar.Grammar) DFA[util.BSet[string, grammar.LR1Item]] {
 	oldStart := g.StartSymbol()
 	g = g.Augmented()
 
-	initialItem := LR1Item{
-		LR0Item: LR0Item{
+	initialItem := grammar.LR1Item{
+		LR0Item: grammar.LR0Item{
 			NonTerminal: g.StartSymbol(),
 			Right:       []string{oldStart},
 		},
 		Lookahead: "$",
 	}
 
-	startSet := g.LR1_CLOSURE(util.BSet[string, LR1Item]{initialItem.String(): initialItem})
+	startSet := g.LR1_CLOSURE(util.BSet[string, grammar.LR1Item]{initialItem.String(): initialItem})
 
-	stateSets := util.NewBSet[string, util.BSet[string, LR1Item]]()
+	stateSets := util.NewBSet[string, util.BSet[string, grammar.LR1Item]]()
 	stateSets.Set(startSet.StringOrdered(), startSet)
 	transitions := map[string]map[string]FATransition{}
 
@@ -571,7 +572,7 @@ func NewLR1ViablePrefixDFA(g Grammar) DFA[util.BSet[string, LR1Item]] {
 		for _, I := range stateSets {
 
 			for _, item := range I {
-				if len(item.Right) == 0 || item.Right[0] == Epsilon[0] {
+				if len(item.Right) == 0 || item.Right[0] == grammar.Epsilon[0] {
 					continue // no epsilons, deterministic finite state
 				}
 				// For each symbol s (either a token or a nonterminal) that
@@ -581,7 +582,7 @@ func NewLR1ViablePrefixDFA(g Grammar) DFA[util.BSet[string, LR1Item]] {
 
 				// ...let Is be the set of all LR(1) items in I where s
 				// immediately follows the dot.
-				Is := util.NewBSet[string, LR1Item]()
+				Is := util.NewBSet[string, grammar.LR1Item]()
 				for _, checkItem := range I {
 					if len(checkItem.Right) >= 1 && checkItem.Right[0] == s {
 						newItem := checkItem.Copy()
@@ -629,7 +630,7 @@ func NewLR1ViablePrefixDFA(g Grammar) DFA[util.BSet[string, LR1Item]] {
 	// okay, we've actually pre-calculated all DFA items so we can now add them.
 	// might be able to optimize to add on-the-fly during above loop but this is
 	// easier for the moment.
-	dfa := DFA[util.BSet[string, LR1Item]]{}
+	dfa := DFA[util.BSet[string, grammar.LR1Item]]{}
 
 	// add states
 	for sName, state := range stateSets {
@@ -659,7 +660,7 @@ func NewLR1ViablePrefixDFA(g Grammar) DFA[util.BSet[string, LR1Item]] {
 // closures of the transitions, call ToDFA on the output of this function.
 //
 // To get a DFA whose values are
-func NewLR0ViablePrefixNFA(g Grammar) NFA[string] {
+func NewLR0ViablePrefixNFA(g grammar.Grammar) NFA[string] {
 	// add the dummy production
 	oldStart := g.StartSymbol()
 	g = g.Augmented()
@@ -667,7 +668,7 @@ func NewLR0ViablePrefixNFA(g Grammar) NFA[string] {
 	nfa := NFA[string]{}
 
 	// set the start state
-	nfa.Start = LR0Item{NonTerminal: g.StartSymbol(), Right: []string{oldStart}}.String()
+	nfa.Start = grammar.LR0Item{NonTerminal: g.StartSymbol(), Right: []string{oldStart}}.String()
 
 	items := g.LR0Items()
 
@@ -696,7 +697,7 @@ func NewLR0ViablePrefixNFA(g Grammar) NFA[string] {
 		// For item E -> α.Xβ, where X is any grammar symbol, add transition:
 		//
 		// E -> α.Xβ  =X=>  E -> αX.β
-		toItem := LR0Item{
+		toItem := grammar.LR0Item{
 			NonTerminal: item.NonTerminal,
 			Left:        append(alpha, X),
 			Right:       beta,
@@ -711,7 +712,7 @@ func NewLR0ViablePrefixNFA(g Grammar) NFA[string] {
 			// need to do this for every production of X
 			gammas := g.Rule(X).Productions
 			for _, gamma := range gammas {
-				prodState := LR0Item{
+				prodState := grammar.LR0Item{
 					NonTerminal: X,
 					Right:       gamma,
 				}
