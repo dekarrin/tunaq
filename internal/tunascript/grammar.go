@@ -39,6 +39,18 @@ type LR1Item struct {
 	Lookahead string
 }
 
+func (lr1 LR1Item) Copy() LR1Item {
+	lrCopy := LR1Item{}
+	lrCopy.NonTerminal = lr1.NonTerminal
+	lrCopy.Left = make([]string, len(lr1.Left))
+	copy(lrCopy.Left, lr1.Left)
+	lrCopy.Right = make([]string, len(lr1.Right))
+	copy(lrCopy.Right, lr1.Right)
+	lrCopy.Lookahead = lr1.Lookahead
+
+	return lrCopy
+}
+
 func mustParseLR0Item(s string) LR0Item {
 	i, err := parseLR0Item(s)
 	if err != nil {
@@ -480,51 +492,59 @@ func (g Grammar) LR0Items() []LR0Item {
 	return items
 }
 
-func (g Grammar) LR1Items() util.Set[*LR1Item] {
-	gp := g.Augmented()
+// Note: this actually takes the grammar for each production B -> gamma in G,
+// not G'. It's assumed this function is only called on a g.Augmented()
+// instance.
+func (g Grammar) LR1_CLOSURE(I util.BSet[string, LR1Item]) util.BSet[string, LR1Item] {
+	I = I.Copy()
 
-	CLOSURE := func(I util.Set[*LR1Item]) util.Set[*LR1Item] {
-		retI := I.Copy()
-		updated := true
-		for updated {
-			for it := range retI {
-				if len(it.Right) >= 1 {
-					B := it.Right[0]
-					ruleB := gp.Rule(B)
-					if ruleB.NonTerminal == "" {
-						continue
-					}
+	updated := true
+	for updated {
+		updated = false
+		for _, it := range I {
+			if len(it.Right) >= 1 {
+				B := it.Right[0]
+				ruleB := g.Rule(B)
+				if ruleB.NonTerminal == "" {
+					continue
+				}
 
-					for _, gamma := range ruleB.Productions {
-						fullArgs := make([]string, len(it.Right[1:]))
-						copy(fullArgs, it.Right[1:])
-						fullArgs = append(fullArgs, it.Lookahead)
-						for b := range gp.FIRST_STRING(fullArgs...) {
-							if strings.ToLower(b) != b {
-								continue // terminals only
-							}
-							newItem := LR1Item{
-								LR0Item: LR0Item{
-									NonTerminal: B,
-									Right:       gamma,
-								},
-								Lookahead: b,
-							}
-
-							oldLen := retI.Len()
-							retI.Add(newItem)
+				for _, gamma := range ruleB.Productions {
+					fullArgs := make([]string, len(it.Right[1:]))
+					copy(fullArgs, it.Right[1:])
+					fullArgs = append(fullArgs, it.Lookahead)
+					for b := range g.FIRST_STRING(fullArgs...) {
+						if strings.ToLower(b) != b {
+							continue // terminals only
+						}
+						newItem := LR1Item{
+							LR0Item: LR0Item{
+								NonTerminal: B,
+								Right:       gamma,
+							},
+							Lookahead: b,
+						}
+						if !I.Has(newItem.String()) {
+							I.Set(newItem.String(), newItem)
+							updated = true
 						}
 					}
 				}
 			}
 		}
 	}
+	return I
+}
 
-	items := util.Set[*LR1Item]{}
-
-	g.LR0Items()
-
-	return items
+// Note: this actually uses the grammar G, not G'. It's assumed this function is
+// only called on a g.Augmented() instance. This has a source in purple dragon
+// book 4.7.2.
+func (g Grammar) LR1_GOTO(I util.BSet[string, LR1Item], X string) util.BSet[string, LR1Item] {
+	J := util.NewBSet[string, LR1Item]()
+	for itemName, item := range I {
+		J.Set(itemName, item)
+	}
+	return g.LR1_CLOSURE(J)
 }
 
 // Copy makes a duplicate deep copy of the grammar.

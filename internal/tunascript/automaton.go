@@ -544,9 +544,81 @@ func (nfa *NFA[E]) AddTransition(fromState string, input string, toState string)
 	nfa.states[fromState] = curFromState
 }
 
-// Creates an NDA for all items of augmented grammar g'. The augmented grammar
-// is created by taking the start symbol S of g and adding a new production,
-// S' -> S as the new start symbol.
+func NewLR1ViablePrefixNDA(g Grammar) DFA[util.BSet[string, LR1Item]] {
+	oldStart := g.StartSymbol()
+	g = g.Augmented()
+
+	initialItem := LR1Item{
+		LR0Item: LR0Item{
+			NonTerminal: g.StartSymbol(),
+			Right:       []string{oldStart},
+		},
+		Lookahead: "$",
+	}
+
+	startSet := g.LR1_CLOSURE(util.BSet[string, LR1Item]{initialItem.String(): initialItem})
+
+	stateSets := util.NewBSet[string, util.BSet[string, LR1Item]]()
+	stateSets.Set(startSet.StringOrdered(), startSet)
+
+	// following algo from http://www.cs.ecu.edu/karl/5220/spr16/Notes/Bottom-up/lr1.html
+	updates := true
+	for updates {
+		updates = false
+
+		// suppose that state q contains set I of LR(1) items
+		for q, I := range stateSets {
+
+			for _, item := range I {
+				if len(item.Right) == 0 || item.Right[0] == Epsilon[0] {
+					continue // no epsilons, deterministic finite state
+				}
+				// For each symbol s (either a token or a nonterminal) that
+				// immediately follows a dot in an LR(1) item [A → α ⋅ sβ, t] in
+				// set I...
+				s := item.Right[0]
+
+				// ...let Is be the set of all LR(1) items in I where s
+				// immediately follows the dot.
+				Is := util.NewBSet[string, LR1Item]()
+				for _, checkItem := range I {
+					if len(checkItem.Right) >= 1 && checkItem.Right[0] == s {
+						newItem := checkItem.Copy()
+
+						// Move the dot to the other side of s in each of them.
+						newItem.Left = append(newItem.Left, s)
+						newItem.Right = make([]string, len(checkItem.Right)-1)
+						copy(newItem.Right, checkItem.Right[1:])
+
+						Is.Set(checkItem.String(), newItem)
+					}
+				}
+
+				// That set [Is] becomes the kernel of state q', and you make a
+				// transition from q to q′ on s. As usual, form the closure of
+				// the set of LR(1) items in state q'.
+				newSet := g.LR1_CLOSURE(Is)
+
+				if !stateSets.Has(newSet.StringOrdered()) {
+					updates = true
+					stateSets.Set(newSet.StringOrdered(), newSet)
+				}
+
+			}
+
+		}
+	}
+
+	dfa := DFA[util.BSet[string, LR1Item]]{}
+	dfa.AddState(startSet.StringOrdered(), true)
+	dfa.SetValue(startSet.StringOrdered(), startSet)
+
+	items := g.LR1Items()
+}
+
+// Creates an NDA for all LR0 items of augmented grammar g'. The augmented
+// grammar is created by taking the start symbol S of g and adding a new
+// production, S' -> S, as the new start symbol.
 //
 // The value at each state will be the string encoding of the LR0 item it
 // represents. To get a DFA whose states and values at each are the epsilon

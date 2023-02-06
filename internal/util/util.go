@@ -133,31 +133,153 @@ func NewMatrix2[EX, EY comparable, V any]() Matrix2[EX, EY, V] {
 	return map[EX]map[EY]V{}
 }
 
-// Hashable is somefin that returns a unique comparable value for itself. It can
-// also turn itself back from that.
-type Hashable[E comparable] interface {
-	CustomComparable
-	String() string
-	Hash() E
-	Unhash(val E)
-}
+// TODO: make all sets be this it is betta glub.
+//
+// Don't use bettaset directy, call newbettaset
+//
+// B stands for 8etta 38888)
+type BSet[I comparable, V any] map[I]V
 
-type HString string
-
-func (hs HString) String() string {
-	return string(hs)
-}
-
-func (hs HString) Hash() string {
-	return hs.String()
-}
-
-func (hs HString) Equal(o any) bool {
-	other, ok := o.(HString)
-	if !ok {
-		otherPtr, ok := o.(*HString)
-
+func NewBSet[I comparable, V any](of ...map[I]V) BSet[I, V] {
+	bs := BSet[I, V](map[I]V{})
+	for _, m := range of {
+		for k := range m {
+			bs.Set(k, m[k])
+		}
 	}
+	return bs
+}
+
+func (s BSet[I, V]) Copy() BSet[I, V] {
+	return NewBSet(s)
+}
+
+// Add adds an index. Has no effect if it's already there. Returns this set.
+func (s BSet[I, V]) Add(idx I) BSet[I, V] {
+	newRef := new(V)
+	s[idx] = *newRef
+	return s
+}
+
+func (s BSet[I, V]) Set(idx I, val V) BSet[I, V] {
+	s[idx] = val
+	return s
+}
+
+func (s BSet[I, V]) Get(idx I) V {
+	return s[idx]
+}
+
+func (s BSet[I, V]) Has(idx I) bool {
+	_, ok := s[idx]
+	return ok
+}
+
+func (s BSet[I, V]) Remove(idx I) BSet[I, V] {
+	delete(s, idx)
+	return s
+}
+
+func (s BSet[I, V]) Len() int {
+	return len(s)
+}
+
+// StringOrdered shows the contents of the set. Items are guaranteed to be
+// alphabetized.
+func (s BSet[I, V]) StringOrdered() string {
+	convs := []string{}
+
+	for k := range s {
+		convs = append(convs, fmt.Sprintf("%v", k))
+	}
+
+	sort.Strings(convs)
+
+	var sb strings.Builder
+
+	sb.WriteRune('{')
+	for i := range convs {
+		sb.WriteString(convs[i])
+		if i+1 < len(convs) {
+			sb.WriteRune(',')
+			sb.WriteRune(' ')
+		}
+	}
+	sb.WriteRune('}')
+	return sb.String()
+}
+
+// String shows the contents of the set. Items are not guaranteed to be in any
+// particular order.
+func (s BSet[I, V]) String() string {
+	var sb strings.Builder
+
+	totalLen := s.Len()
+	itemsWritten := 0
+
+	sb.WriteRune('{')
+	for k := range s {
+		sb.WriteString(fmt.Sprintf("%v", k))
+		itemsWritten++
+		if itemsWritten < totalLen {
+			sb.WriteRune(',')
+			sb.WriteRune(' ')
+		}
+	}
+	sb.WriteRune('}')
+	return sb.String()
+}
+
+// Equal returns whether two sets have the same items. If anything other than a
+// Set[E], *Set[E], []map[E]bool, or *[]map[E]bool is passed
+// in, they will not be considered equal.
+//
+// A Stack[E] *is* considered equal to a *[]E or []E that has the same contents
+// as the Stack in the same order.
+//
+// This does NOT do Equal on the individual items, but rather a simple equality
+// check. To do full Equal on everything, use EqualSlices on the Ofs of the
+// stacks.
+func (s BSet[I, V]) Equal(o any) bool {
+	other, ok := o.(BSet[I, V])
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*BSet[I, V])
+		if !ok {
+			// also okay if it's a map
+			otherMap, ok := o.(map[I]V)
+
+			if !ok {
+				// also okay if it's a ptr to map
+				otherMapPtr, ok := o.(*map[I]V)
+				if !ok {
+					return false
+				} else if otherMapPtr == nil {
+					return false
+				} else {
+					other = BSet[I, V](*otherMapPtr)
+				}
+			} else {
+				other = BSet[I, V](otherMap)
+			}
+		} else if otherPtr == nil {
+			return false
+		} else {
+			other = *otherPtr
+		}
+	}
+
+	if s.Len() != other.Len() {
+		return false
+	}
+
+	for k := range s {
+		if !other.Has(k) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (m2 Matrix2[EX, EY, V]) Set(x EX, y EY, value V) {
