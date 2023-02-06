@@ -1,7 +1,6 @@
 package parse
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/dekarrin/tunaq/internal/buffalo/bufferrors"
@@ -120,7 +119,6 @@ func (lr lrParser) Parse(stream lex.TokenStream) (Tree, error) {
 
 			// output the production A -> β
 			// TODO: put it on the parse tree
-			fmt.Printf("PUT %q -> %q ON PARSE TREE\n", A, beta)
 		case LRAccept: // else if ( ACTION[s, a] = accept )
 			// parsing is done. there should be at least one item on the stack
 			pt := subTreeRoots.Pop()

@@ -75,6 +75,19 @@ func Test_SLR1Parse(t *testing.T) {
 				F -> ( E ) | id ;
 				`,
 			input: []string{"id", "*", "id", "+", "id", "$"},
+			expect: `( E )
+  |---: ( E )
+  |       \---: ( T )
+  |               |---: ( T )
+  |               |       \---: ( F )
+  |               |               \---: (TERM "id")
+  |               |---: (TERM "*")
+  |               \---: ( F )
+  |                       \---: (TERM "id")
+  |---: (TERM "+")
+  \---: ( T )
+          \---: ( F )
+                  \---: (TERM "id")`,
 		},
 	}
 
