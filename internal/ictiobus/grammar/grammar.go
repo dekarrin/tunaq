@@ -7,7 +7,7 @@ import (
 	"unicode"
 
 	"github.com/dekarrin/rosed"
-	"github.com/dekarrin/tunaq/internal/buffalo/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 

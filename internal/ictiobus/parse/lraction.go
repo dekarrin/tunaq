@@ -3,7 +3,7 @@ package parse
 import (
 	"fmt"
 
-	"github.com/dekarrin/tunaq/internal/buffalo/grammar"
+	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 )
 
 type LRActionType int

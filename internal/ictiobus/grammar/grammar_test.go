@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dekarrin/tunaq/internal/buffalo/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 	"github.com/dekarrin/tunaq/internal/util"
 	"github.com/stretchr/testify/assert"
 )

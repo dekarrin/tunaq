@@ -3,8 +3,8 @@ package parse
 import (
 	"strings"
 
-	"github.com/dekarrin/tunaq/internal/buffalo/bufferrors"
-	"github.com/dekarrin/tunaq/internal/buffalo/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/icterrors"
+	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
@@ -113,7 +113,7 @@ func (lr lrParser) Parse(stream lex.TokenStream) (Tree, error) {
 			// push GOTO[t, A] onto the stack
 			toPush, err := lr.table.Goto(t, A)
 			if err != nil {
-				return Tree{}, bufferrors.NewSyntaxErrorFromToken("parsing failed", a)
+				return Tree{}, icterrors.NewSyntaxErrorFromToken("parsing failed", a)
 			}
 			stateStack.Push(toPush)
 
@@ -126,7 +126,7 @@ func (lr lrParser) Parse(stream lex.TokenStream) (Tree, error) {
 		case LRError:
 			// call error-recovery routine
 			// TODO: error recovery, for now, just report it
-			return Tree{}, bufferrors.NewSyntaxErrorFromToken("parsing failed", a)
+			return Tree{}, icterrors.NewSyntaxErrorFromToken("parsing failed", a)
 		}
 	}
 }

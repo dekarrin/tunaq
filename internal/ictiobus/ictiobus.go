@@ -3,16 +3,18 @@
 // out after it turned from "small knowledge gaining side-side project" into
 // full-blown compilers and translators research.
 //
-// It's based off of the buffalo fish and also bison because of course.
+// It's based off of the name for the buffalo fish due to the buffalo's relation
+// with bison. Naturally, bison due to its popularity as a parser-generator
+// tool.
 //
 // This will probably never be as good as bison, so consider using that. This is
 // for research and does not seek to replace existing toolchains in any
 // practical fashion.
-package buffalo
+package ictiobus
 
 import (
-	"github.com/dekarrin/tunaq/internal/buffalo/lex"
-	"github.com/dekarrin/tunaq/internal/buffalo/parse"
+	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/parse"
 )
 
 type Parser interface {

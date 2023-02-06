@@ -3,7 +3,7 @@ package automaton
 import (
 	"testing"
 
-	"github.com/dekarrin/tunaq/internal/buffalo/grammar"
+	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/util"
 	"github.com/stretchr/testify/assert"
 )

@@ -3,8 +3,8 @@ package parse
 import (
 	"testing"
 
-	"github.com/dekarrin/tunaq/internal/buffalo/grammar"
-	"github.com/dekarrin/tunaq/internal/buffalo/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
+	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 	"github.com/stretchr/testify/assert"
 )
 

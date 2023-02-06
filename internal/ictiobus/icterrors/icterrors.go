@@ -1,9 +1,9 @@
-package bufferrors
+package icterrors
 
 import (
 	"fmt"
 
-	"github.com/dekarrin/tunaq/internal/buffalo/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 )
 
 type SyntaxError struct {

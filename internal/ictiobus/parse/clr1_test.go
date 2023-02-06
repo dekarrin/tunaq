@@ -3,11 +3,11 @@ package parse
 import (
 	"testing"
 
-	"github.com/dekarrin/tunaq/internal/buffalo/grammar"
+	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_ConstructSimpleLRParseTable(t *testing.T) {
+func Test_ConstructCanonicalLR1ParseTable(t *testing.T) {
 	testCases := []struct {
 		name      string
 		grammar   string
@@ -17,24 +17,21 @@ func Test_ConstructSimpleLRParseTable(t *testing.T) {
 		{
 			name: "purple dragon example 4.45",
 			grammar: `
-				E -> E + T | T ;
-				T -> T * F | F ;
-				F -> ( E ) | id ;
+				S -> C C ;
+				C -> c C | d ;
 			`,
-			expect: `S   |  A:(  A:)          A:*          A:+          A:ID  A:$          |  G:E  G:F  G:T
---------------------------------------------------------------------------------------
-0   |  s1                                          s9                 |  4    10   6  
-1   |  s1                                          s9                 |  5    10   6  
-2   |  s1                                          s9                 |       10   3  
-3   |       rE -> E + T  s8           rE -> E + T        rE -> E + T  |               
-4   |                                 s2                 acc          |               
-5   |       s7                        s2                              |               
-6   |       rE -> T      s8           rE -> T            rE -> T      |               
-7   |       rF -> ( E )  rF -> ( E )  rF -> ( E )        rF -> ( E )  |               
-8   |  s1                                          s9                 |       11      
-9   |       rF -> id     rF -> id     rF -> id           rF -> id     |               
-10  |       rT -> F      rT -> F      rT -> F            rT -> F      |               
-11  |       rT -> T * F  rT -> T * F  rT -> T * F        rT -> T * F  |               `,
+			expect: `S  |  A:C        A:D        A:$        |  G:C  G:S
+--------------------------------------------------
+0  |  s2         s7                    |  1    9  
+1  |  s3         s6                    |  8       
+2  |  s2         s7                    |  5       
+3  |  s3         s6                    |  4       
+4  |                        rC -> c C  |          
+5  |  rC -> c C  rC -> c C             |          
+6  |                        rC -> d    |          
+7  |  rC -> d    rC -> d               |          
+8  |                        rS -> C C  |          
+9  |                        acc        |          `,
 		},
 	}
 
@@ -45,7 +42,7 @@ func Test_ConstructSimpleLRParseTable(t *testing.T) {
 			g := grammar.MustParse(tc.grammar)
 
 			// execute
-			actual, err := constructSimpleLRParseTable(g)
+			actual, err := constructCanonicalLR1ParseTable(g)
 
 			// assert
 			if tc.expectErr {
@@ -59,7 +56,7 @@ func Test_ConstructSimpleLRParseTable(t *testing.T) {
 
 }
 
-func Test_SLR1Parse(t *testing.T) {
+func Test_CanonicalLR1Parse(t *testing.T) {
 	testCases := []struct {
 		name      string
 		grammar   string
@@ -99,7 +96,7 @@ func Test_SLR1Parse(t *testing.T) {
 			stream := mockTokens(tc.input...)
 
 			// execute
-			parser, err := GenerateSimpleLRParser(g)
+			parser, err := GenerateCanonicalLR1Parser(g)
 			assert.NoError(err, "generating SLR parser failed")
 			actual, err := parser.Parse(stream)
 

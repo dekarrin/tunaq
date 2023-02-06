@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dekarrin/tunaq/internal/buffalo/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 )
 
 func makeTreeLevelPrefix(msg string) string {

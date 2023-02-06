@@ -1,6 +1,6 @@
 package parse
 
-import "github.com/dekarrin/tunaq/internal/buffalo/lex"
+import "github.com/dekarrin/tunaq/internal/ictiobus/lex"
 
 // mockstream will just be a v simple token stream
 type mockStream struct {

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dekarrin/tunaq/internal/buffalo/grammar"
+	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
@@ -592,7 +592,7 @@ func NewLR1ViablePrefixDFA(g grammar.Grammar) DFA[util.BSet[string, grammar.LR1I
 						newItem.Right = make([]string, len(checkItem.Right)-1)
 						copy(newItem.Right, checkItem.Right[1:])
 
-						Is.Set(checkItem.String(), newItem)
+						Is.Set(newItem.String(), newItem)
 					}
 				}
 

@@ -5,8 +5,8 @@ import (
 	"sort"
 
 	"github.com/dekarrin/rosed"
-	"github.com/dekarrin/tunaq/internal/automaton"
-	"github.com/dekarrin/tunaq/internal/buffalo/grammar"
+	"github.com/dekarrin/tunaq/internal/ictiobus/automaton"
+	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
