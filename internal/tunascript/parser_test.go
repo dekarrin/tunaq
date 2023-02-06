@@ -327,6 +327,44 @@ func Test_ConstructSimpleLRParseTable(t *testing.T) {
 
 }
 
+func Test_ConstructCanonicalLR1ParseTable(t *testing.T) {
+	testCases := []struct {
+		name      string
+		grammar   string
+		expect    string
+		expectErr bool
+	}{
+		{
+			name: "purple dragon example 4.45",
+			grammar: `
+				S -> C C ;
+				C -> c C | d ;
+			`,
+			expect: ``,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+			g := mustParseGrammar(tc.grammar)
+
+			// execute
+			actual, err := ConstructCanonicalLR1ParseTable(g)
+
+			// assert
+			if tc.expectErr {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
+			assert.Equal(tc.expect, actual.String())
+		})
+	}
+
+}
+
 func Test_SLR1Parse(t *testing.T) {
 	testCases := []struct {
 		name      string

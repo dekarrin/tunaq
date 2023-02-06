@@ -511,7 +511,7 @@ func (slr *slrTable) Initial() string {
 }
 
 func (clr1 *canonicalLR1Table) Goto(state, symbol string) (string, error) {
-	// step 3 of algorithm 4.56, "Construction of canonicalLR-parsing tables",
+	// step 3 of algorithm 4.56, "Construction of canonical-LR parsing tables",
 	// for reference:
 
 	// 3. The goto transitions for state i are constructed for all nonterminals
@@ -548,7 +548,7 @@ func (slr *slrTable) Goto(state, symbol string) (string, error) {
 }
 
 func (clr1 *canonicalLR1Table) Action(i, a string) LRAction {
-	// step 2 of algorithm 4.56, "Construction of canonicalLR-parsing tables",
+	// step 2 of algorithm 4.56, "Construction of canonical-LR parsing tables",
 	// for reference:
 
 	// 2. State i is constructed from Iᵢ. The parsing actions for state i are
