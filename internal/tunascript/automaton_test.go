@@ -100,7 +100,7 @@ func Test_NewViablePrefixNFA(t *testing.T) {
 			expect := buildLR0NFA(tc.expect, tc.expectStart)
 
 			// execute
-			actual := NewViablePrefixNDA(g)
+			actual := NewLR0ViablePrefixNFA(g)
 
 			// assert
 			assert.Equal(expect.String(), actual.String())

@@ -544,7 +544,7 @@ func (nfa *NFA[E]) AddTransition(fromState string, input string, toState string)
 	nfa.states[fromState] = curFromState
 }
 
-func NewLR1ViablePrefixNDA(g Grammar) DFA[util.BSet[string, LR1Item]] {
+func NewLR1ViablePrefixDFA(g Grammar) DFA[util.BSet[string, LR1Item]] {
 	oldStart := g.StartSymbol()
 	g = g.Augmented()
 
@@ -560,6 +560,7 @@ func NewLR1ViablePrefixNDA(g Grammar) DFA[util.BSet[string, LR1Item]] {
 
 	stateSets := util.NewBSet[string, util.BSet[string, LR1Item]]()
 	stateSets.Set(startSet.StringOrdered(), startSet)
+	transitions := map[string]map[string]FATransition{}
 
 	// following algo from http://www.cs.ecu.edu/karl/5220/spr16/Notes/Bottom-up/lr1.html
 	updates := true
@@ -567,7 +568,7 @@ func NewLR1ViablePrefixNDA(g Grammar) DFA[util.BSet[string, LR1Item]] {
 		updates = false
 
 		// suppose that state q contains set I of LR(1) items
-		for q, I := range stateSets {
+		for _, I := range stateSets {
 
 			for _, item := range I {
 				if len(item.Right) == 0 || item.Right[0] == Epsilon[0] {
@@ -599,21 +600,54 @@ func NewLR1ViablePrefixNDA(g Grammar) DFA[util.BSet[string, LR1Item]] {
 				// the set of LR(1) items in state q'.
 				newSet := g.LR1_CLOSURE(Is)
 
+				// add to states if not already in it
 				if !stateSets.Has(newSet.StringOrdered()) {
 					updates = true
 					stateSets.Set(newSet.StringOrdered(), newSet)
 				}
 
+				// add to transitions if not already in it
+				stateTransitions, ok := transitions[I.StringOrdered()]
+				if !ok {
+					stateTransitions = map[string]FATransition{}
+				}
+				trans, ok := stateTransitions[s]
+				if !ok {
+					trans = FATransition{}
+				}
+				if trans.next != newSet.StringOrdered() {
+					updates = true
+					trans.input = s
+					trans.next = newSet.StringOrdered()
+					stateTransitions[s] = trans
+					transitions[I.StringOrdered()] = stateTransitions
+				}
 			}
-
 		}
 	}
 
+	// okay, we've actually pre-calculated all DFA items so we can now add them.
+	// might be able to optimize to add on-the-fly during above loop but this is
+	// easier for the moment.
 	dfa := DFA[util.BSet[string, LR1Item]]{}
-	dfa.AddState(startSet.StringOrdered(), true)
-	dfa.SetValue(startSet.StringOrdered(), startSet)
 
-	items := g.LR1Items()
+	// add states
+	for sName, state := range stateSets {
+		dfa.AddState(sName, true)
+		dfa.SetValue(sName, state)
+	}
+
+	// transitions
+	for onState, stateTrans := range transitions {
+		for _, t := range stateTrans {
+			dfa.AddTransition(onState, t.input, t.next)
+		}
+	}
+
+	// and start
+	dfa.Start = startSet.StringOrdered()
+
+	return dfa
 }
 
 // Creates an NDA for all LR0 items of augmented grammar g'. The augmented
@@ -625,7 +659,7 @@ func NewLR1ViablePrefixNDA(g Grammar) DFA[util.BSet[string, LR1Item]] {
 // closures of the transitions, call ToDFA on the output of this function.
 //
 // To get a DFA whose values are
-func NewViablePrefixNDA(g Grammar) NFA[string] {
+func NewLR0ViablePrefixNFA(g Grammar) NFA[string] {
 	// add the dummy production
 	oldStart := g.StartSymbol()
 	g = g.Augmented()

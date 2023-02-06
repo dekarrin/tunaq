@@ -275,7 +275,7 @@ var (
 	termRParen = strings.ToLower(tsGroupClose.id)
 )
 
-func Test_GenerateSimpleLRParseTable(t *testing.T) {
+func Test_ConstructSimpleLRParseTable(t *testing.T) {
 	testCases := []struct {
 		name      string
 		grammar   string
@@ -313,7 +313,7 @@ func Test_GenerateSimpleLRParseTable(t *testing.T) {
 			g := mustParseGrammar(tc.grammar)
 
 			// execute
-			actual, err := GenerateSimpleLRParseTable(g)
+			actual, err := ConstructSimpleLRParseTable(g)
 
 			// assert
 			if tc.expectErr {
@@ -356,7 +356,7 @@ func Test_SLR1Parse(t *testing.T) {
 			}
 
 			// execute
-			SLRTable, err := GenerateSimpleLRParseTable(g)
+			SLRTable, err := ConstructSimpleLRParseTable(g)
 			assert.NoError(err, "generating LRParseTable failed")
 			actual, err := LRParse(SLRTable, stream)
 
