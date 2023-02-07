@@ -8,6 +8,12 @@ import (
 	"unicode"
 )
 
+type Container[E any] interface {
+	// Elements returns a slice of the elements. They are not garaunteed to be
+	// in any particular order.
+	Elements() []E
+}
+
 // Stringer
 
 // Stack is a stack. It is backed by a slice where the left-most position is the
@@ -133,155 +139,6 @@ func NewMatrix2[EX, EY comparable, V any]() Matrix2[EX, EY, V] {
 	return map[EX]map[EY]V{}
 }
 
-// TODO: make all sets be this it is betta glub.
-//
-// Don't use bettaset directy, call newbettaset
-//
-// B stands for 8etta 38888)
-type BSet[I comparable, V any] map[I]V
-
-func NewBSet[I comparable, V any](of ...map[I]V) BSet[I, V] {
-	bs := BSet[I, V](map[I]V{})
-	for _, m := range of {
-		for k := range m {
-			bs.Set(k, m[k])
-		}
-	}
-	return bs
-}
-
-func (s BSet[I, V]) Copy() BSet[I, V] {
-	return NewBSet(s)
-}
-
-// Add adds an index. Has no effect if it's already there. Returns this set.
-func (s BSet[I, V]) Add(idx I) BSet[I, V] {
-	newRef := new(V)
-	s[idx] = *newRef
-	return s
-}
-
-func (s BSet[I, V]) Set(idx I, val V) BSet[I, V] {
-	s[idx] = val
-	return s
-}
-
-func (s BSet[I, V]) Get(idx I) V {
-	return s[idx]
-}
-
-func (s BSet[I, V]) Has(idx I) bool {
-	_, ok := s[idx]
-	return ok
-}
-
-func (s BSet[I, V]) Remove(idx I) BSet[I, V] {
-	delete(s, idx)
-	return s
-}
-
-func (s BSet[I, V]) Len() int {
-	return len(s)
-}
-
-// StringOrdered shows the contents of the set. Items are guaranteed to be
-// alphabetized.
-func (s BSet[I, V]) StringOrdered() string {
-	convs := []string{}
-
-	for k := range s {
-		convs = append(convs, fmt.Sprintf("%v", k))
-	}
-
-	sort.Strings(convs)
-
-	var sb strings.Builder
-
-	sb.WriteRune('{')
-	for i := range convs {
-		sb.WriteString(convs[i])
-		if i+1 < len(convs) {
-			sb.WriteRune(',')
-			sb.WriteRune(' ')
-		}
-	}
-	sb.WriteRune('}')
-	return sb.String()
-}
-
-// String shows the contents of the set. Items are not guaranteed to be in any
-// particular order.
-func (s BSet[I, V]) String() string {
-	var sb strings.Builder
-
-	totalLen := s.Len()
-	itemsWritten := 0
-
-	sb.WriteRune('{')
-	for k := range s {
-		sb.WriteString(fmt.Sprintf("%v", k))
-		itemsWritten++
-		if itemsWritten < totalLen {
-			sb.WriteRune(',')
-			sb.WriteRune(' ')
-		}
-	}
-	sb.WriteRune('}')
-	return sb.String()
-}
-
-// Equal returns whether two sets have the same items. If anything other than a
-// Set[E], *Set[E], []map[E]bool, or *[]map[E]bool is passed
-// in, they will not be considered equal.
-//
-// A Stack[E] *is* considered equal to a *[]E or []E that has the same contents
-// as the Stack in the same order.
-//
-// This does NOT do Equal on the individual items, but rather a simple equality
-// check. To do full Equal on everything, use EqualSlices on the Ofs of the
-// stacks.
-func (s BSet[I, V]) Equal(o any) bool {
-	other, ok := o.(BSet[I, V])
-	if !ok {
-		// also okay if its the pointer value, as long as its non-nil
-		otherPtr, ok := o.(*BSet[I, V])
-		if !ok {
-			// also okay if it's a map
-			otherMap, ok := o.(map[I]V)
-
-			if !ok {
-				// also okay if it's a ptr to map
-				otherMapPtr, ok := o.(*map[I]V)
-				if !ok {
-					return false
-				} else if otherMapPtr == nil {
-					return false
-				} else {
-					other = BSet[I, V](*otherMapPtr)
-				}
-			} else {
-				other = BSet[I, V](otherMap)
-			}
-		} else if otherPtr == nil {
-			return false
-		} else {
-			other = *otherPtr
-		}
-	}
-
-	if s.Len() != other.Len() {
-		return false
-	}
-
-	for k := range s {
-		if !other.Has(k) {
-			return false
-		}
-	}
-
-	return true
-}
-
 func (m2 Matrix2[EX, EY, V]) Set(x EX, y EY, value V) {
 	if m2 == nil {
 		panic("assignment to nil Matrix2")
@@ -315,228 +172,6 @@ func (m2 Matrix2[EX, EY, V]) Get(x EX, y EY) *V {
 	}
 
 	return &val
-}
-
-type Set[E comparable] map[E]bool
-
-func (s Set[E]) Copy() Set[E] {
-	newS := Set[E]{}
-
-	for k := range s {
-		newS[k] = true
-	}
-
-	return newS
-}
-
-// Union returns a new Set that is the union of s and o.
-func (s Set[E]) Union(o Set[E]) Set[E] {
-	newSet := Set[E]{}
-
-	newSet.AddAll(s)
-	newSet.AddAll(o)
-
-	return newSet
-}
-
-// Intersection returns a new Set that contains the elements that are in both
-// s and o.
-func (s Set[E]) Intersection(o Set[E]) Set[E] {
-	newSet := Set[E]{}
-
-	for k := range s {
-		if o.Has(k) {
-			newSet.Add(k)
-		}
-	}
-
-	return newSet
-}
-
-// Difference returns a new Set that contains the elements that are in s but not
-// in o.
-func (s Set[E]) Difference(o Set[E]) Set[E] {
-	newSet := Set[E]{}
-	newSet.AddAll(s)
-
-	for k := range o {
-		newSet.Remove(k)
-	}
-
-	return newSet
-}
-
-func (s Set[E]) DisjointWith(o Set[E]) bool {
-	for k := range s {
-		if _, ok := o[k]; ok {
-			return false
-		}
-	}
-	return true
-}
-
-func (s Set[E]) Empty() bool {
-	return s.Len() == 0
-}
-
-func (s Set[E]) Any(predicate func(v E) bool) bool {
-	for k := range s {
-		if predicate(k) {
-			return true
-		}
-	}
-	return false
-}
-
-func (s Set[E]) Has(value E) bool {
-	_, has := s[value]
-	return has
-}
-
-func (s Set[E]) Add(value E) {
-	s[value] = true
-}
-
-func (s Set[E]) Remove(value E) {
-	delete(s, value)
-}
-
-func (s Set[E]) Len() int {
-	return len(s)
-}
-
-func (s Set[E]) AddAll(from Set[E]) {
-	for element := range from {
-		s.Add(element)
-	}
-}
-
-// StringOrdered shows the contents of the set. Items are guaranteed to be
-// alphabetized.
-func (s Set[E]) StringOrdered() string {
-	convs := []string{}
-
-	for k := range s {
-		convs = append(convs, fmt.Sprintf("%v", k))
-	}
-
-	sort.Strings(convs)
-
-	var sb strings.Builder
-
-	sb.WriteRune('{')
-	for i := range convs {
-		sb.WriteString(convs[i])
-		if i+1 < len(convs) {
-			sb.WriteRune(',')
-			sb.WriteRune(' ')
-		}
-	}
-	sb.WriteRune('}')
-	return sb.String()
-}
-
-// String shows the contents of the set. Items are not guaranteed to be in any
-// particular order.
-func (s Set[E]) String() string {
-	var sb strings.Builder
-
-	totalLen := s.Len()
-	itemsWritten := 0
-
-	sb.WriteRune('{')
-	for k := range s {
-		sb.WriteString(fmt.Sprintf("%v", k))
-		itemsWritten++
-		if itemsWritten < totalLen {
-			sb.WriteRune(',')
-			sb.WriteRune(' ')
-		}
-	}
-	sb.WriteRune('}')
-	return sb.String()
-}
-
-// Equal returns whether two sets have the same items. If anything other than a
-// Set[E], *Set[E], []map[E]bool, or *[]map[E]bool is passed
-// in, they will not be considered equal.
-//
-// A Stack[E] *is* considered equal to a *[]E or []E that has the same contents
-// as the Stack in the same order.
-//
-// This does NOT do Equal on the individual items, but rather a simple equality
-// check. To do full Equal on everything, use EqualSlices on the Ofs of the
-// stacks.
-func (s Set[E]) Equal(o any) bool {
-	other, ok := o.(Set[E])
-	if !ok {
-		// also okay if its the pointer value, as long as its non-nil
-		otherPtr, ok := o.(*Set[E])
-		if !ok {
-			// also okay if it's a map
-			otherMap, ok := o.(map[E]bool)
-
-			if !ok {
-				// also okay if it's a ptr to map
-				otherMapPtr, ok := o.(*map[E]bool)
-				if !ok {
-					return false
-				} else if otherMapPtr == nil {
-					return false
-				} else {
-					other = Set[E](*otherMapPtr)
-				}
-			} else {
-				other = Set[E](otherMap)
-			}
-		} else if otherPtr == nil {
-			return false
-		} else {
-			other = *otherPtr
-		}
-	}
-
-	if s.Len() != other.Len() {
-		return false
-	}
-
-	for k := range s {
-		if !other.Has(k) {
-			return false
-		}
-	}
-
-	return true
-}
-
-// Slice returns the elements of s as a slice. No particular order is
-// guaranteed nor should it be relied on.
-func (s Set[E]) Slice() []E {
-	if s == nil {
-		return nil
-	}
-
-	sl := make([]E, 0)
-
-	for item := range s {
-		sl = append(sl, item)
-	}
-
-	return sl
-}
-
-func SetFromSlice[E comparable](sl []E) Set[E] {
-	if sl == nil {
-		return nil
-	}
-
-	s := Set[E]{}
-
-	for i := range sl {
-		s.Add(sl[i])
-	}
-
-	return s
 }
 
 // MakeTextList gives a nice list of things based on their display name.
@@ -643,6 +278,37 @@ func InSlice[V comparable](s V, slice []V) bool {
 		}
 	}
 	return false
+}
+
+type namedSortable[V any] struct {
+	val  V
+	name string
+}
+
+// Alphabetized returns the ordered elements of the given container. The string
+// representation '%v' of each element is used for comparison.
+func Alphabetized[V any](c Container[V]) []V {
+	// convert them all to string and order that.
+
+	toSort := []namedSortable[V]{}
+
+	for _, item := range c.Elements() {
+		itemStr := fmt.Sprintf("%v", item)
+		toSort = append(toSort, namedSortable[V]{val: item, name: itemStr})
+	}
+
+	sortFunc := func(i, j int) bool {
+		return toSort[i].name < toSort[j].name
+	}
+
+	sort.Slice(toSort, sortFunc)
+
+	sortedVals := make([]V, len(toSort))
+	for i := range toSort {
+		sortedVals[i] = toSort[i].val
+	}
+
+	return sortedVals
 }
 
 // OrderedKeys returns the keys of m, ordered a particular way. The order is

@@ -29,143 +29,6 @@ var (
 	`)
 )
 
-type LR0Item struct {
-	NonTerminal string
-	Left        []string
-	Right       []string
-}
-
-type LR1Item struct {
-	LR0Item
-	Lookahead string
-}
-
-func (lr1 LR1Item) Copy() LR1Item {
-	lrCopy := LR1Item{}
-	lrCopy.NonTerminal = lr1.NonTerminal
-	lrCopy.Left = make([]string, len(lr1.Left))
-	copy(lrCopy.Left, lr1.Left)
-	lrCopy.Right = make([]string, len(lr1.Right))
-	copy(lrCopy.Right, lr1.Right)
-	lrCopy.Lookahead = lr1.Lookahead
-
-	return lrCopy
-}
-
-func MustParseLR0Item(s string) LR0Item {
-	i, err := ParseLR0Item(s)
-	if err != nil {
-		panic(err.Error())
-	}
-	return i
-}
-
-func ParseLR0Item(s string) (LR0Item, error) {
-	sides := strings.Split(s, "->")
-	if len(sides) != 2 {
-		return LR0Item{}, fmt.Errorf("not an item of form 'NONTERM -> ALPHA.BETA': %q", s)
-	}
-	nonTerminal := strings.TrimSpace(sides[0])
-
-	if nonTerminal == "" {
-		return LR0Item{}, fmt.Errorf("empty nonterminal name not allowed for item")
-	}
-
-	parsedItem := LR0Item{
-		NonTerminal: nonTerminal,
-	}
-
-	productionsString := strings.TrimSpace(sides[1])
-	prodStrings := strings.Split(productionsString, ".")
-	if len(prodStrings) != 2 {
-		return LR0Item{}, fmt.Errorf("item must have exactly one dot")
-	}
-
-	alphaStr := strings.TrimSpace(prodStrings[0])
-	betaStr := strings.TrimSpace(prodStrings[1])
-
-	alphaSymbols := strings.Split(alphaStr, " ")
-	betaSymbols := strings.Split(betaStr, " ")
-
-	var parsedAlpha, parsedBeta []string
-
-	for _, aSym := range alphaSymbols {
-		aSym = strings.TrimSpace(aSym)
-
-		if aSym == "" {
-			continue
-		}
-
-		if strings.ToLower(aSym) == "ε" {
-			// epsilon production
-			aSym = ""
-		}
-
-		parsedAlpha = append(parsedAlpha, aSym)
-	}
-
-	for _, bSym := range betaSymbols {
-		bSym = strings.TrimSpace(bSym)
-
-		if bSym == "" {
-			continue
-		}
-
-		if strings.ToLower(bSym) == "ε" {
-			// epsilon production
-			bSym = ""
-		}
-
-		parsedBeta = append(parsedBeta, bSym)
-	}
-
-	parsedItem.Left = parsedAlpha
-	parsedItem.Right = parsedBeta
-
-	return parsedItem, nil
-}
-
-func ParseLR1Item(s string) (LR1Item, error) {
-	sides := strings.Split(s, ",")
-	if len(sides) != 2 {
-		return LR1Item{}, fmt.Errorf("not an item of form 'NONTERM -> ALPHA.BETA, a': %q", s)
-	}
-
-	item := LR1Item{}
-	var err error
-	item.LR0Item, err = ParseLR0Item(sides[0])
-	if err != nil {
-		return item, err
-	}
-
-	item.Lookahead = strings.TrimSpace(sides[1])
-
-	return item, nil
-}
-
-func (item LR0Item) String() string {
-	nonTermPhrase := ""
-	if item.NonTerminal != "" {
-		nonTermPhrase = fmt.Sprintf("%s -> ", item.NonTerminal)
-	}
-
-	left := strings.Join(item.Left, " ")
-	right := strings.Join(item.Right, " ")
-
-	if len(left) > 0 {
-		left = left + " "
-	}
-	if len(right) > 0 {
-		right = " " + right
-	}
-
-	return fmt.Sprintf("%s%s.%s", nonTermPhrase, left, right)
-}
-
-func (item LR1Item) String() string {
-	return fmt.Sprintf("%s, %s", item.LR0Item.String(), item.Lookahead)
-}
-
 type Production []string
 
 var (
@@ -496,8 +359,9 @@ func (g Grammar) LR0Items() []LR0Item {
 // Note: this actually takes the grammar for each production B -> gamma in G,
 // not G'. It's assumed this function is only called on a g.Augmented()
 // instance.
-func (g Grammar) LR1_CLOSURE(I util.BSet[string, LR1Item]) util.BSet[string, LR1Item] {
-	I = I.Copy()
+func (g Grammar) LR1_CLOSURE(I util.SVSet[LR1Item]) util.SVSet[LR1Item] {
+	Iset := I.Copy()
+	I = Iset.(util.SVSet[LR1Item])
 
 	updated := true
 	for updated {
@@ -514,7 +378,7 @@ func (g Grammar) LR1_CLOSURE(I util.BSet[string, LR1Item]) util.BSet[string, LR1
 					fullArgs := make([]string, len(it.Right[1:]))
 					copy(fullArgs, it.Right[1:])
 					fullArgs = append(fullArgs, it.Lookahead)
-					for b := range g.FIRST_STRING(fullArgs...) {
+					for _, b := range g.FIRST_STRING(fullArgs...).Elements() {
 						if strings.ToLower(b) != b {
 							continue // terminals only
 						}
@@ -540,8 +404,8 @@ func (g Grammar) LR1_CLOSURE(I util.BSet[string, LR1Item]) util.BSet[string, LR1
 // Note: this actually uses the grammar G, not G'. It's assumed this function is
 // only called on a g.Augmented() instance. This has a source in purple dragon
 // book 4.7.2.
-func (g Grammar) LR1_GOTO(I util.BSet[string, LR1Item], X string) util.BSet[string, LR1Item] {
-	J := util.NewBSet[string, LR1Item]()
+func (g Grammar) LR1_GOTO(I util.SVSet[LR1Item], X string) util.SVSet[LR1Item] {
+	J := util.NewSVSet[LR1Item]()
 	for itemName, item := range I {
 		J.Set(itemName, item)
 	}
@@ -1251,14 +1115,14 @@ func (g Grammar) LeftFactor() Grammar {
 }
 
 // recursiveFindFollowSet
-func (g Grammar) recursiveFindFollowSet(X string, prevFollowChecks map[string]bool) map[string]bool {
+func (g Grammar) recursiveFindFollowSet(X string, prevFollowChecks util.ISet[string]) util.ISet[string] {
 	if X == "" {
-		// there is no follow set. return nil.
-		return nil
+		// there is no follow set. return empty set
+		return util.NewStringSet()
 	}
-	followSet := map[string]bool{}
+	followSet := util.NewStringSet()
 	if X == g.StartSymbol() {
-		followSet["$"] = true
+		followSet.Add("$")
 	}
 
 	A := g.NonTerminals()
@@ -1306,15 +1170,14 @@ func (g Grammar) recursiveFindFollowSet(X string, prevFollowChecks map[string]bo
 					// in beta that is NOT reducible to eps.
 					for b := range beta {
 						betaFirst := g.FIRST(beta[b])
-						_, epsilonPresent := betaFirst[Epsilon[0]]
 
-						for k := range betaFirst {
+						for _, k := range betaFirst.Elements() {
 							if k != Epsilon[0] {
-								followSet[k] = true
+								followSet.Add(k)
 							}
 						}
 
-						if !epsilonPresent {
+						if !betaFirst.Has(Epsilon[0]) {
 							// stop looping
 							break
 						}
@@ -1328,7 +1191,7 @@ func (g Grammar) recursiveFindFollowSet(X string, prevFollowChecks map[string]bo
 					canBeAtEnd := true
 					for b := range beta {
 						betaFirst := g.FIRST(beta[b])
-						if _, ok := betaFirst[Epsilon[0]]; !ok {
+						if !betaFirst.Has(Epsilon[0]) {
 							canBeAtEnd = false
 							break
 						}
@@ -1340,11 +1203,11 @@ func (g Grammar) recursiveFindFollowSet(X string, prevFollowChecks map[string]bo
 						//
 						// similarly, track the symbols we are going through.
 						// don't recheck for the same one.
-						if _, ok := prevFollowChecks[A[i]]; A[i] != X && !ok {
-							prevFollowChecks[X] = true
+						if A[i] != X && !prevFollowChecks.Has(A[i]) {
+							prevFollowChecks.Add(X)
 							followA := g.recursiveFindFollowSet(A[i], prevFollowChecks)
-							for k := range followA {
-								followSet[k] = true
+							for _, k := range followA.Elements() {
+								followSet.Add(k)
 							}
 						}
 					}
@@ -1445,7 +1308,7 @@ func (g Grammar) LLParseTable() (M LL1Table, err error) {
 	for _, A := range nts {
 		ARule := g.Rule(A)
 		for _, alpha := range ARule.Productions {
-			FIRSTalpha := util.Set[string](g.FIRST(alpha[0]))
+			FIRSTalpha := util.StringSetOf(g.FIRST(alpha[0]).Elements())
 
 			// 1. For each terminal a in FIRST(A), add A -> α to M[A, a].
 			// -purple dragon book
@@ -1468,7 +1331,7 @@ func (g Grammar) LLParseTable() (M LL1Table, err error) {
 			// add A -> α to M[A, b]. If ε is in FIRST(α) and $ is in FOLLOW(A),
 			// add A -> α to M[A, $] as well.
 			if FIRSTalpha.Has(Epsilon[0]) {
-				for b := range g.FOLLOW(A) {
+				for _, b := range g.FOLLOW(A).Elements() {
 					// we cover the $ case automatically by not rly caring about
 					// them bein glubbin terminals to begin w. W3 SH3LL H4V3
 					// 33LQU4L1TY >38]
@@ -1542,7 +1405,7 @@ func (g Grammar) IsLL1() bool {
 		AiRule := g.Rule(A)
 
 		// we'll need this later, glubglub 38)
-		followSetA := util.Set[string](g.FOLLOW(A))
+		followSetA := util.StringSetOf(g.FOLLOW(A).Elements())
 
 		// Whenever A -> α | β are two distinct productions of G:
 		// -purple dragon book
@@ -1551,8 +1414,8 @@ func (g Grammar) IsLL1() bool {
 				alphaFIRST := g.FIRST(AiRule.Productions[i][0])
 				betaFIRST := g.FIRST(AiRule.Productions[j][0])
 
-				aFSet := util.Set[string](alphaFIRST)
-				bFSet := util.Set[string](betaFIRST)
+				aFSet := util.StringSetOf(alphaFIRST.Elements())
+				bFSet := util.StringSetOf(betaFIRST.Elements())
 
 				// 1. For no terminal a do both α and β derive strings beginning
 				// with a.
@@ -1596,17 +1459,17 @@ func (g Grammar) IsLL1() bool {
 	return true
 }
 
-func (g Grammar) FOLLOW(X string) util.Set[string] {
-	return g.recursiveFindFollowSet(X, map[string]bool{})
+func (g Grammar) FOLLOW(X string) util.ISet[string] {
+	return g.recursiveFindFollowSet(X, util.NewStringSet())
 }
 
-func (g Grammar) FIRST_STRING(X ...string) util.Set[string] {
-	first := util.Set[string]{}
+func (g Grammar) FIRST_STRING(X ...string) util.ISet[string] {
+	first := util.NewStringSet()
 	epsilonPresent := false
 	for i := range X {
 		fXi := g.FIRST(X[i])
 		epsilonPresent = false
-		for j := range fXi {
+		for _, j := range fXi.Elements() {
 			if j != Epsilon[0] {
 				first.Add(j)
 			} else {
@@ -1624,12 +1487,12 @@ func (g Grammar) FIRST_STRING(X ...string) util.Set[string] {
 	return first
 }
 
-func (g Grammar) FIRST(X string) map[string]bool {
+func (g Grammar) FIRST(X string) util.ISet[string] {
 	if strings.ToLower(X) == X {
 		// terminal or epsilon
-		return map[string]bool{X: true}
+		return util.NewStringSet(map[string]bool{X: true})
 	} else {
-		firsts := map[string]bool{}
+		firsts := util.NewStringSet()
 		r := g.Rule(X)
 
 		for ntIdx := range r.Productions {
@@ -1637,15 +1500,15 @@ func (g Grammar) FIRST(X string) map[string]bool {
 			var gotToEnd bool
 			for k := 0; k < len(Y); k++ {
 				firstY := g.FIRST(Y[k])
-				for str := range firstY {
+				for _, str := range firstY.Elements() {
 					if str != "" {
-						firsts[str] = true
+						firsts.Add(str)
 					}
 				}
-				if len(firstY) == 1 && util.OrderedKeys(firstY)[0] == "" {
-					firsts[""] = true
+				if firstY.Len() == 1 && firstY.Has(Epsilon[0]) {
+					firsts.Add(Epsilon[0])
 				}
-				if _, ok := firstY[Epsilon[0]]; !ok {
+				if !firstY.Has(Epsilon[0]) {
 					// if its not, then break
 					break
 				}
@@ -1654,7 +1517,7 @@ func (g Grammar) FIRST(X string) map[string]bool {
 				}
 			}
 			if gotToEnd {
-				firsts[Epsilon[0]] = true
+				firsts.Add(Epsilon[0])
 			}
 		}
 		return firsts

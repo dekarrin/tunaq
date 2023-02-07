@@ -109,7 +109,7 @@ func constructCanonicalLR1ParseTable(g grammar.Grammar) (LRParseTable, error) {
 type canonicalLR1Table struct {
 	gPrime    grammar.Grammar
 	gStart    string
-	lr1       automaton.DFA[util.BSet[string, grammar.LR1Item]]
+	lr1       automaton.DFA[util.SVSet[grammar.LR1Item]]
 	itemCache map[string]grammar.LR1Item
 	gTerms    []string
 	gNonTerms []string
@@ -120,7 +120,7 @@ func (clr1 *canonicalLR1Table) String() string {
 	stateRefs := map[string]string{}
 
 	// need to gaurantee order
-	stateNames := clr1.lr1.States().Slice()
+	stateNames := clr1.lr1.States().Elements()
 	sort.Strings(stateNames)
 
 	// put the initial state first

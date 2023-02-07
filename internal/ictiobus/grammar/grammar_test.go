@@ -626,7 +626,7 @@ func Test_Grammar_FIRST(t *testing.T) {
 			actual := g.FIRST(tc.first)
 
 			// assert
-			assert.Equal(util.OrderedKeys(expectMap), util.OrderedKeys(actual))
+			assert.Equal(util.OrderedKeys(expectMap), util.Alphabetized[string](actual))
 		})
 	}
 }
@@ -906,7 +906,7 @@ func Test_Grammar_FOLLOW(t *testing.T) {
 			actual := g.FOLLOW(tc.follow)
 
 			// assert
-			assert.Equal(util.OrderedKeys(expectMap), util.OrderedKeys(actual))
+			assert.Equal(util.OrderedKeys(expectMap), util.Alphabetized[string](actual))
 		})
 	}
 }

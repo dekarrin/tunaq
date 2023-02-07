@@ -62,7 +62,7 @@ func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
 				alpha := item.Left
 				beta := item.Right
 
-				followA := util.Set[string]{}
+				var followA util.ISet[string]
 				if A != table.gPrime.StartSymbol() {
 					// we'll need this later, glub 38)
 					followA = table.gPrime.FOLLOW(A)
@@ -81,7 +81,7 @@ func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
 					}
 				}
 
-				if len(beta) == 0 && followA.Has(a) && A != table.gPrime.StartSymbol() {
+				if len(beta) == 0 && A != table.gPrime.StartSymbol() && followA.Has(a) {
 					newAct := LRAction{Type: LRReduce, Symbol: A, Production: grammar.Production(alpha)}
 					if matchFound && !newAct.Equal(act) {
 						return nil, fmt.Errorf("grammar is not SLR(1): found both %s and %s actions for input %q", act.String(), newAct.String(), a)
@@ -108,7 +108,7 @@ func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
 type slrTable struct {
 	gPrime    grammar.Grammar
 	gStart    string
-	lr0       automaton.DFA[util.Set[string]]
+	lr0       automaton.DFA[util.KeySet[string]]
 	itemCache map[string]grammar.LR0Item
 	gTerms    []string
 	gNonTerms []string
@@ -119,7 +119,7 @@ func (slr *slrTable) String() string {
 	stateRefs := map[string]string{}
 
 	// need to gaurantee order
-	stateNames := slr.lr0.States().Slice()
+	stateNames := slr.lr0.States().Elements()
 	sort.Strings(stateNames)
 
 	// put the initial state first
@@ -260,7 +260,7 @@ func (slr *slrTable) Action(i, a string) LRAction {
 		alpha := item.Left
 		beta := item.Right
 
-		followA := util.Set[string]{}
+		var followA util.ISet[string]
 		if A != slr.gPrime.StartSymbol() {
 			// we'll need this later, glub 38)
 			followA = slr.gPrime.FOLLOW(A)
@@ -295,7 +295,7 @@ func (slr *slrTable) Action(i, a string) LRAction {
 		//
 		// we'll assume α can be empty.
 		// the beta we previously retrieved MUST be empty
-		if len(beta) == 0 && followA.Has(a) && A != slr.gPrime.StartSymbol() {
+		if len(beta) == 0 && A != slr.gPrime.StartSymbol() && followA.Has(a) {
 			newAct := LRAction{Type: LRReduce, Symbol: A, Production: grammar.Production(alpha)}
 			if alreadySet && !newAct.Equal(act) {
 				panic(fmt.Sprintf("grammar is not SLR(1): found both %s and %s actions for input %q", act.String(), newAct.String(), a))

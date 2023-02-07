@@ -179,8 +179,8 @@ func (dfa DFA[E]) IsAccepting(state string) bool {
 }
 
 // States returns all states in the dfa.
-func (dfa DFA[E]) States() util.Set[string] {
-	states := util.Set[string]{}
+func (dfa DFA[E]) States() util.StringSet {
+	states := util.NewStringSet()
 
 	for k := range dfa.states {
 		states.Add(k)
@@ -278,45 +278,45 @@ type NFA[E comparable] struct {
 // same strings.
 //
 // This is an implementation of algorithm 3.20 from the purple dragon book.
-func (nfa NFA[E]) ToDFA() DFA[util.Set[E]] {
+func (nfa NFA[E]) ToDFA() DFA[util.KeySet[E]] {
 	inputSymbols := nfa.InputSymbols()
 
 	Dstart := nfa.EpsilonClosure(nfa.Start)
 
-	markedStates := util.Set[string]{}
-	Dstates := map[string]util.Set[string]{}
+	markedStates := util.NewStringSet()
+	Dstates := map[string]util.StringSet{}
 	Dstates[Dstart.StringOrdered()] = Dstart
 
 	// these are Dstates but represented in actual format for placement into
 	// our implement8ion of DFAs, which is also where transition function info
 	// and acceptance info is stored.
-	dfa := DFA[util.Set[E]]{
-		states: map[string]DFAState[util.Set[E]]{},
+	dfa := DFA[util.KeySet[E]]{
+		states: map[string]DFAState[util.KeySet[E]]{},
 	}
 
 	// initially, ε-closure(s₀) is the only state in Dstates, and it is unmarked
 	for {
 		// get unmarked states in Dstates
-		DstateNames := util.SetFromSlice(util.OrderedKeys(Dstates))
+		DstateNames := util.StringSetOf(util.OrderedKeys(Dstates))
 		unmarkedStates := DstateNames.Difference(markedStates)
 
 		if unmarkedStates.Len() < 1 {
 			break
 		}
 		// while ( there is an unmarked state T in Dstates )
-		for Tname := range unmarkedStates {
+		for _, Tname := range unmarkedStates.Elements() {
 			T := Dstates[Tname]
 
 			// mark T
 			markedStates.Add(Tname)
 
 			// (need to get the value of every item to get a set of them)
-			stateValues := util.Set[E]{}
+			stateValues := util.NewKeySet[E]()
 			for nfaStateName := range T {
 				stateValues.Add(nfa.GetValue(nfaStateName))
 			}
 
-			newDFAState := DFAState[util.Set[E]]{name: Tname, value: stateValues, transitions: map[string]FATransition{}}
+			newDFAState := DFAState[util.KeySet[E]]{name: Tname, value: stateValues, transitions: map[string]FATransition{}}
 
 			if T.Any(func(v string) bool {
 				return nfa.states[v].accepting
@@ -365,8 +365,8 @@ func (nfa NFA[E]) ToDFA() DFA[util.Set[E]] {
 
 // InputSymbols returns the set of all input symbols processed by some
 // transition in the NFA.
-func (nfa NFA[E]) InputSymbols() util.Set[string] {
-	symbols := util.Set[string]{}
+func (nfa NFA[E]) InputSymbols() util.StringSet {
+	symbols := util.NewStringSet()
 	for sName := range nfa.states {
 		st := nfa.states[sName]
 
@@ -381,10 +381,10 @@ func (nfa NFA[E]) InputSymbols() util.Set[string] {
 // MOVE returns the set of states reachable with one transition from some state
 // in X on input a. Purple dragon book calls this function MOVE(T, a) and it is
 // on page 153 as part of algorithm 3.20.
-func (nfa NFA[E]) MOVE(X util.Set[string], a string) util.Set[string] {
-	moves := util.Set[string]{}
+func (nfa NFA[E]) MOVE(X util.ISet[string], a string) util.StringSet {
+	moves := util.NewStringSet()
 
-	for s := range X {
+	for _, s := range X.Elements() {
 		stateItem, ok := nfa.states[s]
 		if !ok {
 			continue
@@ -402,10 +402,10 @@ func (nfa NFA[E]) MOVE(X util.Set[string], a string) util.Set[string] {
 
 // EpsilonClosureOfSet gives the set of states reachable from some state in
 // X using one or more ε-moves.
-func (nfa NFA[E]) EpsilonClosureOfSet(X util.Set[string]) util.Set[string] {
-	allClosures := util.Set[string]{}
+func (nfa NFA[E]) EpsilonClosureOfSet(X util.ISet[string]) util.StringSet {
+	allClosures := util.NewStringSet()
 
-	for s := range X {
+	for _, s := range X.Elements() {
 		closures := nfa.EpsilonClosure(s)
 		allClosures.AddAll(closures)
 	}
@@ -415,13 +415,13 @@ func (nfa NFA[E]) EpsilonClosureOfSet(X util.Set[string]) util.Set[string] {
 
 // EpsilonClosure gives the set of states reachable from state using one or more
 // ε-moves.
-func (nfa NFA[E]) EpsilonClosure(s string) util.Set[string] {
+func (nfa NFA[E]) EpsilonClosure(s string) util.StringSet {
 	stateItem, ok := nfa.states[s]
 	if !ok {
 		return nil
 	}
 
-	closure := util.Set[string]{}
+	closure := util.NewStringSet()
 	checkingStates := util.Stack[NFAState[E]]{}
 	checkingStates.Push(stateItem)
 
@@ -545,7 +545,7 @@ func (nfa *NFA[E]) AddTransition(fromState string, input string, toState string)
 	nfa.states[fromState] = curFromState
 }
 
-func NewLR1ViablePrefixDFA(g grammar.Grammar) DFA[util.BSet[string, grammar.LR1Item]] {
+func NewLR1ViablePrefixDFA(g grammar.Grammar) DFA[util.SVSet[grammar.LR1Item]] {
 	oldStart := g.StartSymbol()
 	g = g.Augmented()
 
@@ -557,9 +557,9 @@ func NewLR1ViablePrefixDFA(g grammar.Grammar) DFA[util.BSet[string, grammar.LR1I
 		Lookahead: "$",
 	}
 
-	startSet := g.LR1_CLOSURE(util.BSet[string, grammar.LR1Item]{initialItem.String(): initialItem})
+	startSet := g.LR1_CLOSURE(util.SVSet[grammar.LR1Item]{initialItem.String(): initialItem})
 
-	stateSets := util.NewBSet[string, util.BSet[string, grammar.LR1Item]]()
+	stateSets := util.NewSVSet[util.SVSet[grammar.LR1Item]]()
 	stateSets.Set(startSet.StringOrdered(), startSet)
 	transitions := map[string]map[string]FATransition{}
 
@@ -582,7 +582,7 @@ func NewLR1ViablePrefixDFA(g grammar.Grammar) DFA[util.BSet[string, grammar.LR1I
 
 				// ...let Is be the set of all LR(1) items in I where s
 				// immediately follows the dot.
-				Is := util.NewBSet[string, grammar.LR1Item]()
+				Is := util.NewSVSet[grammar.LR1Item]()
 				for _, checkItem := range I {
 					if len(checkItem.Right) >= 1 && checkItem.Right[0] == s {
 						newItem := checkItem.Copy()
@@ -630,7 +630,7 @@ func NewLR1ViablePrefixDFA(g grammar.Grammar) DFA[util.BSet[string, grammar.LR1I
 	// okay, we've actually pre-calculated all DFA items so we can now add them.
 	// might be able to optimize to add on-the-fly during above loop but this is
 	// easier for the moment.
-	dfa := DFA[util.BSet[string, grammar.LR1Item]]{}
+	dfa := DFA[util.SVSet[grammar.LR1Item]]{}
 
 	// add states
 	for sName, state := range stateSets {

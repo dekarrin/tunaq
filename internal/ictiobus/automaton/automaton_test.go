@@ -245,7 +245,7 @@ func Test_NFA_EpsilonClosure(t *testing.T) {
 			// setup
 			assert := assert.New(t)
 			nfa := buildNFA(tc.nfa, tc.nfaStart, tc.nfaAccept)
-			expectSet := util.SetFromSlice(tc.expect)
+			expectSet := util.StringSetOf(tc.expect)
 
 			// execute
 			actual := nfa.EpsilonClosure(tc.forState)
@@ -473,7 +473,7 @@ func Test_NFA_ToDFA(t *testing.T) {
 func buildDFA(from map[string][]string, start string, acceptingStates []string) *DFA[string] {
 	dfa := &DFA[string]{}
 
-	acceptSet := util.SetFromSlice(acceptingStates)
+	acceptSet := util.StringSetOf(acceptingStates)
 
 	for k := range from {
 		dfa.AddState(k, acceptSet.Has(k))
@@ -496,7 +496,7 @@ func buildDFA(from map[string][]string, start string, acceptingStates []string) 
 func buildNFA(from map[string][]string, start string, acceptingStates []string) *NFA[string] {
 	nfa := &NFA[string]{}
 
-	acceptSet := util.SetFromSlice(acceptingStates)
+	acceptSet := util.StringSetOf(acceptingStates)
 
 	for k := range from {
 		nfa.AddState(k, acceptSet.Has(k))
