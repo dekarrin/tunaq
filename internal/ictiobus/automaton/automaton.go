@@ -269,7 +269,7 @@ func (dfa DFA[E]) String() string {
 	return sb.String()
 }
 
-type NFA[E comparable] struct {
+type NFA[E any] struct {
 	states map[string]NFAState[E]
 	Start  string
 }
@@ -278,7 +278,7 @@ type NFA[E comparable] struct {
 // same strings.
 //
 // This is an implementation of algorithm 3.20 from the purple dragon book.
-func (nfa NFA[E]) ToDFA() DFA[util.KeySet[E]] {
+func (nfa NFA[E]) ToDFA() DFA[util.SVSet[E]] {
 	inputSymbols := nfa.InputSymbols()
 
 	Dstart := nfa.EpsilonClosure(nfa.Start)
@@ -290,8 +290,8 @@ func (nfa NFA[E]) ToDFA() DFA[util.KeySet[E]] {
 	// these are Dstates but represented in actual format for placement into
 	// our implement8ion of DFAs, which is also where transition function info
 	// and acceptance info is stored.
-	dfa := DFA[util.KeySet[E]]{
-		states: map[string]DFAState[util.KeySet[E]]{},
+	dfa := DFA[util.SVSet[E]]{
+		states: map[string]DFAState[util.SVSet[E]]{},
 	}
 
 	// initially, ε-closure(s₀) is the only state in Dstates, and it is unmarked
@@ -311,12 +311,13 @@ func (nfa NFA[E]) ToDFA() DFA[util.KeySet[E]] {
 			markedStates.Add(Tname)
 
 			// (need to get the value of every item to get a set of them)
-			stateValues := util.NewKeySet[E]()
+			stateValues := util.NewSVSet[E]()
 			for nfaStateName := range T {
-				stateValues.Add(nfa.GetValue(nfaStateName))
+				val := nfa.GetValue(nfaStateName)
+				stateValues.Set(nfaStateName, val)
 			}
 
-			newDFAState := DFAState[util.KeySet[E]]{name: Tname, value: stateValues, transitions: map[string]FATransition{}}
+			newDFAState := DFAState[util.SVSet[E]]{name: Tname, value: stateValues, transitions: map[string]FATransition{}}
 
 			if T.Any(func(v string) bool {
 				return nfa.states[v].accepting
@@ -660,12 +661,12 @@ func NewLR1ViablePrefixDFA(g grammar.Grammar) DFA[util.SVSet[grammar.LR1Item]] {
 // closures of the transitions, call ToDFA on the output of this function.
 //
 // To get a DFA whose values are
-func NewLR0ViablePrefixNFA(g grammar.Grammar) NFA[string] {
+func NewLR0ViablePrefixNFA(g grammar.Grammar) NFA[grammar.LR0Item] {
 	// add the dummy production
 	oldStart := g.StartSymbol()
 	g = g.Augmented()
 
-	nfa := NFA[string]{}
+	nfa := NFA[grammar.LR0Item]{}
 
 	// set the start state
 	nfa.Start = grammar.LR0Item{NonTerminal: g.StartSymbol(), Right: []string{oldStart}}.String()
@@ -679,7 +680,7 @@ func NewLR0ViablePrefixNFA(g grammar.Grammar) NFA[string] {
 	// transitions
 	for i := range items {
 		nfa.AddState(items[i].String(), true)
-		nfa.SetValue(items[i].String(), items[i].String())
+		nfa.SetValue(items[i].String(), items[i])
 	}
 
 	for i := range items {

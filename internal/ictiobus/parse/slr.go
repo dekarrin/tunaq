@@ -108,7 +108,7 @@ func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
 type slrTable struct {
 	gPrime    grammar.Grammar
 	gStart    string
-	lr0       automaton.DFA[util.KeySet[string]]
+	lr0       automaton.DFA[util.SVSet[grammar.LR0Item]]
 	itemCache map[string]grammar.LR0Item
 	gTerms    []string
 	gNonTerms []string
