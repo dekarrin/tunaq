@@ -356,6 +356,111 @@ func (g Grammar) LR0Items() []LR0Item {
 	return items
 }
 
+// CanonicalLR0Items returns the canonical set of LR(0) items for the grammar,
+// without including the automaton (which may be invalid for non SLR(1)
+// grammars). Note that it is exepcted that this will be called on an Augmented
+// grammar.
+func (g Grammar) CanonicalLR0Items() util.SVSet[util.SVSet[LR0Item]] {
+
+	// since it is assumed the grammar has been augmented, we can take the only
+	// rule for the start symbol.
+	startRule := g.Rule(g.StartSymbol())
+	if len(startRule.Productions) != 1 || len(startRule.Productions[0]) != 1 {
+		panic("not an augmented grammar; call g.Augmented() first")
+	}
+
+	symbols := append(g.NonTerminals(), g.Terminals()...)
+
+	startItem := LR0Item{
+		NonTerminal: g.StartSymbol(),
+		Right:       startRule.Productions[0],
+	}
+	startSet := util.NewSVSet[LR0Item]()
+	startSet.Set(startItem.String(), startItem)
+
+	C := util.NewSVSet[util.SVSet[LR0Item]]()
+	startSetClosure := g.LR0_CLOSURE(startSet)
+	C.Set(startSetClosure.StringOrdered(), startSetClosure)
+
+	updated := true
+	for updated {
+		updated = false
+		for _, Iname := range C.Elements() {
+			I := C.Get(Iname)
+			for _, X := range symbols {
+				gotoSet := g.LR0_GOTO(I, X)
+				if !gotoSet.Empty() && !C.Has(gotoSet.StringOrdered()) {
+					C.Set(gotoSet.StringOrdered(), gotoSet)
+					updated = true
+				}
+			}
+		}
+	}
+
+	return C
+}
+
+func (g Grammar) LR0_CLOSURE(I util.SVSet[LR0Item]) util.SVSet[LR0Item] {
+	J := util.NewSVSet(I)
+
+	updated := true
+	for updated {
+		updated = false
+
+		elems := J.Elements()
+		// for ( each item A -> α.Bβ in J )
+		for _, itemName := range elems {
+			AItem := J.Get(itemName)
+			if len(AItem.Right) >= 1 && AItem.Right[0] != Epsilon[0] {
+				B := AItem.Right[0]
+				ruleB := g.Rule(B)
+				if ruleB.NonTerminal == "" {
+					continue // B has no productions, ergo nothing to add
+				}
+
+				// for ( each production B -> γ of G )
+				for _, gamma := range ruleB.Productions {
+					BItem := LR0Item{
+						NonTerminal: B,
+						Right:       gamma,
+					}
+
+					// If ( B -> .γ is not in J )
+					if !J.Has(BItem.String()) {
+						// add B -> .γ to J
+						J.Set(BItem.String(), BItem)
+						updated = true
+					}
+				}
+			}
+		}
+	}
+
+	return J
+}
+
+// g must be an augmented grammar.
+func (g Grammar) LR0_GOTO(I util.SVSet[LR0Item], X string) util.SVSet[LR0Item] {
+	aXdBSet := util.NewSVSet[LR0Item]()
+	for _, itemName := range I.Elements() {
+		item := I.Get(itemName)
+		if len(item.Right) > 0 && item.Right[0] == X {
+			// [A -> α.Xβ] is in I
+
+			// ...so [A -> αX.β] is in the set to take the closure of
+			newItem := LR0Item{
+				NonTerminal: item.NonTerminal,
+				Left:        append(item.Left, X),
+				Right:       item.Right[1:],
+			}
+
+			aXdBSet.Set(newItem.String(), newItem)
+		}
+	}
+
+	return g.LR0_CLOSURE(aXdBSet)
+}
+
 // Note: this actually takes the grammar for each production B -> gamma in G,
 // not G'. It's assumed this function is only called on a g.Augmented()
 // instance.
@@ -1532,6 +1637,24 @@ func (g Grammar) GenerateUniqueName(original string) string {
 	for existingRule.NonTerminal != "" {
 		newName += "P"
 		existingRule = g.Rule(newName)
+	}
+
+	return newName
+}
+
+// GenerateUniqueTerminal generates a name for a terminal gauranteed to be
+// unique within the grammar, based on the given original if one is provided.
+func (g Grammar) GenerateUniqueTerminal(original string) string {
+	newName := original
+	addedHyphen := false
+	existingTerm := g.Term(newName)
+	for existingTerm.ID() != lex.TokenUndefined.ID() {
+		if !addedHyphen {
+			newName += "-"
+			addedHyphen = true
+		}
+		newName += "p"
+		existingTerm = g.Term(newName)
 	}
 
 	return newName
