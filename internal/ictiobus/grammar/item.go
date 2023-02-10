@@ -110,6 +110,14 @@ func MustParseLR0Item(s string) LR0Item {
 	return i
 }
 
+func MustParseLR1Item(s string) LR1Item {
+	i, err := ParseLR1Item(s)
+	if err != nil {
+		panic(err.Error())
+	}
+	return i
+}
+
 func ParseLR0Item(s string) (LR0Item, error) {
 	sides := strings.Split(s, "->")
 	if len(sides) != 2 {

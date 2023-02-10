@@ -811,6 +811,9 @@ func NewLALR1ViablePrefixDFA(g grammar.Grammar) (DFA[util.SVSet[grammar.LR1Item]
 	// get an NFA so we can start fixing things
 	lalrNfa := DFAToNFA(lr1Dfa)
 
+	// counter for unique state name
+	newStateNum := 0
+
 	// now start merging states
 	updated := true
 	for updated {
@@ -863,9 +866,13 @@ func NewLALR1ViablePrefixDFA(g grammar.Grammar) (DFA[util.SVSet[grammar.LR1Item]
 					mergedStateSet.AddAll(stateVals[mergeWith[i]])
 				}
 
-				// now we can tell the new name of the created state
-				newStateName := mergedStateSet.StringOrdered()
-				destState.name = newStateName
+				// We COULD tell what new name of state would be NOW, but to keep
+				// things from overlapping during the process we will be setting
+				// to a unique number and updating after all merges are complete
+				// (at which point there should be 0 conflicting state names).
+				newStateName := fmt.Sprintf("%d", newStateNum)
+				newStateNum++
+				destState.name = mergedStateSet.StringOrdered()
 				destState.value = mergedStateSet
 
 				// and so we can rewrite transitions from the old states to the
@@ -882,6 +889,11 @@ func NewLALR1ViablePrefixDFA(g grammar.Grammar) (DFA[util.SVSet[grammar.LR1Item]
 						// rewrite the transition to new state
 						lalrNfa.states[from].transitions[sym][idx] = FATransition{input: sym, next: newStateName}
 					}
+
+					// also, check to see if we need to update start
+					if lalrNfa.Start == mergeWith[i] {
+						lalrNfa.Start = newStateName
+					}
 				}
 
 				// also rewrite any transitions to the merged-to state
@@ -894,6 +906,11 @@ func NewLALR1ViablePrefixDFA(g grammar.Grammar) (DFA[util.SVSet[grammar.LR1Item]
 
 					// rewrite the transition to new state
 					lalrNfa.states[from].transitions[sym][idx] = FATransition{input: sym, next: newStateName}
+				}
+
+				// also, check to see if we need to update start
+				if lalrNfa.Start == stateName {
+					lalrNfa.Start = newStateName
 				}
 
 				// finally, enshore that any transitions we lose by deleting the
@@ -956,6 +973,37 @@ func NewLALR1ViablePrefixDFA(g grammar.Grammar) (DFA[util.SVSet[grammar.LR1Item]
 			if updated {
 				break
 			}
+		}
+	}
+
+	// prior to conversion to dfa, go through and update the auto-numbered states
+	lalrStates := lalrNfa.States().Elements()
+	for _, stateName := range lalrStates {
+		st := lalrNfa.states[stateName]
+
+		// we keep the name pre-calculated in .name, so check if there's a mismatch
+		if st.name != stateName {
+			newStateName := st.name
+			transitionsToMerged := lalrNfa.AllTransitionsTo(stateName)
+
+			for j := range transitionsToMerged {
+				trans := transitionsToMerged[j]
+				from := trans.from
+				sym := trans.input
+				idx := trans.index
+
+				// rewrite the transition to new state
+				lalrNfa.states[from].transitions[sym][idx] = FATransition{input: sym, next: newStateName}
+			}
+
+			// also, check to see if we need to update start
+			if lalrNfa.Start == stateName {
+				lalrNfa.Start = newStateName
+			}
+
+			// and now, swap the name for the reel one
+			lalrNfa.states[newStateName] = st
+			delete(lalrNfa.states, stateName)
 		}
 	}
 

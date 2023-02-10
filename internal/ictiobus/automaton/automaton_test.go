@@ -1,7 +1,6 @@
 package automaton
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
@@ -112,9 +111,10 @@ func Test_NewViablePrefixNFA(t *testing.T) {
 
 func Test_NewLALR1ViablePrefixDFA(t *testing.T) {
 	testCases := []struct {
-		name    string
-		grammar string
-		expect  string
+		name        string
+		grammar     string
+		expect      string
+		expectStart string
 	}{
 		{
 			name: "2-rule ex from https://www.cs.york.ac.uk/fp/lsa/lectures/lalr.pdf",
@@ -122,25 +122,23 @@ func Test_NewLALR1ViablePrefixDFA(t *testing.T) {
 				S -> C C ;
 				C -> c C | d ;
 			`,
-			expect: `glub`,
-		},
-		/*{
-			name: "purple dragon LALR(1) example grammar",
-			grammar: `
-				S -> L = R | R ;
-				L -> * R | id ;
-				R -> L ;
-			`,
-			expect: `glub`,
+			expect: `<START: "{C -> . c C, c, C -> . c C, d, C -> . d, c, C -> . d, d, S -> . C C, $, S-P -> . S, $}", STATES:
+	(({C -> . c C, $, C -> . c C, c, C -> . c C, d, C -> . d, $, C -> . d, c, C -> . d, d, C -> c . C, $, C -> c . C, c, C -> c . C, d} [=(C)=> {C -> c C ., $, C -> c C ., c, C -> c C ., d}, =(c)=> {C -> . c C, $, C -> . c C, c, C -> . c C, d, C -> . d, $, C -> . d, c, C -> . d, d, C -> c . C, $, C -> c . C, c, C -> c . C, d}, =(d)=> {C -> d ., $, C -> d ., c, C -> d ., d}])),
+	(({C -> . c C, $, C -> . d, $, S -> C . C, $} [=(C)=> {S -> C C ., $}, =(c)=> {C -> . c C, $, C -> . c C, c, C -> . c C, d, C -> . d, $, C -> . d, c, C -> . d, d, C -> c . C, $, C -> c . C, c, C -> c . C, d}, =(d)=> {C -> d ., $, C -> d ., c, C -> d ., d}])),
+	(({C -> . c C, c, C -> . c C, d, C -> . d, c, C -> . d, d, S -> . C C, $, S-P -> . S, $} [=(C)=> {C -> . c C, $, C -> . d, $, S -> C . C, $}, =(S)=> {S-P -> S ., $}, =(c)=> {C -> . c C, $, C -> . c C, c, C -> . c C, d, C -> . d, $, C -> . d, c, C -> . d, d, C -> c . C, $, C -> c . C, c, C -> c . C, d}, =(d)=> {C -> d ., $, C -> d ., c, C -> d ., d}])),
+	(({C -> c C ., $, C -> c C ., c, C -> c C ., d} [])),
+	(({C -> d ., $, C -> d ., c, C -> d ., d} [])),
+	(({S -> C C ., $} [])),
+	(({S-P -> S ., $} []))
+>`,
 		}, /*
 			{
-				name: "quick2",
+				name: "purple dragon 'efficient' LALR construction grammar",
 				grammar: `
-					E -> E + T | T ;
-					T -> T * F | F ;
-					F -> ( E ) | id ;
+					S -> L = R | R ;
+					L -> * R | id ;
+					R -> L ;
 				`,
-				expect: `glub`,
 			},*/
 	}
 
@@ -157,21 +155,7 @@ func Test_NewLALR1ViablePrefixDFA(t *testing.T) {
 				return
 			}
 
-			valErr := actual.Validate()
-			infoSet := actual.States()
-			states := util.Alphabetized[string](infoSet)
-
-			errMsg := "FAILURE; existing states:"
-			if valErr != nil {
-				for i := range states {
-					errMsg += "\n" + states[i]
-				}
-				errMsg += "\n\n" + valErr.Error()
-				assert.NoError(fmt.Errorf(errMsg))
-				return
-			}
-
-			// assert)
+			// assert
 			assert.Equal(tc.expect, actual.String())
 		})
 	}
