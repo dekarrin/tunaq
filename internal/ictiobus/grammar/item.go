@@ -3,6 +3,8 @@ package grammar
 import (
 	"fmt"
 	"strings"
+
+	"github.com/dekarrin/tunaq/internal/util"
 )
 
 type LR0Item struct {
@@ -11,9 +13,81 @@ type LR0Item struct {
 	Right       []string
 }
 
+func (lr0 LR0Item) Equal(o any) bool {
+	other, ok := o.(LR0Item)
+	if !ok {
+		otherPtr, ok := o.(*LR0Item)
+		if !ok {
+			return false
+		}
+		if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if lr0.NonTerminal != other.NonTerminal {
+		return false
+	} else if len(lr0.Left) != len(other.Left) {
+		return false
+	} else if len(lr0.Right) != len(other.Right) {
+		return false
+	}
+
+	// now check the left and right
+	for i := range lr0.Left {
+		if lr0.Left[i] != other.Left[i] {
+			return false
+		}
+	}
+	for i := range lr0.Right {
+		if lr0.Right[i] != other.Right[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
 type LR1Item struct {
 	LR0Item
 	Lookahead string
+}
+
+func EqualCoreSets(s1, s2 util.VSet[string, LR1Item]) bool {
+	return CoreSet(s1).Equal(CoreSet(s2))
+}
+
+func CoreSet(s util.VSet[string, LR1Item]) util.SVSet[LR0Item] {
+	cores := util.NewSVSet[LR0Item]()
+	for _, elem := range s.Elements() {
+		lr1 := s.Get(elem)
+		cores.Set(lr1.LR0Item.String(), lr1.LR0Item)
+	}
+
+	return cores
+}
+
+func (lr1 LR1Item) Equal(o any) bool {
+	other, ok := o.(LR1Item)
+	if !ok {
+		otherPtr, ok := o.(*LR1Item)
+		if !ok {
+			return false
+		}
+		if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if !lr1.LR0Item.Equal(other.LR0Item) {
+		return false
+	} else if lr1.Lookahead != other.Lookahead {
+		return false
+	}
+
+	return true
 }
 
 func (lr1 LR1Item) Copy() LR1Item {

@@ -14,6 +14,14 @@ func Test_kernels(t *testing.T) {
 		expect  string
 	}{
 		{
+			name: "2-rule ex from https://www.cs.york.ac.uk/fp/lsa/lectures/lalr.pdf",
+			grammar: `
+				S -> C C ;
+				C -> c C | d ;
+			`,
+			expect: `glub`,
+		},
+		/*{
 			name: "purple dragon LALR(1) example grammar",
 			grammar: `
 				S -> L = R | R ;
@@ -40,7 +48,8 @@ func Test_kernels(t *testing.T) {
 			g := grammar.MustParse(tc.grammar)
 
 			// execute
-			actual := computeLALR1Kernels(g)
+			actual, err := constructLALR1ParseTable(g)
+			assert.NoError(err)
 
 			// assert)
 			assert.Equal(tc.expect, actual.String())

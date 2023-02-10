@@ -356,6 +356,53 @@ func (g Grammar) LR0Items() []LR0Item {
 	return items
 }
 
+// ValidLR1Items returns the sets of valid LR(1) items that would be in each
+// state of a CLR(1) automaton. Note that it is expected that this will be
+// called on an Augmented grammar.
+func (g Grammar) ValidLR1Items() util.SVSet[util.SVSet[LR1Item]] {
+	// since it is assumed the grammar has been augmented, we can take the only
+	// rule for the start symbol.
+	startRule := g.Rule(g.StartSymbol())
+	if len(startRule.Productions) != 1 || len(startRule.Productions[0]) != 1 {
+		panic("not an augmented grammar; call g.Augmented() first")
+	}
+
+	symbols := append(g.NonTerminals(), g.Terminals()...)
+
+	// initialize C to CLOSURE({[S' -> .S, $]})
+	startItem := LR1Item{
+		LR0Item: LR0Item{
+			NonTerminal: g.StartSymbol(),
+			Right:       startRule.Productions[0],
+		},
+		Lookahead: "$",
+	}
+	startSet := util.NewSVSet[LR1Item]()
+	startSet.Set(startItem.String(), startItem)
+
+	C := util.NewSVSet[util.SVSet[LR1Item]]()
+	startSetClosure := g.LR1_CLOSURE(startSet)
+	C.Set(startSetClosure.StringOrdered(), startSetClosure)
+
+	updated := true
+	for updated {
+		updated = false
+
+		for _, Iname := range C.Elements() {
+			I := C.Get(Iname)
+			for _, X := range symbols {
+				gotoSet := g.LR1_GOTO(I, X)
+				if !gotoSet.Empty() && !C.Has(gotoSet.StringOrdered()) {
+					C.Set(gotoSet.StringOrdered(), gotoSet)
+					updated = true
+				}
+			}
+		}
+	}
+
+	return C
+}
+
 // CanonicalLR0Items returns the canonical set of LR(0) items for the grammar,
 // without including the automaton (which may be invalid for non SLR(1)
 // grammars). Note that it is exepcted that this will be called on an Augmented

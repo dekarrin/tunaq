@@ -1,6 +1,7 @@
 package automaton
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
@@ -107,6 +108,74 @@ func Test_NewViablePrefixNFA(t *testing.T) {
 			assert.Equal(expect.String(), actual.String())
 		})
 	}
+}
+
+func Test_NewLALR1ViablePrefixDFA(t *testing.T) {
+	testCases := []struct {
+		name    string
+		grammar string
+		expect  string
+	}{
+		{
+			name: "2-rule ex from https://www.cs.york.ac.uk/fp/lsa/lectures/lalr.pdf",
+			grammar: `
+				S -> C C ;
+				C -> c C | d ;
+			`,
+			expect: `glub`,
+		},
+		/*{
+			name: "purple dragon LALR(1) example grammar",
+			grammar: `
+				S -> L = R | R ;
+				L -> * R | id ;
+				R -> L ;
+			`,
+			expect: `glub`,
+		}, /*
+			{
+				name: "quick2",
+				grammar: `
+					E -> E + T | T ;
+					T -> T * F | F ;
+					F -> ( E ) | id ;
+				`,
+				expect: `glub`,
+			},*/
+	}
+
+	// TODO: FILL WITH PROPER INFO, IT DOES WORK (IN THEORY)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// setup
+			assert := assert.New(t)
+			g := grammar.MustParse(tc.grammar)
+
+			// execute
+			actual, err := NewLALR1ViablePrefixDFA(g)
+			if !assert.NoError(err) {
+				return
+			}
+
+			valErr := actual.Validate()
+			infoSet := actual.States()
+			states := util.Alphabetized[string](infoSet)
+
+			errMsg := "FAILURE; existing states:"
+			if valErr != nil {
+				for i := range states {
+					errMsg += "\n" + states[i]
+				}
+				errMsg += "\n\n" + valErr.Error()
+				assert.NoError(fmt.Errorf(errMsg))
+				return
+			}
+
+			// assert)
+			assert.Equal(tc.expect, actual.String())
+		})
+	}
+
 }
 
 func Test_NFA_EpsilonClosure(t *testing.T) {
