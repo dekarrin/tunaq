@@ -339,6 +339,18 @@ func getLR0Kernels(g grammar.Grammar) util.VSet[string, util.SVSet[grammar.LR0It
 	return kernels
 }
 
+// GenerateLALR1Parser returns a parser that uses the set of canonical
+// LR(1) items from g to parse input in language g. The provided language must
+// be in LR(1) or else the a non-nil error is returned.
+func GenerateLALR1Parser(g grammar.Grammar) (lrParser, error) {
+	table, err := constructLALR1ParseTable(g)
+	if err != nil {
+		return lrParser{}, err
+	}
+
+	return lrParser{table: table}, nil
+}
+
 // constructLALR1ParseTable constructs the LALR(1) table for G.
 // It augments grammar G to produce G', then the canonical collection of sets of
 // LR(1) items of G' is used to construct a table with applicable GOTO and

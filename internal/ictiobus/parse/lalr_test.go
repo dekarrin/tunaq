@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
+	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -53,38 +54,41 @@ func Test_ConstructLALR1ParseTable(t *testing.T) {
 
 }
 
-func Test_kernels(t *testing.T) {
+func Test_LALR1Parse(t *testing.T) {
 	testCases := []struct {
-		name    string
-		grammar string
-		expect  string
+		name      string
+		grammar   string
+		input     []string
+		expect    string
+		expectErr bool
 	}{
 		{
-			name: "2-rule ex from https://www.cs.york.ac.uk/fp/lsa/lectures/lalr.pdf",
+			name: "purple dragon example 4.45",
 			grammar: `
-				S -> C C ;
-				C -> c C | d ;
-			`,
-			expect: `glub`,
-		},
-		/*{
-			name: "purple dragon LALR(1) example grammar",
-			grammar: `
-				S -> L = R | R ;
-				L -> * R | id ;
-				R -> L ;
-			`,
-			expect: `glub`,
-		}, /*
-			{
-				name: "quick2",
-				grammar: `
-					E -> E + T | T ;
-					T -> T * F | F ;
-					F -> ( E ) | id ;
+				E -> E + T | T ;
+				T -> T * F | F ;
+				F -> ( E ) | id ;
 				`,
-				expect: `glub`,
-			},*/
+			input: []string{"(", "id", "+", "id", ")", "*", "id", lex.TokenEndOfText.ID()},
+			expect: `( E )
+  \---: ( T )
+          |---: ( T )
+          |       \---: ( F )
+          |               |---: (TERM "(")
+          |               |---: ( E )
+          |               |       |---: ( E )
+          |               |       |       \---: ( T )
+          |               |       |               \---: ( F )
+          |               |       |                       \---: (TERM "id")
+          |               |       |---: (TERM "+")
+          |               |       \---: ( T )
+          |               |               \---: ( F )
+          |               |                       \---: (TERM "id")
+          |               \---: (TERM ")")
+          |---: (TERM "*")
+          \---: ( F )
+                  \---: (TERM "id")`,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -92,14 +96,21 @@ func Test_kernels(t *testing.T) {
 			// setup
 			assert := assert.New(t)
 			g := grammar.MustParse(tc.grammar)
+			stream := mockTokens(tc.input...)
 
 			// execute
-			actual, err := constructLALR1ParseTable(g)
-			assert.NoError(err)
+			parser, err := GenerateLALR1Parser(g)
+			assert.NoError(err, "generating LALR parser failed")
+			actual, err := parser.Parse(stream)
 
-			// assert)
+			// assert
+			if tc.expectErr {
+				assert.Error(err)
+				return
+			}
+			assert.NoError(err)
 			assert.Equal(tc.expect, actual.String())
+
 		})
 	}
-
 }

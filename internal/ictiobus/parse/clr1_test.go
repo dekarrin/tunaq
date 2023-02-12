@@ -97,7 +97,7 @@ func Test_CanonicalLR1Parse(t *testing.T) {
 
 			// execute
 			parser, err := GenerateCanonicalLR1Parser(g)
-			assert.NoError(err, "generating SLR parser failed")
+			assert.NoError(err, "generating CLR parser failed")
 			actual, err := parser.Parse(stream)
 
 			// assert

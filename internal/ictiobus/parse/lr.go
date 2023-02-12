@@ -5,6 +5,7 @@ import (
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/icterrors"
 	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
@@ -49,12 +50,12 @@ type lrParser struct {
 //
 // This is an implementation of Algorithm 4.44, "LR-parsing algorithm", from
 // the purple dragon book.
-func (lr lrParser) Parse(stream lex.TokenStream) (Tree, error) {
+func (lr lrParser) Parse(stream lex.TokenStream) (types.ParseTree, error) {
 	stateStack := util.Stack[string]{Of: []string{lr.table.Initial()}}
 
 	// we will use these to build our parse tree
 	tokenBuffer := util.Stack[lex.Token]{}
-	subTreeRoots := util.Stack[*Tree]{}
+	subTreeRoots := util.Stack[*types.ParseTree]{}
 
 	// let a be the first symbol of w$;
 	a := stream.Next()
@@ -82,7 +83,7 @@ func (lr lrParser) Parse(stream lex.TokenStream) (Tree, error) {
 			beta := ACTION.Production
 
 			// use the reduce to create a node in the parse tree
-			node := &Tree{Value: A, Children: make([]*Tree, 0)}
+			node := &types.ParseTree{Value: A, Children: make([]*types.ParseTree, 0)}
 			// we need to go from right to left of the production to pop things
 			// from the stacks in the correct order
 			for i := len(beta) - 1; i >= 0; i-- {
@@ -90,13 +91,13 @@ func (lr lrParser) Parse(stream lex.TokenStream) (Tree, error) {
 				if strings.ToLower(sym) == sym {
 					// it is a terminal. read the source from the token buffer
 					tok := tokenBuffer.Pop()
-					subNode := &Tree{Terminal: true, Value: tok.Class().ID(), Source: tok}
-					node.Children = append([]*Tree{subNode}, node.Children...)
+					subNode := &types.ParseTree{Terminal: true, Value: tok.Class().ID(), Source: tok}
+					node.Children = append([]*types.ParseTree{subNode}, node.Children...)
 				} else {
 					// it is a non-terminal. it should be in our stack of
 					// current tree roots.
 					subNode := subTreeRoots.Pop()
-					node.Children = append([]*Tree{subNode}, node.Children...)
+					node.Children = append([]*types.ParseTree{subNode}, node.Children...)
 				}
 			}
 			// remember it for next time
@@ -113,7 +114,7 @@ func (lr lrParser) Parse(stream lex.TokenStream) (Tree, error) {
 			// push GOTO[t, A] onto the stack
 			toPush, err := lr.table.Goto(t, A)
 			if err != nil {
-				return Tree{}, icterrors.NewSyntaxErrorFromToken("parsing failed", a)
+				return types.ParseTree{}, icterrors.NewSyntaxErrorFromToken("parsing failed", a)
 			}
 			stateStack.Push(toPush)
 
@@ -126,7 +127,7 @@ func (lr lrParser) Parse(stream lex.TokenStream) (Tree, error) {
 		case LRError:
 			// call error-recovery routine
 			// TODO: error recovery, for now, just report it
-			return Tree{}, icterrors.NewSyntaxErrorFromToken("parsing failed", a)
+			return types.ParseTree{}, icterrors.NewSyntaxErrorFromToken("parsing failed", a)
 		}
 	}
 }

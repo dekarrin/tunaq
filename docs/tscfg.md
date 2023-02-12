@@ -16,7 +16,17 @@ Grammar is BNFish
 // doing ^ plus single production elimination effectively makes a CFG without any
 // cycles (for A | Non-terminals: there exists no sequence of rules s.t. A -*> A is possible.)
 
-S                        ::= expr
+
+TS-EXPR -> BINARY-EXPR
+{ value: BINARY-EXPR.value }
+
+BINARY-EXPR -> BINARY-SET-EXPR
+{ value: BINARY-SET-EXPR.value }
+
+
+
+
+
 
 expr                     ::= binary-expr
 

@@ -7,6 +7,7 @@ import (
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/ictiobus/icterrors"
 	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
@@ -29,12 +30,12 @@ func GenerateLL1Parser(g grammar.Grammar) (ll1Parser, error) {
 	return ll1Parser{table: M, g: g.Copy()}, nil
 }
 
-func (ll1 ll1Parser) Parse(stream lex.TokenStream) (Tree, error) {
+func (ll1 ll1Parser) Parse(stream lex.TokenStream) (types.ParseTree, error) {
 	stack := util.Stack[string]{Of: []string{ll1.g.StartSymbol(), "$"}}
 	next := stream.Peek()
 	X := stack.Peek()
-	pt := Tree{Value: ll1.g.StartSymbol()}
-	ptStack := util.Stack[*Tree]{Of: []*Tree{&pt}}
+	pt := types.ParseTree{Value: ll1.g.StartSymbol()}
+	ptStack := util.Stack[*types.ParseTree]{Of: []*types.ParseTree{&pt}}
 
 	node := ptStack.Peek()
 	for X != "$" { /* stack is not empty */
@@ -68,11 +69,11 @@ func (ll1 ll1Parser) Parse(stream lex.TokenStream) (Tree, error) {
 					stack.Push(nextProd[i])
 				}
 
-				child := &Tree{Value: nextProd[i]}
+				child := &types.ParseTree{Value: nextProd[i]}
 				if nextProd[i] == grammar.Epsilon[0] {
 					child.Terminal = true
 				}
-				node.Children = append([]*Tree{child}, node.Children...)
+				node.Children = append([]*types.ParseTree{child}, node.Children...)
 
 				if nextProd[i] != grammar.Epsilon[0] {
 					ptStack.Push(child)
