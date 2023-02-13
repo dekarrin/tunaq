@@ -5,87 +5,250 @@ package translation
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
+	"github.com/dekarrin/tunaq/internal/util"
 )
 
 type SyntaxDirectedTranslator struct {
 }
 
 type SDD interface {
-	BindInheritedAttribute(ruleHead string, ruleProds []string, bindFunc AttributeSetter)
+
+	// BindInheritedAttribute creates a new SDD binding for setting the value of
+	// an inherited attribute with name attrName. The production that the
+	// inherited attribute is set on is specified with forProd, which must have
+	// its Type set to something other than RelHead (inherited attributes can be
+	// set only on production symbols).
+	//
+	// The binding applies only on nodes in the parse tree created by parsing
+	// the grammar rule productions with head symbol head and production symbols
+	// prod.
+	//
+	// The AttributeSetter bindFunc is called when the inherited value attrName
+	// is to be set, in order to calculate the new value. Attribute values to
+	// pass in as arguments are specified by passing references to the node and
+	// attribute name whose value to retrieve in the withArgs slice. Explicitly
+	// giving the referenced attributes in this fashion makes it easy to
+	// determine the dependency graph for later execution.
+	BindInheritedAttribute(head string, prod []string, attrName NodeAttrName, bindFunc AttributeSetter, withArgs []AttrRef, forProd NodeRelation) error
+
+	// BindSynthesizedAttribute creates a new SDD binding for setting the value
+	// of a synthesized attribute with name attrName. The attribute is set on
+	// the symbol at the head of the rule that the binding is being created for.
+	//
+	// The binding applies only on nodes in the parse tree created by parsing
+	// the grammar rule productions with head symbol head and production symbols
+	// prod.
+	//
+	// The AttributeSetter bindFunc is called when the synthesized value
+	// attrName is to be set, in order to calculate the new value. Attribute
+	// values to pass in as arguments are specified by passing references to the
+	// node and attribute name whose value to retrieve in the withArgs slice.
+	// Explicitly giving the referenced attributes in this fashion makes it easy
+	// to determine the dependency graph for later execution.
+	BindSynthesizedAttribute(head string, prod []string, attrName NodeAttrName, bindFunc AttributeSetter, forAttr string, withArgs []AttrRef) error
+
+	// Bindings returns all bindings defined to apply when at a node in a parse
+	// tree created by the rule production with head as its head symbol and prod
+	// as its produced symbols. They will be returned in the order they were
+	// defined.
+	Bindings(head string, prod []string) []SDDBinding
+}
+type sddImpl struct {
+	bindings map[string]map[string][]SDDBinding
 }
 
-type SDDBinding struct {
-	// Synthesized is whether the binding is for a
-	Synthesized bool
-
-	// BoundRuleSymbol is the head symbol of the rule the binding is on.
-	BoundRuleSymbol string
-
-	// BoundRuleProduction is the list of produced symbols of the rule the
-	// binding is on.
-	BoundRuleProduction []string
-
-	// Requirements is the attribute references that this binding needs.
-	Requirements []AttrRef
-
-	// Dest is the destination.
-	Dest AttrRef
-
-	// Setter is the call to calculate a value of the node by the binding.
-	Setter AttributeSetter
-}
-
-// forAttr can always be taken from Dest.Name
-func (bind SDDBinding) Invoke(apt AnnotatedParseTree) NodeAttrValue {
-	// sanity checks; can we even call this?
-	if bind.Setter == nil {
-		panic("attempt to invoke nil attribute setter func")
-	}
-	if bind.Dest.Relation.Type == RelHead && !bind.Synthesized {
-		panic("cannot invoke inherited attribute SDD binding on head of rule")
-	} else if bind.Dest.Relation.Type != RelHead && bind.Synthesized {
-		panic("cannot invoke synthesized attribute SDD binding on production of rule")
-	}
-
-	// symbol of who it is for
-	forSymbol, ok := apt.SymbolOf(bind.Dest.Relation)
+func (sdd *sddImpl) Bindings(head string, prod []string) []SDDBinding {
+	forHead, ok := sdd.bindings[head]
 	if !ok {
-		// invalid dest
-		panic(fmt.Sprintf("bound-to rule does not contain a %s", bind.Dest.Relation.String()))
+		return nil
 	}
 
-	// gather args
-	args := []NodeAttrValue{}
-	for i := range bind.Requirements {
-		req := bind.Requirements[i]
-		reqVal, ok := apt.AttributeValueOf(req)
-		if !ok {
-			// should never happen, creation of Binding should ensure this.
-			_, refNodeExists := apt.AttributesOf(req.Relation)
-			if !refNodeExists {
-				// reference itself was invalid
-				panic(fmt.Sprintf("bound-to rule does not contain a %s", req.Relation.String()))
-			} else {
-				panic(fmt.Sprintf("attribute %s not yet defined for %s in bound-to-rule", req.Name, req.Relation.String()))
+	forProd, ok := forHead[strings.Join(prod, " ")]
+	if !ok {
+		return nil
+	}
+
+	targetBindings := make([]SDDBinding, len(forProd))
+	copy(targetBindings, forProd)
+
+	return targetBindings
+}
+
+func (sdd *sddImpl) BindSynthesizedAttribute(head string, prod []string, attrName NodeAttrName, bindFunc AttributeSetter, forAttr string, withArgs []AttrRef) error {
+	// sanity checks; can we even call this?
+	if bindFunc == nil {
+		return fmt.Errorf("cannot bind nil bindFunc")
+	}
+
+	// check args
+	argErrs := ""
+	for i := range withArgs {
+		req := withArgs[i]
+		if !req.Relation.ValidFor(head, prod) {
+			argErrs += fmt.Sprintf("\n* bound-to-rule does not have a %s", req.Relation.String())
+		}
+	}
+	if len(argErrs) > 0 {
+		return fmt.Errorf("bad arguments:%s", argErrs)
+	}
+
+	// get storage slice
+	bindingsForHead, ok := sdd.bindings[head]
+	if !ok {
+		bindingsForHead = map[string][]SDDBinding{}
+	}
+	defer func() { sdd.bindings[head] = bindingsForHead }()
+
+	prodStr := strings.Join(prod, " ")
+	existingBindings, ok := bindingsForHead[prodStr]
+	if !ok {
+		existingBindings = make([]SDDBinding, 0)
+	}
+	defer func() { bindingsForHead[prodStr] = existingBindings }()
+
+	// build the binding
+	bind := SDDBinding{
+		Synthesized:         true,
+		BoundRuleSymbol:     head,
+		BoundRuleProduction: make([]string, len(prod)),
+		Requirements:        make([]AttrRef, len(withArgs)),
+		Setter:              bindFunc,
+		Dest:                AttrRef{Relation: NodeRelation{Type: RelHead}, Name: attrName},
+	}
+
+	copy(bind.BoundRuleProduction, prod)
+	copy(bind.Requirements, withArgs)
+	existingBindings = append(existingBindings, bind)
+
+	// defers will assign back up to map
+
+	return nil
+}
+
+func (sdd *sddImpl) BindInheritedAttribute(head string, prod []string, attrName NodeAttrName, bindFunc AttributeSetter, withArgs []AttrRef, forProd NodeRelation) error {
+	// sanity checks; can we even call this?
+	if bindFunc == nil {
+		return fmt.Errorf("cannot bind nil bindFunc")
+	}
+
+	// check forProd
+	if forProd.Type == RelHead {
+		return fmt.Errorf("inherited attributes not allowed to be defined on production heads")
+	}
+	if !forProd.ValidFor(head, prod) {
+		return fmt.Errorf("bad target symbol: bound-to-rule does not have a %s", forProd.String())
+	}
+
+	// check args
+	argErrs := ""
+	for i := range withArgs {
+		req := withArgs[i]
+		if !req.Relation.ValidFor(head, prod) {
+			argErrs += fmt.Sprintf("\n* bound-to-rule does not have a %s", req.Relation.String())
+		}
+	}
+	if len(argErrs) > 0 {
+		return fmt.Errorf("bad arguments:%s", argErrs)
+	}
+
+	// get storage slice
+	bindingsForHead, ok := sdd.bindings[head]
+	if !ok {
+		bindingsForHead = map[string][]SDDBinding{}
+	}
+	defer func() { sdd.bindings[head] = bindingsForHead }()
+
+	prodStr := strings.Join(prod, " ")
+	existingBindings, ok := bindingsForHead[prodStr]
+	if !ok {
+		existingBindings = make([]SDDBinding, 0)
+	}
+	defer func() { bindingsForHead[prodStr] = existingBindings }()
+
+	// build the binding
+	bind := SDDBinding{
+		Synthesized:         true,
+		BoundRuleSymbol:     head,
+		BoundRuleProduction: make([]string, len(prod)),
+		Requirements:        make([]AttrRef, len(withArgs)),
+		Setter:              bindFunc,
+		Dest:                AttrRef{Relation: forProd, Name: attrName},
+	}
+
+	copy(bind.BoundRuleProduction, prod)
+	copy(bind.Requirements, withArgs)
+	existingBindings = append(existingBindings, bind)
+
+	// defers will assign back up to map
+
+	return nil
+}
+
+func NewSDD() SDD {
+	impl := sddImpl{
+		map[string]map[string][]SDDBinding{},
+	}
+	return &impl
+}
+
+type APTNodeID uint64
+
+const (
+	IDZero APTNodeID = APTNodeID(0)
+)
+
+// IDGenerator should not be used directly, use NewIDGenerator. This will
+// generate one that avoids the zero-value of APTNodeID.
+type IDGenerator struct {
+	avoidVals []APTNodeID
+	seed      APTNodeID
+	last      APTNodeID
+	started   bool
+}
+
+func NewIDGenerator(seed int64) IDGenerator {
+	return IDGenerator{
+		seed:      APTNodeID(seed),
+		avoidVals: []APTNodeID{IDZero},
+	}
+}
+
+func (idGen *IDGenerator) Next() APTNodeID {
+	var next APTNodeID
+	var valid bool
+
+	for !valid {
+		if !idGen.started {
+			// then next is set to seed-value
+			idGen.started = true
+			next = idGen.seed
+		} else {
+			next = idGen.last + 1
+		}
+		idGen.last = next
+
+		valid = true
+		for i := range idGen.avoidVals {
+			if idGen.avoidVals[i] == next {
+				valid = false
+				break
 			}
 		}
-
-		args = append(args, reqVal)
 	}
 
-	// call func
-	val := bind.Setter(forSymbol, bind.Dest.Name, args)
-
-	return val
-}
-
-type SAttrSDD struct {
-	Rules map[string][]AttributeSetter
+	return next
 }
 
 type NodeAttrName string
+
+func (nan NodeAttrName) String() string {
+	return string(nan)
+}
+
 type NodeAttrValue interface{}
 
 type NodeAttrs map[NodeAttrName]NodeAttrValue
@@ -108,6 +271,44 @@ type NodeValues struct {
 
 type AttributeSetter func(symbol string, name NodeAttrName, args []NodeAttrValue) NodeAttrValue
 
+// AddAttributes adds annotation fields to the given parse tree. Returns an
+// AnnotatedParseTree with only auto fields set ('$text' for terminals, '$id'
+// for all nodes).
+func AddAttributes(root types.ParseTree) AnnotatedParseTree {
+	treeStack := util.Stack[*types.ParseTree]{Of: []*types.ParseTree{&root}}
+	annoRoot := AnnotatedParseTree{}
+	annotatedStack := util.Stack[*AnnotatedParseTree]{Of: []*AnnotatedParseTree{&annoRoot}}
+
+	idGen := NewIDGenerator(0)
+
+	for treeStack.Len() > 0 {
+		curTreeNode := treeStack.Pop()
+		curAnnoNode := annotatedStack.Pop()
+
+		curAnnoNode.Terminal = curTreeNode.Terminal
+		curAnnoNode.Symbol = curTreeNode.Value
+		curAnnoNode.Source = curTreeNode.Source
+		curAnnoNode.Children = make([]*AnnotatedParseTree, len(curAnnoNode.Children))
+		curAnnoNode.Attributes = NodeAttrs{
+			NodeAttrName("$id"): NodeAttrValue(idGen.Next()),
+		}
+
+		if curTreeNode.Terminal {
+			curAnnoNode.Attributes[NodeAttrName("$text")] = curAnnoNode.Source.Lexeme()
+		}
+
+		// put child nodes on stack in reverse order to get left-first
+		for i := len(curTreeNode.Children) - 1; i >= 0; i-- {
+			newAnnoNode := &AnnotatedParseTree{}
+			curAnnoNode.Children[i] = newAnnoNode
+			treeStack.Push(curTreeNode.Children[i])
+			annotatedStack.Push(newAnnoNode)
+		}
+	}
+
+	return annoRoot
+}
+
 type AnnotatedParseTree struct {
 	// Terminal is whether this node is for a terminal symbol.
 	Terminal bool
@@ -124,6 +325,45 @@ type AnnotatedParseTree struct {
 	// Attributes is the data for attributes at the given position in the parse
 	// tree.
 	Attributes NodeAttrs
+}
+
+// Returns the ID of this node in the parse tree. All nodes have an ID
+// accessible via the special predefined attribute '$id'; this function serves
+// as a shortcut to getting the value from the node attributes with casting and
+// sanity checking handled.
+//
+// If for whatever reason the ID has not been set on this node, IDZero is
+// returned.
+func (apt AnnotatedParseTree) ID() APTNodeID {
+	var id APTNodeID
+	untyped, ok := apt.Attributes["$id"]
+	if !ok {
+		return id
+	}
+
+	id, ok = untyped.(APTNodeID)
+	if !ok {
+		panic(fmt.Sprintf("$id attribute set to non-APTNodeID typed value: %v", untyped))
+	}
+
+	return id
+}
+
+// Rule returns the head and production of the grammar rule associated with the
+// creation of this node in the parse tree. If apt is for a terminal, prod will
+// be empty.
+func (apt AnnotatedParseTree) Rule() (head string, prod []string) {
+	if apt.Terminal {
+		return apt.Symbol, nil
+	}
+
+	// need to gather symbol names from created nodes
+	prod = []string{}
+	for i := range apt.Children {
+		prod = append(prod, apt.Children[i].Symbol)
+	}
+
+	return apt.Symbol, prod
 }
 
 // SymbolOf returns the symbol of the node referred to by rel. Additionally, a
