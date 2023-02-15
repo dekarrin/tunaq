@@ -1,26 +1,66 @@
 package lex
 
-// Token is a lexeme read from text combined with the token class it is as well
-// as additional supplementary information gathered during lexing to inform
-// error reporting.
-type Token interface {
-	// Class returns the TokenClass of the Token.
-	Class() TokenClass
+import "github.com/dekarrin/tunaq/internal/ictiobus/types"
 
-	// Lexeme returns the text that was lexed as the TokenClass of the Token, as
-	// it appears in the source text.
-	Lexeme() string
+// implementation of TokenClass interface for lex package use only.
+type lexerClass struct {
+	id   string
+	name string
+}
 
-	// LinePos returns the 1-indexed character-of-line that the token appears
-	// on in the source text.
-	LinePos() int
+func (lc lexerClass) ID() string {
+	return lc.id
+}
 
-	// Line returns the 1-indexed line number of the line that the token appears
-	// on in the source text.
-	Line() int
+func (lc lexerClass) Human() string {
+	return lc.name
+}
 
-	// FullLine returns the full of text of the line in source that the token
-	// appears on, including both anything that came before the token as well as
-	// after it on the line.
-	FullLine() string
+func (lc lexerClass) Equal(o any) bool {
+	other, ok := o.(types.TokenClass)
+	if !ok {
+		otherPtr, ok := o.(*types.TokenClass)
+		if !ok {
+			return false
+		}
+		if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	return other.ID() == lc.ID()
+}
+
+func NewTokenClass(id string, human string) lexerClass {
+	return lexerClass{id: id, name: human}
+}
+
+// implementation of Token interface for lex package use only
+type lexerToken struct {
+	class   lexerClass
+	lexed   string
+	linePos int
+	lineNum int
+	line    string
+}
+
+func (lt lexerToken) Class() types.TokenClass {
+	return lt.class
+}
+
+func (lt lexerToken) Lexeme() string {
+	return lt.lexed
+}
+
+func (lt lexerToken) LinePos() int {
+	return lt.linePos
+}
+
+func (lt lexerToken) Line() int {
+	return lt.lineNum
+}
+
+func (lt lexerToken) FullLine() string {
+	return lt.line
 }

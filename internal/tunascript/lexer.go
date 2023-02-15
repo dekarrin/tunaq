@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 )
 
 const (
@@ -93,7 +93,7 @@ type token struct {
 	fullLine string
 }
 
-func (tok token) Class() lex.TokenClass {
+func (tok token) Class() types.TokenClass {
 	return tok.class
 }
 
@@ -158,10 +158,10 @@ func (tc tokenClass) ID() string {
 }
 
 func (tc tokenClass) Equal(o any) bool {
-	other, ok := o.(lex.TokenClass)
+	other, ok := o.(types.TokenClass)
 	if !ok {
 		// also okay if its the pointer value, as long as its non-nil
-		otherPtr, ok := o.(*lex.TokenClass)
+		otherPtr, ok := o.(*types.TokenClass)
 		if !ok {
 			return false
 		} else if otherPtr == nil {

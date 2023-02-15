@@ -3,7 +3,7 @@ package icterrors
 import (
 	"fmt"
 
-	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 )
 
 type SyntaxError struct {
@@ -77,7 +77,7 @@ func (se SyntaxError) SourceLineWithCursor() string {
 	return se.sourceLine + "\n" + cursorLine + "^"
 }
 
-func NewSyntaxErrorFromToken(msg string, tok lex.Token) *SyntaxError {
+func NewSyntaxErrorFromToken(msg string, tok types.Token) *SyntaxError {
 	return &SyntaxError{
 		message:    msg,
 		sourceLine: tok.FullLine(),

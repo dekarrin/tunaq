@@ -1,20 +1,22 @@
 package parse
 
-import "github.com/dekarrin/tunaq/internal/ictiobus/lex"
+import (
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
+)
 
 // mockstream will just be a v simple token stream
 type mockStream struct {
-	tokens []lex.Token
+	tokens []types.Token
 	cur    int
 }
 
-func (ts *mockStream) Next() lex.Token {
+func (ts *mockStream) Next() types.Token {
 	n := ts.tokens[ts.cur]
 	ts.cur++
 	return n
 }
 
-func (ts *mockStream) Peek() lex.Token {
+func (ts *mockStream) Peek() types.Token {
 	return ts.tokens[ts.cur]
 }
 
@@ -23,7 +25,7 @@ func (ts *mockStream) HasNext() bool {
 }
 
 type mockToken struct {
-	c      lex.TokenClass
+	c      types.TokenClass
 	l      int
 	lp     int
 	lexeme string
@@ -34,7 +36,7 @@ func (tok mockToken) FullLine() string {
 	return tok.f
 }
 
-func (tok mockToken) Class() lex.TokenClass {
+func (tok mockToken) Class() types.TokenClass {
 	return tok.c
 }
 
@@ -50,7 +52,7 @@ func (tok mockToken) Lexeme() string {
 	return tok.lexeme
 }
 
-func mockTokens(ofTerm ...string) lex.TokenStream {
+func mockTokens(ofTerm ...string) types.TokenStream {
 	buildingLine := ""
 
 	var lineTokens = make([]mockToken, 0)
@@ -59,12 +61,12 @@ func mockTokens(ofTerm ...string) lex.TokenStream {
 
 	curLine := 1
 	curLinePos := 1
-	var mocked []lex.Token
+	var mocked []types.Token
 	for i := range ofTerm {
-		tc := lex.MakeDefaultClass(ofTerm[i])
+		tc := types.MakeDefaultClass(ofTerm[i])
 		m := mockToken{c: tc, l: curLine, lp: curLinePos, lexeme: tc.ID()}
 		lineTokens = append(lineTokens, m)
-		if tc.ID() != lex.TokenEndOfText.ID() && tc.ID() != lex.TokenUndefined.ID() {
+		if tc.ID() != types.TokenEndOfText.ID() && tc.ID() != types.TokenUndefined.ID() {
 			buildingLine += m.lexeme + " "
 			curLinePos += len(m.lexeme) + 1 // for the space
 		}

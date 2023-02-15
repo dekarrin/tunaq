@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/icterrors"
-	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/dekarrin/tunaq/internal/util"
 )
@@ -50,11 +49,11 @@ type lrParser struct {
 //
 // This is an implementation of Algorithm 4.44, "LR-parsing algorithm", from
 // the purple dragon book.
-func (lr lrParser) Parse(stream lex.TokenStream) (types.ParseTree, error) {
+func (lr lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 	stateStack := util.Stack[string]{Of: []string{lr.table.Initial()}}
 
 	// we will use these to build our parse tree
-	tokenBuffer := util.Stack[lex.Token]{}
+	tokenBuffer := util.Stack[types.Token]{}
 	subTreeRoots := util.Stack[*types.ParseTree]{}
 
 	// let a be the first symbol of w$;

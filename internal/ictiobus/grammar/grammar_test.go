@@ -5,21 +5,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/dekarrin/tunaq/internal/util"
 	"github.com/stretchr/testify/assert"
 )
 
 // testing terminals
 var (
-	testTCNumber = lex.MakeDefaultClass("int")
+	testTCNumber = types.MakeDefaultClass("int")
 )
 
 func Test_Grammar_Validate(t *testing.T) {
 	testCases := []struct {
 		name      string
 		rules     []Rule
-		terminals []lex.TokenClass
+		terminals []types.TokenClass
 		expectErr bool
 	}{
 		{
@@ -28,7 +28,7 @@ func Test_Grammar_Validate(t *testing.T) {
 		},
 		{
 			name: "no rules in grammar",
-			terminals: []lex.TokenClass{
+			terminals: []types.TokenClass{
 				testTCNumber,
 			},
 			expectErr: true,
@@ -53,7 +53,7 @@ func Test_Grammar_Validate(t *testing.T) {
 					},
 				},
 			},
-			terminals: []lex.TokenClass{
+			terminals: []types.TokenClass{
 				testTCNumber,
 			},
 		},
@@ -180,7 +180,7 @@ func Test_Grammar_RemoveEpsilons(t *testing.T) {
 			// set up the grammar
 			g := Grammar{}
 			for _, term := range tc.terminals {
-				class := lex.MakeDefaultClass(term)
+				class := types.MakeDefaultClass(term)
 				g.AddTerm(class.ID(), class)
 			}
 			for _, r := range tc.rules {
@@ -321,7 +321,7 @@ func Test_Grammar_RemoveUnitProductions(t *testing.T) {
 			// set up the grammar
 			g := Grammar{}
 			for _, term := range tc.terminals {
-				class := lex.MakeDefaultClass(term)
+				class := types.MakeDefaultClass(term)
 				g.AddTerm(class.ID(), class)
 			}
 			for _, r := range tc.rules {
@@ -1036,7 +1036,7 @@ func setupGrammar(terminals []string, rules []string) Grammar {
 	g := Grammar{}
 
 	for _, term := range terminals {
-		class := lex.MakeDefaultClass(term)
+		class := types.MakeDefaultClass(term)
 		g.AddTerm(class.ID(), class)
 	}
 	for _, r := range rules {

@@ -1,4 +1,4 @@
-package lex
+package types
 
 // TokenStream is a stream of tokens read from source text. The stream may be
 // lazily-loaded or immediately available.

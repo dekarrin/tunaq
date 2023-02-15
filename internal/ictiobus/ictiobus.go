@@ -19,7 +19,6 @@ package ictiobus
 
 import (
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
-	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 	"github.com/dekarrin/tunaq/internal/ictiobus/parse"
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 )
@@ -27,7 +26,7 @@ import (
 type Parser interface {
 	// Parse parses input text and returns the parse tree built from it, or a
 	// SyntaxError with the description of the problem.
-	Parse(stream lex.TokenStream) (types.ParseTree, error)
+	Parse(stream types.TokenStream) (types.ParseTree, error)
 }
 
 // NewParser returns what is the most flexible and efficient parser in this

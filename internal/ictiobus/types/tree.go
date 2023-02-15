@@ -3,8 +3,6 @@ package types
 import (
 	"fmt"
 	"strings"
-
-	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 )
 
 const (
@@ -38,7 +36,7 @@ type ParseTree struct {
 	Value string
 
 	// Source is only available when Terminal is true.
-	Source lex.Token
+	Source Token
 
 	// Children is all children of the parse tree.
 	Children []*ParseTree

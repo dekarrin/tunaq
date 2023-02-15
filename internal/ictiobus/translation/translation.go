@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
-type SyntaxDirectedTranslator struct {
-}
-
+// SDD is a series of syntax-directed definitions bound to syntactic rules of
+// a grammar. It is used for evaluation of a parse tree into an intermediate
+// representation, or for direct execution.
 type SDD interface {
 
 	// BindInheritedAttribute creates a new SDD binding for setting the value of
@@ -56,9 +55,73 @@ type SDD interface {
 	// as its produced symbols. They will be returned in the order they were
 	// defined.
 	Bindings(head string, prod []string) []SDDBinding
+
+	BindingsFor(head string, prod []string, dest AttrRef) []SDDBinding
+
+	// Evaluate takes a parse tree and executes the semantic actions defined as
+	// SDDBindings for a node for each node in the tree and on completion,
+	// returns the requested attributes values from the root node. Execution
+	// order is automatically determined by taking the dependency graph of the
+	// SDD; cycles are not supported. Do note that this does not require the SDD
+	// to be S-attributed or L-attributed, only that it not have cycles in its
+	// value dependency graph.
+	Evaluate(tree types.ParseTree, attributes ...NodeAttrName) ([]NodeAttrValue, error)
 }
+
 type sddImpl struct {
 	bindings map[string]map[string][]SDDBinding
+}
+
+func (sdd *sddImpl) BindingsFor(head string, prod []string, attrRef AttrRef) []SDDBinding {
+	allForRule := sdd.Bindings(head, prod)
+
+	matchingBindings := []SDDBinding{}
+
+	for i := range allForRule {
+		if allForRule[i].Dest == attrRef {
+			matchingBindings = append(matchingBindings, allForRule[i])
+		}
+	}
+
+	return matchingBindings
+}
+
+func (sdd *sddImpl) Evaluate(tree types.ParseTree, attributes ...NodeAttrName) ([]NodeAttrValue, error) {
+	// first get an annotated parse tree
+	root := AddAttributes(tree)
+	depGraphs := DepGraph(root, sdd)
+	if len(depGraphs) > 1 {
+		return nil, fmt.Errorf("applying SDD to tree results in evaluation dependency graph with disconnected segments")
+	}
+	visitOrder, err := KahnSort(depGraphs[0])
+	if err != nil {
+		return nil, fmt.Errorf("sorting SDD dependency graph: %w", err)
+	}
+
+	for i := range visitOrder {
+		depNode := visitOrder[i].Data
+
+		tree := depNode.Tree
+		synthetic := depNode.Synthetic
+		treeParent := depNode.Parent
+
+		var invokeOn *AnnotatedParseTree
+		if synthetic {
+			invokeOn = tree
+		} else {
+			invokeOn = treeParent
+		}
+
+		nodeRuleHead, nodeRuleProd := tree.Rule()
+
+		bindingsToExec := sdd.BindingsFor(nodeRuleHead, nodeRuleProd, depNode.Dest)
+		for j := range bindingsToExec {
+			binding := bindingsToExec[j]
+			binding.Invoke(invokeOn)
+		}
+	}
+
+	return nil, nil
 }
 
 func (sdd *sddImpl) Bindings(head string, prod []string) []SDDBinding {
@@ -317,7 +380,7 @@ type AnnotatedParseTree struct {
 	Symbol string
 
 	// Source is only available when Terminal is true.
-	Source lex.Token
+	Source types.Token
 
 	// Children is all children of the parse tree.
 	Children []*AnnotatedParseTree

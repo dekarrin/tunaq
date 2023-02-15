@@ -7,7 +7,7 @@ import (
 	"unicode"
 
 	"github.com/dekarrin/rosed"
-	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
@@ -306,7 +306,7 @@ type Grammar struct {
 	// main rules store, not just doing a simple map bc
 	// rules may have order that matters
 	rules     []Rule
-	terminals map[string]lex.TokenClass
+	terminals map[string]types.TokenClass
 
 	// name of the start symbol. If not set, assumed to be S.
 	Start string
@@ -569,7 +569,7 @@ func (g Grammar) Copy() Grammar {
 	g2 := Grammar{
 		rulesByName: make(map[string]int, len(g.rulesByName)),
 		rules:       make([]Rule, len(g.rules)),
-		terminals:   make(map[string]lex.TokenClass, len(g.terminals)),
+		terminals:   make(map[string]types.TokenClass, len(g.terminals)),
 		Start:       g.Start,
 	}
 
@@ -618,14 +618,14 @@ func (g Grammar) Rule(nonterminal string) Rule {
 
 // Term returns the tokenClass that the given terminal symbol maps to. If the
 // given terminal symbol is not defined as a terminal symbol in this grammar,
-// the special TokenClass lex.UndefinedToken is returned.
-func (g Grammar) Term(terminal string) lex.TokenClass {
+// the special TokenClass types.UndefinedToken is returned.
+func (g Grammar) Term(terminal string) types.TokenClass {
 	if g.terminals == nil {
-		return lex.TokenUndefined
+		return types.TokenUndefined
 	}
 
 	if class, ok := g.terminals[terminal]; !ok {
-		return lex.TokenUndefined
+		return types.TokenUndefined
 	} else {
 		return class
 	}
@@ -642,14 +642,14 @@ func (g Grammar) Term(terminal string) lex.TokenClass {
 // and during validation if multiple terminals are matched to the same
 // tokenClass it will be considered an error.
 //
-// It is an error to map any terminal to lex.TokenUndefined or
-// lex.TokenEndOfText and attempting to do so will panic immediately.
-func (g *Grammar) AddTerm(terminal string, class lex.TokenClass) {
+// It is an error to map any terminal to types.TokenUndefined or
+// types.TokenEndOfText and attempting to do so will panic immediately.
+func (g *Grammar) AddTerm(terminal string, class types.TokenClass) {
 	if terminal == "" {
 		panic("empty terminal not allowed")
 	}
 
-	if class.ID() == lex.TokenEndOfText.ID() {
+	if class.ID() == types.TokenEndOfText.ID() {
 		panic("can't add out-of-band signal TokenEndOfText as defined terminal")
 	}
 
@@ -665,12 +665,12 @@ func (g *Grammar) AddTerm(terminal string, class lex.TokenClass) {
 		panic("invalid terminal name '$'; cant use the name of the end-of-text token")
 	}
 
-	if class.ID() == lex.TokenUndefined.ID() {
+	if class.ID() == types.TokenUndefined.ID() {
 		panic("cannot explicitly map a terminal to TokenUndefined")
 	}
 
 	if g.terminals == nil {
-		g.terminals = map[string]lex.TokenClass{}
+		g.terminals = map[string]types.TokenClass{}
 	}
 
 	g.terminals[terminal] = class
@@ -1528,7 +1528,7 @@ func Parse(gr string) (Grammar, error) {
 		for _, p := range rule.Productions {
 			for _, sym := range p {
 				if strings.ToLower(sym) == sym && sym != "" {
-					tc := lex.MakeDefaultClass(sym)
+					tc := types.MakeDefaultClass(sym)
 					g.AddTerm(tc.ID(), tc)
 				}
 			}
@@ -1539,8 +1539,8 @@ func Parse(gr string) (Grammar, error) {
 	return g, nil
 }
 
-func (g Grammar) TermFor(tc lex.TokenClass) string {
-	if tc.ID() == lex.TokenEndOfText.ID() {
+func (g Grammar) TermFor(tc types.TokenClass) string {
+	if tc.ID() == types.TokenEndOfText.ID() {
 		return "$"
 	}
 	for k := range g.terminals {
@@ -1695,7 +1695,7 @@ func (g Grammar) GenerateUniqueTerminal(original string) string {
 	newName := original
 	addedHyphen := false
 	existingTerm := g.Term(newName)
-	for existingTerm.ID() != lex.TokenUndefined.ID() {
+	for existingTerm.ID() != types.TokenUndefined.ID() {
 		if !addedHyphen {
 			newName += "-"
 			addedHyphen = true

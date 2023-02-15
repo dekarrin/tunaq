@@ -113,6 +113,24 @@ type NFAState[E any] struct {
 	accepting   bool
 }
 
+func (ns NFAState[E]) Copy() NFAState[E] {
+	copied := NFAState[E]{
+		name:        ns.name,
+		value:       ns.value,
+		transitions: make(map[string][]FATransition),
+		accepting:   ns.accepting,
+	}
+
+	for k := range ns.transitions {
+		trans := ns.transitions[k]
+		transCopy := make([]FATransition, len(trans))
+		copy(transCopy, trans)
+		copied.transitions[k] = transCopy
+	}
+
+	return copied
+}
+
 func (ns NFAState[E]) String() string {
 	var moves strings.Builder
 
@@ -310,6 +328,18 @@ type NFATransitionTo struct {
 	index int
 }
 
+func (nfa NFA[E]) AcceptingStates() util.StringSet {
+	accepting := util.NewStringSet()
+	allStates := nfa.States().Elements()
+	for i := range allStates {
+		if nfa.states[allStates[i]].accepting {
+			accepting.Add(allStates[i])
+		}
+	}
+
+	return accepting
+}
+
 // returns a list of 2-tuples that have (fromState, input)
 func (nfa NFA[E]) AllTransitionsTo(toState string) []NFATransitionTo {
 	if _, ok := nfa.states[toState]; !ok {
@@ -469,6 +499,20 @@ func (dfa DFA[E]) String() string {
 type NFA[E any] struct {
 	states map[string]NFAState[E]
 	Start  string
+}
+
+// Copy returns a duplicate of this NFA.
+func (nfa NFA[E]) Copy() NFA[E] {
+	copied := NFA[E]{
+		Start:  nfa.Start,
+		states: make(map[string]NFAState[E]),
+	}
+
+	for k := range nfa.states {
+		copied.states[k] = nfa.states[k].Copy()
+	}
+
+	return copied
 }
 
 // States returns all states in the dfa.
@@ -738,6 +782,206 @@ func (nfa NFA[E]) String() string {
 	sb.WriteRune('>')
 
 	return sb.String()
+}
+
+// NumberStates renames all states to each have a unique name based on an
+// increasing number sequence. The starting state is guaranteed to be numbered
+// 0; beyond that no ordering is gauranteed.
+func (nfa *NFA[E]) NumberStates() {
+	origStateNames := nfa.States().Elements()
+	numMapping := map[string]string{}
+	for i := range origStateNames {
+		name := origStateNames[i]
+		newName := fmt.Sprintf("%d", i)
+		numMapping[name] = newName
+	}
+
+	// make shore starting state is 0
+	for k := range numMapping {
+		if k == nfa.Start {
+			newStartName := numMapping[k]
+			if newStartName != "0" {
+				// who took this
+				var slotThief string
+				for j := range numMapping {
+					if numMapping[j] == "0" {
+						slotThief = j
+						break
+					}
+				}
+				if slotThief == "" {
+					panic("couldn't make starting state be 0; should never happen")
+				}
+
+				numMapping[slotThief] = newStartName
+				numMapping[k] = "0"
+			}
+		}
+	}
+
+	// to keep things simple, instead of searching for every instance of each
+	// name which is an expensive operation, we'll just build an entirely new
+	// NFA using our mapping rules to adjust names as we go, then steal its
+	// states map.
+
+	newNfa := NFA[E]{
+		states: make(map[string]NFAState[E]),
+		Start:  numMapping[nfa.Start],
+	}
+
+	// first, add the initial states
+	for _, name := range origStateNames {
+		st := nfa.states[name]
+		newName := numMapping[name]
+		newNfa.AddState(newName, st.accepting)
+		newNfa.SetValue(newName, st.value)
+
+		// transitions come later, need to add all states *first*
+	}
+
+	// add initial transitions
+	for _, name := range origStateNames {
+		st := nfa.states[name]
+		from := numMapping[name]
+
+		for sym := range st.transitions {
+			symTrans := st.transitions[sym]
+			for i := range symTrans {
+				t := symTrans[i]
+				to := numMapping[t.next]
+				newNfa.AddTransition(from, sym, to)
+			}
+		}
+	}
+
+	// oh ya, just gonna go ahead and sneeeeeeeak this on away from ya
+	nfa.states = newNfa.states
+	nfa.Start = newNfa.Start
+}
+
+// Join combines two NFAs into a single one. The argument fromToOther gives the
+// method of joining the two NFAs; it is a slice of triples, each of which gives
+// a state from the original nfa, the symbol to transition on, and a state in
+// the provided NFA to go to on receiving that symbol.
+//
+// The original NFAs are not modified. The resulting NFA's start state is the
+// same as the original NFA's start state.
+//
+// In order to prevent conflicts, all state names in the resulting NFA will be
+// named according to a scheme that namespaces them by which NFA they came from;
+// states that came from the original NFA will be changed to be called
+// '1:ORIGNAL_NAME' in the resulting NFA, and states that came from the provided
+// NFA will be changed to be called '2:ORIGINAL_NAME' in the resulting NFA, with
+// 'ORIGINAL_NAME' replaced with the actual original name of the state.
+//
+// After the resulting NFA is created, all state names listed in addAccept will
+// be changed to accepting states in the resulting NFA. Likewise, all state
+// names listed in removeAccept will be changed to no longer be accepting in the
+// resulting DFA.
+//
+// Note that because addAccept and removeAccept are applied to the resulting NFA
+// after creation, they must use the state-naming convention mentioned above,
+// while states mentioned in fromToOther should use the original names of the
+// states.
+func (nfa NFA[E]) Join(other NFA[E], fromToOther [][3]string, otherToFrom [][3]string, addAccept []string, removeAccept []string) (NFA[E], error) {
+	if len(fromToOther) < 1 {
+		return NFA[E]{}, fmt.Errorf("need to provide at least one mapping in fromToOther")
+	}
+
+	joined := NFA[E]{
+		states: make(map[string]NFAState[E]),
+		Start:  "1:" + nfa.Start,
+	}
+
+	addAcceptSet := util.StringSetOf(addAccept)
+	removeAcceptSet := util.StringSetOf(removeAccept)
+
+	nfaStateNames := joined.States()
+
+	// first, add the initial states
+	for _, stateName := range nfaStateNames.Elements() {
+		st := nfa.states[stateName]
+		newName := "1:" + stateName
+
+		accept := st.accepting
+		if addAcceptSet.Has(newName) {
+			accept = true
+		} else if removeAcceptSet.Has(newName) {
+			accept = false
+		}
+		joined.AddState(newName, accept)
+		joined.SetValue(newName, st.value)
+
+		// transitions come later, need to add all states *first*
+	}
+
+	// add initial transitions
+	for _, stateName := range nfaStateNames.Elements() {
+		st := nfa.states[stateName]
+		from := "1:" + stateName
+
+		for sym := range st.transitions {
+			symTrans := st.transitions[sym]
+			for i := range symTrans {
+				t := symTrans[i]
+				to := "1:" + t.next
+				joined.AddTransition(from, sym, to)
+			}
+		}
+	}
+
+	// next, do the same for the second NFA
+	otherStateNames := other.States()
+
+	for _, stateName := range otherStateNames.Elements() {
+		st := other.states[stateName]
+		newName := "2:" + stateName
+
+		accept := st.accepting
+		if addAcceptSet.Has(newName) {
+			accept = true
+		} else if removeAcceptSet.Has(newName) {
+			accept = false
+		}
+		joined.AddState(newName, accept)
+		joined.SetValue(newName, st.value)
+
+		// transitions come later, need to add all states *first*
+	}
+
+	// add other transitions
+	for _, stateName := range otherStateNames.Elements() {
+		st := other.states[stateName]
+		from := "2:" + stateName
+
+		for sym := range st.transitions {
+			symTrans := st.transitions[sym]
+			for i := range symTrans {
+				t := symTrans[i]
+				to := "2:" + t.next
+				joined.AddTransition(from, sym, to)
+			}
+		}
+	}
+
+	// already did accept adjustment on the fly, now it's time to link the
+	// states together
+	for i := range fromToOther {
+		link := fromToOther[i]
+		from := "1:" + link[0]
+		sym := link[1]
+		to := "2:" + link[2]
+		joined.AddTransition(from, sym, to)
+	}
+	for i := range otherToFrom {
+		link := otherToFrom[i]
+		from := "2:" + link[0]
+		sym := link[1]
+		to := "1:" + link[2]
+		joined.AddTransition(from, sym, to)
+	}
+
+	return joined, nil
 }
 
 func (nfa *NFA[E]) AddState(state string, accepting bool) {

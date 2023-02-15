@@ -6,7 +6,6 @@ import (
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/ictiobus/icterrors"
-	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/dekarrin/tunaq/internal/util"
 )
@@ -30,7 +29,7 @@ func GenerateLL1Parser(g grammar.Grammar) (ll1Parser, error) {
 	return ll1Parser{table: M, g: g.Copy()}, nil
 }
 
-func (ll1 ll1Parser) Parse(stream lex.TokenStream) (types.ParseTree, error) {
+func (ll1 ll1Parser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 	stack := util.Stack[string]{Of: []string{ll1.g.StartSymbol(), "$"}}
 	next := stream.Peek()
 	X := stack.Peek()

@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
-	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -69,7 +69,7 @@ func Test_LALR1Parse(t *testing.T) {
 				T -> T * F | F ;
 				F -> ( E ) | id ;
 				`,
-			input: []string{"(", "id", "+", "id", ")", "*", "id", lex.TokenEndOfText.ID()},
+			input: []string{"(", "id", "+", "id", ")", "*", "id", types.TokenEndOfText.ID()},
 			expect: `( E )
   \---: ( T )
           |---: ( T )
