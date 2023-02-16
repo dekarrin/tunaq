@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"regexp"
 	"unicode/utf8"
 )
 
@@ -59,30 +60,61 @@ func (sr *seekableReader) readIntoBuf(n int) (actualRead int, err error) {
 	return actualRead, err
 }
 
-// GetBufferedString attempts to read the string located in the buffered
-// contents from inclusive byte index from to non-inclusive byte index to. This
-// is mostly designed to be able to retrieve the results of a string detected by
-// regexp.FindReaderSubmatchIndex.
+// SearchAndAdvance applies the given regular expression and moves the internal
+// cursor forward exactly 1 byte ahead of the location of the searched-for term.
+// If no term is found, the cursor is not advanced at all and an empty/nil slice
+// will be returned; otherwise, the return value is a slice of matches where
+// the index of each match is the contents of that sub-expression group, and
+// group 0 is the entire match.
 //
-// from and to must exist in the buffer. If this is called with a pair from the
-// results of FindReaderSubmatchIndex called on this reader, they are gauranteed
-// to be available.
-func (sr *seekableReader) GetBufferedString(from int, to int) (string, error) {
-	if to > len(sr.b) {
-		return "", fmt.Errorf("to index is past end of buffered bytes: %d", to)
+// uses (and will overwrite) mark called "SEARCH_AND_ADVANCE"
+func (sr *seekableReader) SearchAndAdvance(re *regexp.Regexp) []string {
+	sr.Mark("SEARCH_AND_ADVANCE")
+	matchIndexes := re.FindReaderSubmatchIndex(sr)
+	matches := sr.GetMatches("SEARCH_AND_ADVANCE", matchIndexes)
+	if len(matches) > 0 {
+		sr.Restore("SEARCH_AND_ADVANCE")
+		sr.Seek(int64(matchIndexes[1]), io.SeekCurrent)
 	}
-	if from > len(sr.b) {
-		return "", fmt.Errorf("from index is past end of buffered bytes: %d", from)
-	}
-	if to < 0 {
-		return "", fmt.Errorf("to < 0: %d", to)
-	}
-	if from < 0 {
-		return "", fmt.Errorf("from < 0: %d", from)
+	return matches
+}
+
+// GetMatches attempts to read the strings located in the buffered
+// contents from inclusive byte index from to non-inclusive byte index to,
+// relative to the provided mark. This is mostly designed to be able to retrieve
+// the results of matches detected by regexp.FindReaderSubmatchIndex.
+//
+// To use, call Mark() with some name. Immediately after, call
+// regexp.FindReaderSubmatchIndex on this reader. Then, pass the returned pairs
+// and the desired group to retrieve to this function, along with the name of
+// the mark originally set.
+//
+// returns a slice where every entry is a string. Its position in the slice
+// corresponds to the group number it is in. If a sub-expression did not match,
+// the string will be empty. If there was no match at all, the returned slice
+// will be nil. Group 0 is the entire match.
+func (sr *seekableReader) GetMatches(mark string, pairs []int) []string {
+	markOffset, ok := sr.marks[mark]
+	if !ok {
+		panic(fmt.Sprintf("invalid mark name: %q", mark))
 	}
 
-	str := string(sr.b[from:to])
-	return str, nil
+	if pairs == nil || len(pairs) == 0 {
+		return nil
+	}
+
+	matches := make([]string, len(pairs)/2)
+	matches[0] = string(sr.b[markOffset+pairs[0] : markOffset+pairs[1]])
+
+	for i := 2; i < len(pairs); i += 2 {
+		left := pairs[i]
+		right := pairs[i+1]
+		if left != -1 && right != -1 {
+			matches[i/2] = string(sr.b[markOffset+left : markOffset+right])
+		}
+	}
+
+	return matches
 }
 
 func (sr *seekableReader) ReadRune() (r rune, size int, err error) {
@@ -191,8 +223,6 @@ func (sr *seekableReader) Read(p []byte) (n int, err error) {
 	copy(p, read)
 	return n, err
 }
-
-// Mark
 
 // Seek moves the internal cursor to the provided offset. As seekableReader
 // itself reads from an underlying Reader whose end is unknown, SeekEnd will be
