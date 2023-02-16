@@ -38,7 +38,7 @@ func NewTokenClass(id string, human string) lexerClass {
 
 // implementation of Token interface for lex package use only
 type lexerToken struct {
-	class   lexerClass
+	class   types.TokenClass
 	lexed   string
 	linePos int
 	lineNum int

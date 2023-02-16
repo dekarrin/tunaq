@@ -44,7 +44,8 @@ func (class simpleTokenClass) Equal(o any) bool {
 }
 
 const (
-	TokenUndefined = simpleTokenClass("undefined_token")
+	TokenUndefined = simpleTokenClass("<ictiobus_undefined_token>")
+	TokenError     = simpleTokenClass("<ictioubus_error>")
 	TokenEndOfText = simpleTokenClass("$")
 )
 
