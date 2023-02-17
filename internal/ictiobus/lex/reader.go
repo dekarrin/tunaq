@@ -13,51 +13,69 @@ import (
 // required is "did it match", ugh.
 //
 // This reader implements io.ReadSeeker, io.RuneReader
-type seekableReader struct {
+type regexReader struct {
 	b     []byte
 	r     *bufio.Reader
 	cur   int
 	marks map[string]int
+	atEOF bool
 }
 
-func NewSeekableReader(r io.Reader) *seekableReader {
-	return &seekableReader{
+func NewRegexReader(r io.Reader) *regexReader {
+	return &regexReader{
 		b:     make([]byte, 0),
 		r:     bufio.NewReader(r),
 		marks: make(map[string]int),
 	}
 }
 
-func (sr *seekableReader) avail() int {
-	return len(sr.b) - sr.cur
+func (rr *regexReader) avail() int {
+	return len(rr.b) - rr.cur
 }
 
 // reads from buffer and advances cursor by number of bytes read. if n bytes not
 // avail, returns all bytes that ARE avail.
-func (sr *seekableReader) readBuf(n int) []byte {
-	limit := sr.avail()
+func (rr *regexReader) readBuf(n int) []byte {
+	limit := rr.avail()
 	if n < limit {
 		limit = n
 	}
 
-	read := sr.b[sr.cur : sr.cur+limit]
-	sr.cur += limit
+	read := rr.b[rr.cur : rr.cur+limit]
+	rr.cur += limit
 	return read
 }
 
 // calls Read on underlying reader to attempt to read n bytes into the buffer.
 // buffers all bytes read and returns the error. does not modify the cursor.
-func (sr *seekableReader) readIntoBuf(n int) (actualRead int, err error) {
+func (rr *regexReader) readIntoBuf(n int) (actualRead int, err error) {
 	read := make([]byte, n)
 
-	actualRead, err = sr.r.Read(read)
+	actualRead, err = rr.r.Read(read)
 	// if we read at least 1 byte for ANY reason even if we also got an error,
 	// we must buffer it
 	if actualRead > 0 {
-		sr.b = append(sr.b, read[:actualRead]...)
+		rr.b = append(rr.b, read[:actualRead]...)
 	}
 
 	return actualRead, err
+}
+
+// NextRune reads and discards the next n runes.
+// returns the number of bytes read in total and the first error encountered, if
+// any.
+func (rr *regexReader) NextRune(count int) (size int, err error) {
+	totalRead := 0
+	for i := 0; i < count; i++ {
+		_, size, err := rr.ReadRune()
+		totalRead += size
+		if err != nil {
+			// either it's EOF or something we cannot handle; either way,
+			// immediately return
+			return totalRead, err
+		}
+	}
+	return totalRead, nil
 }
 
 // SearchAndAdvance applies the given regular expression and moves the internal
@@ -68,15 +86,48 @@ func (sr *seekableReader) readIntoBuf(n int) (actualRead int, err error) {
 // group 0 is the entire match.
 //
 // uses (and will overwrite) mark called "SEARCH_AND_ADVANCE"
-func (sr *seekableReader) SearchAndAdvance(re *regexp.Regexp) []string {
-	sr.Mark("SEARCH_AND_ADVANCE")
-	matchIndexes := re.FindReaderSubmatchIndex(sr)
-	matches := sr.GetMatches("SEARCH_AND_ADVANCE", matchIndexes)
+//
+// returns io.EOF as error value if at the end of the stream. []string will
+// always be nil if at EOF; that is, the reader can never detect that it is at
+// EOF until there is a failure to match, so any successful match will result in
+// a nil-error and non-nil matches.
+func (rr *regexReader) SearchAndAdvance(re *regexp.Regexp) ([]string, error) {
+	// if we KNOW we are at the end, no reason to attempt a match. immediately
+	// return io.EOF.
+
+	rr.Mark("SEARCH_AND_ADVANCE")
+	matchIndexes := re.FindReaderSubmatchIndex(rr)
+	matches := rr.GetMatches("SEARCH_AND_ADVANCE", matchIndexes)
+	rr.Restore("SEARCH_AND_ADVANCE")
 	if len(matches) > 0 {
-		sr.Restore("SEARCH_AND_ADVANCE")
-		sr.Seek(int64(matchIndexes[1]), io.SeekCurrent)
+		rr.Seek(int64(matchIndexes[1]), io.SeekCurrent)
+	} else {
+		// is it because we got an error while reading the underlying reader?
+		// if so, we need to stop reading
+
+		// go to end of buffer:
+		_, err := rr.Seek(0, io.SeekEnd)
+		if err != nil {
+			return nil, fmt.Errorf("seeking to end of buffer: %w", err)
+		}
+
+		// try to read one more byte
+		_, err = rr.Read(make([]byte, 1))
+
+		// if we got an eof there, return it and remember it for fast returning
+		// next time
+		if err == io.EOF {
+			rr.atEOF = true
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		// no error? great. it's a plain no-match. go back to our mark
+		rr.Restore("SEARCH_AND_ADVANCE")
 	}
-	return matches
+	return matches, nil
 }
 
 // GetMatches attempts to read the strings located in the buffered
@@ -93,8 +144,8 @@ func (sr *seekableReader) SearchAndAdvance(re *regexp.Regexp) []string {
 // corresponds to the group number it is in. If a sub-expression did not match,
 // the string will be empty. If there was no match at all, the returned slice
 // will be nil. Group 0 is the entire match.
-func (sr *seekableReader) GetMatches(mark string, pairs []int) []string {
-	markOffset, ok := sr.marks[mark]
+func (rr *regexReader) GetMatches(mark string, pairs []int) []string {
+	markOffset, ok := rr.marks[mark]
 	if !ok {
 		panic(fmt.Sprintf("invalid mark name: %q", mark))
 	}
@@ -104,25 +155,25 @@ func (sr *seekableReader) GetMatches(mark string, pairs []int) []string {
 	}
 
 	matches := make([]string, len(pairs)/2)
-	matches[0] = string(sr.b[markOffset+pairs[0] : markOffset+pairs[1]])
+	matches[0] = string(rr.b[markOffset+pairs[0] : markOffset+pairs[1]])
 
 	for i := 2; i < len(pairs); i += 2 {
 		left := pairs[i]
 		right := pairs[i+1]
 		if left != -1 && right != -1 {
-			matches[i/2] = string(sr.b[markOffset+left : markOffset+right])
+			matches[i/2] = string(rr.b[markOffset+left : markOffset+right])
 		}
 	}
 
 	return matches
 }
 
-func (sr *seekableReader) ReadRune() (r rune, size int, err error) {
+func (rr *regexReader) ReadRune() (r rune, size int, err error) {
 	// okay, so, read 1 single byte. assuming it is a utf-8 byte, we can
 	// instantly tell how many more bytes are needed by reading the first few
 	// bits of the byte.
 	charBytes := make([]byte, 1)
-	n, err := sr.Read(charBytes)
+	n, err := rr.Read(charBytes)
 	if n != 1 {
 		return r, size, err
 	}
@@ -155,7 +206,7 @@ func (sr *seekableReader) ReadRune() (r rune, size int, err error) {
 			return r, n, setErr
 		}
 		additionalCharBytes := make([]byte, remBytes)
-		n, err := sr.Read(additionalCharBytes)
+		n, err := rr.Read(additionalCharBytes)
 		if n != remBytes {
 			if err == io.EOF {
 				return r, n, fmt.Errorf("couldn't read all bytes of utf-8 character")
@@ -173,7 +224,7 @@ func (sr *seekableReader) ReadRune() (r rune, size int, err error) {
 	// enshore that the cursor backs up to fix this
 	missedBy := len(charBytes) - size
 	if missedBy > 0 {
-		sr.cur -= missedBy
+		rr.cur -= missedBy
 	}
 
 	return r, size, setErr
@@ -181,39 +232,39 @@ func (sr *seekableReader) ReadRune() (r rune, size int, err error) {
 
 // Mark creates a new marker with the given name, for later use with Restore, at
 // the current offset.
-func (sr *seekableReader) Mark(name string) {
-	sr.marks[name] = sr.cur
+func (rr *regexReader) Mark(name string) {
+	rr.marks[name] = rr.cur
 }
 
 // Restore seeks back to the marker with the given name. Panics if the name
 // doesn't exist.
-func (sr *seekableReader) Restore(name string) {
-	offset, ok := sr.marks[name]
+func (rr *regexReader) Restore(name string) {
+	offset, ok := rr.marks[name]
 	if !ok {
 		panic(fmt.Sprintf("invalid mark name: %q", name))
 	}
 
-	sr.cur = offset
+	rr.cur = offset
 }
 
 // Offset returns the current absolute offset into the buffered bytes that the
 // reader is currently at. The returned number, if passed into Seek with a
 // whence of SeekStart, would make the reader go back to this exact position.
-func (sr *seekableReader) Offset() int64 {
-	return int64(sr.cur)
+func (rr *regexReader) Offset() int64 {
+	return int64(rr.cur)
 }
 
-func (sr *seekableReader) Read(p []byte) (n int, err error) {
+func (rr *regexReader) Read(p []byte) (n int, err error) {
 	// do we already have |p| bytes at cursor location?
-	read := sr.readBuf(len(p))
+	read := rr.readBuf(len(p))
 	stillNeed := len(p) - len(read)
 
 	if stillNeed > 0 {
 		// need to make this much avail.
 		var actualRead int
-		actualRead, err = sr.readIntoBuf(stillNeed)
+		actualRead, err = rr.readIntoBuf(stillNeed)
 		if actualRead > 0 {
-			readAdd := sr.readBuf(actualRead)
+			readAdd := rr.readBuf(actualRead)
 			read = append(read, readAdd...)
 		}
 	}
@@ -228,14 +279,14 @@ func (sr *seekableReader) Read(p []byte) (n int, err error) {
 // itself reads from an underlying Reader whose end is unknown, SeekEnd will be
 // interpreted as relative to the end of the *buffered* bytes, not those in the
 // underlying reader.
-func (sr *seekableReader) Seek(offset int64, whence int) (int64, error) {
+func (rr *regexReader) Seek(offset int64, whence int) (int64, error) {
 	var newOffset int64
 	if whence == io.SeekStart {
 		newOffset = offset
 	} else if whence == io.SeekCurrent {
-		newOffset = int64(sr.cur) + offset
+		newOffset = int64(rr.cur) + offset
 	} else if whence == io.SeekEnd {
-		newOffset = int64(len(sr.b)) + offset
+		newOffset = int64(len(rr.b)) + offset
 	} else {
 		return 0, fmt.Errorf("unknown whence argument: %v", whence)
 	}
@@ -243,10 +294,10 @@ func (sr *seekableReader) Seek(offset int64, whence int) (int64, error) {
 	if newOffset < 0 {
 		return 0, fmt.Errorf("resulting absolute offset specifies index before start of file: %d", newOffset)
 	}
-	if newOffset > int64(len(sr.b)) {
-		newOffset = int64(len(sr.b))
+	if newOffset > int64(len(rr.b)) {
+		newOffset = int64(len(rr.b))
 	}
 
-	sr.cur = int(newOffset)
+	rr.cur = int(newOffset)
 	return newOffset, nil
 }
