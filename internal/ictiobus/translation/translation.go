@@ -11,63 +11,6 @@ import (
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
-// SDD is a series of syntax-directed definitions bound to syntactic rules of
-// a grammar. It is used for evaluation of a parse tree into an intermediate
-// representation, or for direct execution.
-type SDD interface {
-
-	// BindInheritedAttribute creates a new SDD binding for setting the value of
-	// an inherited attribute with name attrName. The production that the
-	// inherited attribute is set on is specified with forProd, which must have
-	// its Type set to something other than RelHead (inherited attributes can be
-	// set only on production symbols).
-	//
-	// The binding applies only on nodes in the parse tree created by parsing
-	// the grammar rule productions with head symbol head and production symbols
-	// prod.
-	//
-	// The AttributeSetter bindFunc is called when the inherited value attrName
-	// is to be set, in order to calculate the new value. Attribute values to
-	// pass in as arguments are specified by passing references to the node and
-	// attribute name whose value to retrieve in the withArgs slice. Explicitly
-	// giving the referenced attributes in this fashion makes it easy to
-	// determine the dependency graph for later execution.
-	BindInheritedAttribute(head string, prod []string, attrName NodeAttrName, bindFunc AttributeSetter, withArgs []AttrRef, forProd NodeRelation) error
-
-	// BindSynthesizedAttribute creates a new SDD binding for setting the value
-	// of a synthesized attribute with name attrName. The attribute is set on
-	// the symbol at the head of the rule that the binding is being created for.
-	//
-	// The binding applies only on nodes in the parse tree created by parsing
-	// the grammar rule productions with head symbol head and production symbols
-	// prod.
-	//
-	// The AttributeSetter bindFunc is called when the synthesized value
-	// attrName is to be set, in order to calculate the new value. Attribute
-	// values to pass in as arguments are specified by passing references to the
-	// node and attribute name whose value to retrieve in the withArgs slice.
-	// Explicitly giving the referenced attributes in this fashion makes it easy
-	// to determine the dependency graph for later execution.
-	BindSynthesizedAttribute(head string, prod []string, attrName NodeAttrName, bindFunc AttributeSetter, forAttr string, withArgs []AttrRef) error
-
-	// Bindings returns all bindings defined to apply when at a node in a parse
-	// tree created by the rule production with head as its head symbol and prod
-	// as its produced symbols. They will be returned in the order they were
-	// defined.
-	Bindings(head string, prod []string) []SDDBinding
-
-	BindingsFor(head string, prod []string, dest AttrRef) []SDDBinding
-
-	// Evaluate takes a parse tree and executes the semantic actions defined as
-	// SDDBindings for a node for each node in the tree and on completion,
-	// returns the requested attributes values from the root node. Execution
-	// order is automatically determined by taking the dependency graph of the
-	// SDD; cycles are not supported. Do note that this does not require the SDD
-	// to be S-attributed or L-attributed, only that it not have cycles in its
-	// value dependency graph.
-	Evaluate(tree types.ParseTree, attributes ...NodeAttrName) ([]NodeAttrValue, error)
-}
-
 type sddImpl struct {
 	bindings map[string]map[string][]SDDBinding
 }
@@ -251,7 +194,7 @@ func (sdd *sddImpl) BindInheritedAttribute(head string, prod []string, attrName 
 	return nil
 }
 
-func NewSDD() SDD {
+func NewSDD() *sddImpl {
 	impl := sddImpl{
 		map[string]map[string][]SDDBinding{},
 	}

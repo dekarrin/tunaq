@@ -8,24 +8,11 @@ import (
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 )
 
+// TODO: src is useless as its in pat.
 type patAct struct {
 	src string
 	pat *regexp.Regexp
 	act Action
-}
-
-type Lexer interface {
-	// Lex returns a token stream. The tokens may be lexed in a lazy fashion or
-	// an immediate fashion; if it is immediate, errors will be returned at that
-	// point. If it is lazy, then error token productions will be returned to
-	// the callers of the returned TokenStream at the point where the error
-	// occured.
-	Lex(input io.Reader) (types.TokenStream, error)
-	RegisterClass(cl types.TokenClass, forState string)
-	AddPattern(pat string, action Action, forState string) error
-
-	SetStartingState(s string)
-	StartingState() string
 }
 
 type lexerTemplate struct {
@@ -38,7 +25,7 @@ type lexerTemplate struct {
 	classes map[string]map[string]types.TokenClass
 }
 
-func NewLexer(lazy bool) Lexer {
+func NewLexer(lazy bool) *lexerTemplate {
 	return &lexerTemplate{
 		lazy:       lazy,
 		patterns:   map[string][]patAct{},
@@ -51,7 +38,7 @@ func (lx *lexerTemplate) Lex(input io.Reader) (types.TokenStream, error) {
 	if lx.lazy {
 		return lx.LazyLex(input)
 	} else {
-		return nil, fmt.Errorf("non-lazy lexer not yet implemented")
+		return lx.ImmediatelyLex(input)
 	}
 }
 
@@ -118,4 +105,24 @@ func (lx *lexerTemplate) AddPattern(pat string, action Action, forState string) 
 	lx.patterns[forState] = statePatterns
 	// not modifying lx.classes so no need to set it again
 	return nil
+}
+
+var eolRegex = regexp.MustCompile(`([^\n]*)(?:\n|$)`)
+
+// scans through the reader to find the remainder of the current line and
+// returns it
+func readLineWithoutAdvancing(r *regexReader) string {
+	r.Mark("line")
+	matches, err := r.SearchAndAdvance(eolRegex)
+	if err != nil {
+		panic(fmt.Sprintf("trying to get rest of line: %s", err))
+	}
+	if len(matches) < 2 {
+		panic("rest of line did not have subexpression")
+	}
+	line := matches[1]
+
+	r.Restore("line")
+
+	return line
 }

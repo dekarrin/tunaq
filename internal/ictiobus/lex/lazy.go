@@ -11,7 +11,7 @@ import (
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 )
 
-type lazyLex struct {
+type lazyTokenStream struct {
 	// buffered reader that can run regex and retrieve results
 	r *regexReader
 
@@ -46,11 +46,7 @@ type lazyLex struct {
 }
 
 func (lx *lexerTemplate) LazyLex(input io.Reader) (types.TokenStream, error) {
-	// okay, we're going to run some operations on our reader that will require
-	// knowing exactly what was read by regex, so toss our reader into a
-	// TeeReader
-
-	active := &lazyLex{
+	active := &lazyTokenStream{
 		r:        NewRegexReader(input),
 		patterns: make(map[string]*regexp.Regexp),
 		classes:  make(map[string]map[string]types.TokenClass),
@@ -103,6 +99,7 @@ func (lx *lexerTemplate) LazyLex(input io.Reader) (types.TokenStream, error) {
 	// set current line and pos
 	active.curLine = 1
 	active.curPos = 1
+	active.curFullLine = readLineWithoutAdvancing(active.r)
 
 	return active, nil
 }
@@ -112,7 +109,7 @@ func (lx *lexerTemplate) LazyLex(input io.Reader) (types.TokenStream, error) {
 // is types.TokenEndOfText. If an error in lexing occurs, it will return a token
 // whose Class() is types.TokenError and whose lexeme is a message explaining
 // the error.
-func (lx *lazyLex) Next() types.Token {
+func (lx *lazyTokenStream) Next() types.Token {
 	if lx.done {
 		return lx.makeEOTToken()
 	}
@@ -141,10 +138,9 @@ func (lx *lazyLex) Next() types.Token {
 				if ch == '\n' {
 					lx.curLine++
 					lx.curPos = 0
-					lx.curFullLine = ""
+					lx.curFullLine = readLineWithoutAdvancing(lx.r)
 				}
 				lx.curPos++
-				lx.curFullLine += string(ch)
 
 				matches, readError = lx.r.SearchAndAdvance(pat)
 				if readError != nil {
@@ -172,20 +168,9 @@ func (lx *lazyLex) Next() types.Token {
 
 		actionIdx, lexeme := lx.selectMatch(matches)
 
-		// update source text context tracking
-		for _, ch := range lexeme {
-			if ch == '\n' {
-				lx.curLine++
-				lx.curPos = 0
-				lx.curFullLine = ""
-			}
-			lx.curPos++
-
-			// TODO: this cannot be efficient, there is shorely a betta way
-			lx.curFullLine += string(ch)
-		}
-
 		action := stateActions[actionIdx]
+		var tok types.Token
+		var retToken bool
 
 		switch action.Type {
 		case ActionNone:
@@ -193,9 +178,8 @@ func (lx *lazyLex) Next() types.Token {
 		case ActionScan:
 			// return the token
 			class := stateClasses[action.ClassID]
-			tok := lx.makeToken(class, lexeme)
-
-			return tok
+			tok = lx.makeToken(class, lexeme)
+			retToken = true
 		case ActionState:
 			// modify state, then keep lexing
 			newState := action.State
@@ -206,18 +190,32 @@ func (lx *lazyLex) Next() types.Token {
 			// doing token creation first in case a state shift alters what is
 			// in the token
 			class := stateClasses[action.ClassID]
-			tok := lx.makeToken(class, lexeme)
+			tok = lx.makeToken(class, lexeme)
+			retToken = true
 
 			newState := action.State
 			lx.state = newState
+		}
 
+		// update source text context tracking
+		for _, ch := range lexeme {
+			if ch == '\n' {
+				lx.curLine++
+				lx.curPos = 0
+				lx.curFullLine = readLineWithoutAdvancing(lx.r)
+			}
+			lx.curPos++
+		}
+
+		// return token if we do that now
+		if retToken {
 			return tok
 		}
 	}
 }
 
 // Peek returns the next token in the stream without advancing the stream.
-func (lx *lazyLex) Peek() types.Token {
+func (lx *lazyTokenStream) Peek() types.Token {
 	// preserve all parts of the lexer that might change during a call to Next()
 	// so we can restore it afterward
 	lx.r.Mark("peek")
@@ -245,11 +243,11 @@ func (lx *lazyLex) Peek() types.Token {
 }
 
 // HasNext returns whether the stream has any additional tokens.
-func (lx *lazyLex) HasNext() bool {
+func (lx *lazyTokenStream) HasNext() bool {
 	return !lx.done
 }
 
-func (lx *lazyLex) makeToken(class types.TokenClass, lexeme string) types.Token {
+func (lx *lazyTokenStream) makeToken(class types.TokenClass, lexeme string) types.Token {
 	return lexerToken{
 		class:   class,
 		line:    lx.curFullLine,
@@ -259,11 +257,11 @@ func (lx *lazyLex) makeToken(class types.TokenClass, lexeme string) types.Token 
 	}
 }
 
-func (lx *lazyLex) makeEOTToken() types.Token {
+func (lx *lazyTokenStream) makeEOTToken() types.Token {
 	return lx.makeToken(types.TokenEndOfText, "")
 }
 
-func (lx *lazyLex) makeErrorTokenf(formatMsg string, args ...any) types.Token {
+func (lx *lazyTokenStream) makeErrorTokenf(formatMsg string, args ...any) types.Token {
 	msg := fmt.Sprintf(formatMsg, args...)
 	return lx.makeToken(types.TokenError, msg)
 }
@@ -272,7 +270,7 @@ func (lx *lazyLex) makeErrorTokenf(formatMsg string, args ...any) types.Token {
 // sets state on lx based on whether the error is io.EOF or some other error,
 // then returns a token appropriate for the error, either one of class
 // types.TokenEndOfText for io.EOF or types.TokenError for all other errors.
-func (lx *lazyLex) tokenForIOError(err error) types.Token {
+func (lx *lazyTokenStream) tokenForIOError(err error) types.Token {
 	lx.done = true
 
 	if err == io.EOF {
@@ -289,7 +287,7 @@ func (lx *lazyLex) tokenForIOError(err error) types.Token {
 //
 // Returns the index of the action associated with the match, and the match
 // itself.
-func (lx *lazyLex) selectMatch(candidates []string) (int, string) {
+func (lx *lazyTokenStream) selectMatch(candidates []string) (int, string) {
 	// we now have our list of matches. which sub-expression(s) matched?
 	// (and consider a blank match to be 'no match' at this time)
 	// TODO: distinguish between blank match and no match in regexReader.

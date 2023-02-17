@@ -8,27 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	testClassPlus   = NewTokenClass("plus", "'+'")
-	testClassMult   = NewTokenClass("mult", "'*'")
-	testClassLParen = NewTokenClass("lparen", "'('")
-	testClassRParen = NewTokenClass("rparen", "')'")
-	testClassId     = NewTokenClass("id", "identifier")
-	testClassEq     = NewTokenClass("equals", "'='")
-	testClassInt    = NewTokenClass("int", "integer constant")
-
-	allTestClasses = []types.TokenClass{
-		testClassPlus,
-		testClassMult,
-		testClassLParen,
-		testClassRParen,
-		testClassId,
-		testClassEq,
-		testClassInt,
-	}
-)
-
-func Test_LazyLex_singleStateLex(t *testing.T) {
+func Test_ImmediateLex_singleStateLex(t *testing.T) {
 	testCases := []struct {
 		name       string
 		classes    []types.TokenClass
@@ -154,7 +134,7 @@ func Test_LazyLex_singleStateLex(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// setup
 			assert := assert.New(t)
-			lx := NewLexer(true)
+			lx := NewLexer(false)
 			for i := range tc.classes {
 				lx.RegisterClass(tc.classes[i], "")
 			}

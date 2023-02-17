@@ -267,7 +267,7 @@ type DepNode struct {
 // Returns one node from each of the connected sub-graphs of the dependency
 // tree. If the entire dependency graph is connected, there will be only 1 item
 // in the returned slice.
-func DepGraph(aptRoot AnnotatedParseTree, sdd SDD) []*DirectedGraph[DepNode] {
+func DepGraph(aptRoot AnnotatedParseTree, sdd *sddImpl) []*DirectedGraph[DepNode] {
 	type treeAndParent struct {
 		Tree   *AnnotatedParseTree
 		Parent *AnnotatedParseTree
