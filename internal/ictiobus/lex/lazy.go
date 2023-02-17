@@ -73,7 +73,7 @@ func (lx *lexerTemplate) LazyLex(input io.Reader) (types.TokenStream, error) {
 			if i+1 < len(statePats) {
 				superRegex.WriteRune('|')
 			}
-			lazyActs = append(lazyActs, act)
+			lazyActs[i] = act
 		}
 
 		superRegex.WriteRune(')')
@@ -127,7 +127,7 @@ func (lx *lazyLex) Next() types.Token {
 		// retrieve the current matches, discarding runes until we find a match
 		// if in panic mode.
 
-		if !lx.panicMode {
+		if lx.panicMode {
 			for lx.panicMode {
 				// track the rune we are dropping to add to source text context
 				// tracking
@@ -299,7 +299,7 @@ func (lx *lazyLex) selectMatch(candidates []string) (int, string) {
 	subExprMatches := map[int]string{}
 	for i := 1; i < len(candidates); i++ {
 		if candidates[i] != "" {
-			subExprMatches[i] = candidates[i]
+			subExprMatches[i-1] = candidates[i]
 		}
 	}
 
