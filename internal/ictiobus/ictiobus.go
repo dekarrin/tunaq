@@ -27,12 +27,6 @@ import (
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 )
 
-type Parser interface {
-	// Parse parses input text and returns the parse tree built from it, or a
-	// SyntaxError with the description of the problem.
-	Parse(stream types.TokenStream) (types.ParseTree, error)
-}
-
 type Lexer interface {
 	// Lex returns a token stream. The tokens may be lexed in a lazy fashion or
 	// an immediate fashion; if it is immediate, errors will be returned at that
@@ -47,9 +41,17 @@ type Lexer interface {
 	StartingState() string
 }
 
+type Parser interface {
+	// Parse parses input text and returns the parse tree built from it, or a
+	// SyntaxError with the description of the problem.
+	Parse(stream types.TokenStream) (types.ParseTree, error)
+}
+
 // SDD is a series of syntax-directed definitions bound to syntactic rules of
 // a grammar. It is used for evaluation of a parse tree into an intermediate
 // representation, or for direct execution.
+//
+// Strictly speaking, this is closer to an Attribute grammar.
 type SDD interface {
 
 	// BindInheritedAttribute creates a new SDD binding for setting the value of
@@ -152,4 +154,9 @@ func NewLL1Parser(g grammar.Grammar) (Parser, error) {
 // for the given grammar. Returns an error if the grammar is not CLR(1)
 func NewCLRParser(g grammar.Grammar) (Parser, error) {
 	return parse.GenerateCanonicalLR1Parser(g)
+}
+
+// NewSDD returns a new Syntax-Directed Definition Scheme
+func NewSDD() SDD {
+	return translation.NewSDD()
 }
