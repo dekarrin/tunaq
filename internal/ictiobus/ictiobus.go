@@ -18,7 +18,10 @@ package ictiobus
 // validating LALR(1) grammars quickly.
 
 import (
+	"fmt"
 	"io"
+	"reflect"
+	"strings"
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
@@ -156,7 +159,72 @@ func NewCLRParser(g grammar.Grammar) (Parser, error) {
 	return parse.GenerateCanonicalLR1Parser(g)
 }
 
-// NewSDD returns a new Syntax-Directed Definition Scheme
+// NewSDD returns a new Syntax-Directed Definition Scheme.
 func NewSDD() SDD {
 	return translation.NewSDD()
 }
+
+// Frontend is a complete input-to-intermediate representation compiler
+// front-end.
+type Frontend[E any] struct {
+	lx     Lexer
+	p      Parser
+	sdt    SDD
+	irAttr translation.NodeAttrName
+}
+
+// AnalyzeString is the same as Analyze but accepts a string as input. It simply
+// creates a Reader on s and passes it to Analyze; this method is provided for
+// convenience.
+func (fe *Frontend[E]) AnalyzeString(s string) (ir E, err error) {
+	r := strings.NewReader(s)
+	return fe.Analyze(r)
+}
+
+// Analyze takes the text in reader r and performs the phases necessary to
+// produce an intermediate representation of it. First, in the lexical analysis
+// phase, it lexes the input read from r to produce a stream of tokens. This
+// stream is consumed by the syntactic analysis phase to produce a parse tree.
+// Finally, in the semantic analysis phase, the actions of the syntax-directed
+// translation scheme are applied to the parse tree to produce the final
+// intermediate representation.
+//
+// If there is a problem with the input, it will be returned in a SyntaxError
+// containing information about the location where it occured in the source text
+// s.
+func (fe *Frontend[E]) Analyze(r io.Reader) (ir E, err error) {
+	// lexical analysis
+	tokStream, err := fe.lx.Lex(r)
+	if err != nil {
+		return ir, err
+	}
+
+	// syntactic analysis
+	parseTree, err := fe.p.Parse(tokStream)
+	if err != nil {
+		return ir, err
+	}
+
+	// semantic analysis
+	attrVals, err := fe.sdt.Evaluate(parseTree, fe.irAttr)
+	if err != nil {
+		return ir, err
+	}
+
+	// all analysis complete, now retrieve the result
+	if len(attrVals) != 1 {
+		return ir, fmt.Errorf("requested final IR attribute %q from root node but got %d values back", fe.irAttr, len(attrVals))
+	}
+	irUncast := attrVals[0]
+	ir, ok := irUncast.(E)
+	if !ok {
+		// type mismatch; use reflections to collect type for err reporting
+		irType := reflect.TypeOf(ir).Name()
+		actualType := reflect.TypeOf(irUncast).Name()
+		return ir, fmt.Errorf("expected final IR attribute %q to be of type %q at the root node, but result was of type %q", fe.irAttr, irType, actualType)
+	}
+
+	return ir, nil
+}
+
+// FrontendFrom
