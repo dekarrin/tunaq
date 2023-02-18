@@ -116,7 +116,7 @@ new token of the given class. `CLASS` may be any characters but note that they
 are case-insenseitve and will be represented internally as lower-case. The same
 token class may be given for different patterns; this means that a match against
 any of those patterns will result in a token of that class.
-* `%human "HUMAN-READABLE NAME" - Specifies that the token class given should
+* `%human HUMAN-READABLE NAME` - Specifies that the token class given should
 have the human-readable name given between the two quotes. This is generally
 used for reporting errors related to that token. This human readable name is
 associated with the token named by the `%token` directive on the same pattern;
@@ -135,12 +135,16 @@ Specifying Grammar
 The grammar of the language accepted by the parsing phase is given in a
 `%%grammar` section in an `ictio` code block. In that section is a context-free
 grammar that uses a "BNF-ish" notation. In this notation, a non-terminal is
-defined by a symbol name on the left side enclosed in angle brackes `<` and `>`,
-followed by space and the sequence `::=`, followed by one or more productions
-for the non-terminal separated by a `|` character.
+defined by a symbol name on the left side enclosed in curly-braces `{` and `}`,
+followed by space and the character `=`, followed by one or more productions
+for the non-terminal separated by a `|` character. Non-terminal names must start
+with a letter of the alphabet but besides that can contain any symbol and are
+not case-sensitive. Internally they are represented as upper-case.
 
 Terminals are specified by giving the name of the token class that makes the
 terminal. This can be any `%token` class name defined in a `%%tokens` section.
+To specify a token that is one of the reserved characters `{`, `}`, `=`, `|`,
+use a backslash character to escape it.
 
 The start production of the language is the first non-terminal that is defined
 in a `%%grammar` section.
@@ -148,42 +152,121 @@ in a `%%grammar` section.
 ```ictio
 %%grammar
 
-<S>     :=   <S>
-
-
-%%tokens
-
-%state normal
-
-[A-Za-z_][A-Za-z0-9_]+    %token identifier    %human "identifier sequence"
-"(?:\\\\|\\"|[^"])+"      %token str           %human "string"
-\d+                       %token int           %human "integer"
-\+                        %token +             %human "'+'"
-\*                        %token *             %human "'*'"
-\(                        %token (             %human "'('"
-\)                        %token )             %human "')'"
-<                         %token <             %human "'<'"    %stateshift angled
-
-# this state shift sequence is very contrived and could easily be avoided by
-# simply not state-shifting on <, but it makes for a good example and test.
-
-%state angled
-
-# multiple %human definitions are allowed if the others are in another state
-# we'll use this state to create some of the same tokens with slightly different
-# human-readable names to reflect that they were in another state, but by using
-# the same token class names, we can treat them all the same regardless of which
-# state they were produced in in the cfg.
-
->                         %token >             %human "'>'"    %stateshift normal
-"(?:\\\\|\\"|[^"])+"      %token str           %human "angly string"
-\d+                       %token int           %human "angly int"
-,                         %token ,             %human ","
+{S}       =   {expr}
+{expr}    =   {math}
+{math}    =   {sum}
 ```
 
+Alternations may be on same line, as in this two sequence:
+
+```ictio
+%%grammar
+
+{sum}     =   {mult} + {sum} | {mult}
 ```
 
+Alternations may also be split across lines:
+
+```ictio
+{mult}    =   {value} * {mult}
+          | {parens}
+```
+
+Thhe indent level does not matter, nor does whitespace between symbols:
+
+```ictio
+    {parens}   =   ( {expr}) |{value}
+```
+
+The only exception to the whitespace meaning is that of a newline; if the first
+symbol at the start of a line is a non-terminal, it is the start of a new
+definition. If the first symbol is a `|` character, it is an alternation from
+the prior rule.
+
+The first symbol on a line must be one of those two; a non-terminal is not
+allowed:
+
+```
+(example block, not marked with `ictio`, not parsed, 38O glub)
+
+# not allowed:
+{EXAMPLE} = {EXAMPLE}
+            EXAMPLE_TERMINAL
+```
+
+Note that the symbol after is considered part of the alternation. To include the
+empty string as part of the productions (the epsilon production), simply include
+a bar at the end of a series of alternations with no productions. There are two
+forms:
 
 
-There can even be multiple `%%tokens` blocks if
-desired.
+```
+(example block, not marked with `ictio`, not parsed, 38O glub)
+
+# empty string specified by having a `|` at the end of a line:
+{EXAMPLE}    =   {EXAMPLE}  |
+
+# empty string specified by having a `|` on a line with no other contents:
+{EXAMPLE}    =   {EXAMPLE}
+             |
+```
+
+```ictio
+
+{value}          =   {primitive} | {list}
+{list}           =   < {list-contents} >
+{list-contents}  =   {expr} | {list-contents} , {expr}
+
+{primitive}      =   STR |INT|ID
+```
+
+Specifying Semantic Actions
+---------------------------
+Semantic actions in Ictiobus are defined by the `%%actions` directive.
+
+```ictio
+%%actions
+
+%symbol {primitive}
+%prod STR
+%action
+
+prim$0.val = prim_str( STR.$text )
+
+# auto-numbering of productions if not explicit
+%action
+prim$0.val = prim_int( INT.$text )
+
+%prod %index 2  # or can be specified with prod index, 0-indexed
+
+# %action is followed by an attr reference that is to be defined. It must be
+# either the head of the production (to set a synthesized attribute value) or a
+# non-terminal production in the body.
+# 
+%action prim$0.val
+
+# hook must be an identifier [A-Za-z_][A-Za-z_0-9]*. It's the name of the func
+# passed to 'register' of the Frontend.
+%hook prim_id
+
+# %with must be an attr reference. an attr reference starts with the name of the
+# symbol in the production that has the attribute being referenced. If there is
+# both a terminal and non-terminal defined with the same name, the terminal is
+# selected by default. To specify a non-terminal specifically, wrap it in {}.
+# The name may be abbreviated to the shortest disambigauting prefix of the thing
+# it refers to. Within this section, both the `$` and the `.` characters have
+# special meaning which can be avoided by escaping with backslash.
+#
+# Optionally, after either a terminal name or a non-terminal name, the `$` sign
+# can be given, after which is an index. The index is a number that specifies
+# the instance of this symbol in the production, numbered left to right and
+# 0-indexed. The left-most instance of the production symbol is the left-hand
+# of the production itself, so that is index 0.
+#
+# After the prior section comes a period character `.`, after which follows the
+# name of the attribute, which must be identifier pattern [A-Za-z_][A-Za-z_0-9]*
+# and is case-insensitive.
+
+%with ID.$text
+
+```
