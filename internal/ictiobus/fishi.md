@@ -57,9 +57,9 @@ This is the context-free grammar for FISHI, glub.
                  | NEWLINE NEWLINE
 
 {token-entries}  = {token-entry}
-                 | {token-entry} NEWLINE
+                 | {token-entry} NEWLINE {token-entry}
 
-{token-entry}    = {pattern} {opt-newlines}
+{token-entry}    = {pattern} {opt-newlines} 
 
 
 
