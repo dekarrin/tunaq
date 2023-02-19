@@ -29,37 +29,127 @@ This is the context-free grammar for FISHI, glub.
 ```fishi
 %%grammar
 
-{fishispec}      = {blocks}
+{fishispec}            = {blocks}
 
-{blocks}         = {blocks} {block}
-                 | {block}
+{blocks}               = {blocks} {block}
+                       | {block}
 
-{block}          = {tokens-block} | {grammar-block} | {actions-block}
+{block}                = {tokens-block} | {grammar-block} | {actions-block}
 
-{tokens-block}   = TOKENS_HEADER {tokens-content}
+{actions-block}        = ACTIONS_HEADER {actions-content}
 
-{tokens-content} = {state-ins} {token-entries}
-                 | {token-entries}
+{actions-content}      = {actions-state-block}
+                       | {actions-content} {actions-state-block}
 
-{state-ins}      = STATE_DIR {state-expr}
+# actions does not include NEWLINES because that mode of lexer does not lex
+# newlines as they have no semantic meaning in %%action blocks
 
-{state-expr}     = {id-expr}
-                 | {newlines} {id-expr}
+{actions-state-block}  = {state-ins} {symbol-actions}
+                       | {symbol-actions}
+
+{symbol-actions}       = SYMBOL_DIR NONTERMINAL {prod-actions}
+
+{prod-actions}         = {prod-actions} {prod-action}
+                       | {prod-action}
+
+{prod-action}          = {prod-specifier} {semantic-actions}
+
+{prod-specifier}       = PROD_DIR {prod-addr}
+
+NONTERMINAL ATTR_REF SYMBOL_DIR PROD_DIR WITH_DIR HOOK_DIR ACTION_DIR INDEX_DIR ID TERMINAL INT
+
+{prod-addr}            = INDEX_DIR INT
+                       | {actions-production}
+                       | # empty; note: only way to specify epsilon production is to use index
+
+{actions-production}   = {actions-production} {symbol}
+                       | {symbol}
+
+{semantic-actions}     = {semantic-actions} {semantic-action}
+                       | {semantic-action}
+
+{semantic-action}      = ACTION_DIR ATTR_REF HOOK_DIR ID {with-clause}
+
+{with-clause}          = {explicit-with} {implicit-withs}
+                       | {explicit-with}
+                       | # empty string
+
+{explicit-with}        = WITH_DIR ATTR_REF
+
+{implicit-withs}       = {implicit-withs} {implicit-with}
+                       | {implicit-with}
+
+{implicit-with}        = {explicit-with}
+                       | ATTR_REF
+
+{grammar-block}        = GRAMMAR_HEADER {grammar-content}
+
+{grammar-content}      = {grammar-state-block}
+                       | {grammar-content} {grammar-state-block}
+
+{grammar-state-block}  = {state-ins} {newlines} {grammar-rules}
+                       | {grammar-rules}
+
+{grammar-rules}        = {grammar-rules} {newlines} {grammar-rule}
+                       | {grammar-rule}
+
+{grammar-rule}         = NONTERMINAL EQ {opt-newlines} {alternations}
+
+{alternations}         = {production}
+                       | {alternations} {opt-newlines} ALT {production}
+
+{production}           = {production} {symbol}
+                       | {symbol}
+                       | # empty string for epsilon
+
+{symbol}               = NONTERMINAL
+                       | TERMINAL
+                       | EQ
+
+                       # need to include EQ above bc lexer cannot distinguish
+                       # between 'eq operator at start' and "=" used as
+                       # production symbol. we will treat it as a normal
+                       # non-term if it's in the productions.
+
+{tokens-block}         = TOKENS_HEADER {tokens-content}
+
+{state-ins}            = STATE_DIR {state-expr}
+
+{state-expr}           = {id-expr}
+                       | {newlines} {id-expr}
 
 # any of these COULD be an ID, the lexer's weird multi-state thing makes this
 # difficult atm:
-{id-expr}        = ID | TERM | FREEFORM_TEXT
+{id-expr}              = ID | TERMINAL | FREEFORM_TEXT
 
-{opt-newlines}   = {newlines}
-                 |
+{opt-newlines}         = {newlines}
+                       | #empty string
 
-{newlines}       = NEWLINE
-                 | NEWLINE NEWLINE
+{newlines}             = NEWLINE
+                       | {newlines} NEWLINE
 
-{token-entries}  = {token-entry}
-                 | {token-entry} NEWLINE {token-entry}
+{tokens-content}       = {tokens-state-block}
+                       | {tokens-content} {tokens-state-block}
 
-{token-entry}    = {pattern} {opt-newlines} 
+{tokens-state-block}   = {state-ins} {newlines} {tokens-entries}
+                       | {tokens-entries}
+
+{tokens-entries}       = {tokens-entries} {newlines} {tokens-entry}
+                       | {tokens-entry}
+
+{tokens-entry}         = {pattern} {opt-newlines} {token-entry-opts}
+
+{token-entry-opts}     = {token-entry-opts} {opt-newlines} {token-option}
+                       | {token-option}
+
+{token-option}         = {stateshift}
+                       | {token}
+                       | {human}
+
+{stateshift}           = SHIFT_DIR FREEFORM_TEXT
+{token}                = TOKEN_DIR FREEFORM_TEXT
+{human}                = HUMAN_DIR FREEFORM_TEXT
+
 
 
 
@@ -109,12 +199,11 @@ For grammar state:
 ```fishi
 %state grammar
 
-
 \n                          %token newline       %human new line
 \s+                         # discard other whitespace
 
 ((?:%!%!.|.)+)(?:{eq}|{alt}|{newline}|\s+|{non-term}|{state_dir}|{:start_dir})
-                            %token term          %human terminal
+                            %token terminal      %human terminal
 
 # this will result in needing to escape equals which may be used. oh well.
 # somefin to fix in later versions
@@ -122,7 +211,7 @@ For grammar state:
 =                           %token eq            %human '='
 \|                          %token alt           %human '|'
 %[Ss][Tt][Aa][Tt][Ee]       %token state_dir     %human state directive
-%!{[A-Za-z].*%!}            %token nonterm       %human non-terminal
+%!{[A-Za-z].*%!}            %token nonterminal   %human non-terminal
 ```
 
 For actions state:
@@ -133,8 +222,8 @@ For actions state:
 
 [A-Za-z][A-Za-z0-9_-]*(?:\$\d+)?\.[\$A-Za-z][$A-Za-z0-9_-]*
                              %token attr_ref      %human attribute reference
-
-%!{[A-Za-z].*%!}             %token nonterm       %human non-terminal
+[0-9]+                       %token int           %human integer
+%!{[A-Za-z].*%!}             %token nonterminal   %human non-terminal
 %[Ss][Yy][Mm][Bb][Oo][Ll]    %token symbol_dir    %human symbol directive
 %[Pp][Rr][Oo][Dd]            %token prod_dir      %human prod directive
 %[Ww][Ii][Tt][Hh]            %token with_dir      %human with directive
@@ -143,5 +232,6 @@ For actions state:
 %[Aa][Cc][Ti][Ii][Oo][Nn]    %token action_dir    %human action directive
 %[Ii][Nn][Dd][Ee][Xx]        %token index_dir     %human index directive
 [A-Za-z][A-Za-z0-9_-]*       %token id            %human identifier
+(?:%!%!.|.)                  %token terminal      %human terminal
 
 ```
