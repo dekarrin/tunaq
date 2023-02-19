@@ -23,4 +23,7 @@ type Token interface {
 	// appears on, including both anything that came before the token as well as
 	// after it on the line.
 	FullLine() string
+
+	// String is the string representation.
+	String() string
 }

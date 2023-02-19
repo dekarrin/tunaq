@@ -6,6 +6,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func Test_CompleteRun(t *testing.T) {
+	assert := assert.New(t)
+
+	actual := ReadFishiMdFile("fishi.md")
+
+	assert.NoError(actual)
+	nactual := false
+	assert.True(nactual)
+}
+
 func Test_GetFishiFromMarkdown(t *testing.T) {
 	testCases := []struct {
 		name   string

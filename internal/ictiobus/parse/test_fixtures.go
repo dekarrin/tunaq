@@ -52,6 +52,10 @@ func (tok mockToken) Lexeme() string {
 	return tok.lexeme
 }
 
+func (tok mockToken) String() string {
+	return tok.lexeme
+}
+
 func mockTokens(ofTerm ...string) types.TokenStream {
 	buildingLine := ""
 

@@ -1,6 +1,11 @@
 package lex
 
-import "github.com/dekarrin/tunaq/internal/ictiobus/types"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
+)
 
 // implementation of TokenClass interface for lex package use only.
 type lexerClass struct {
@@ -63,4 +68,11 @@ func (lt lexerToken) Line() int {
 
 func (lt lexerToken) FullLine() string {
 	return lt.line
+}
+
+func (lt lexerToken) String() string {
+	// turn all newline chars into \n because we dont want that in the output
+	fmtStr := "(%s %d:%d \"%s\")"
+	content := strings.ReplaceAll(lt.lexed, "\n", "\\n")
+	return fmt.Sprintf(fmtStr, lt.class.ID(), lt.lineNum, lt.linePos, content)
 }
