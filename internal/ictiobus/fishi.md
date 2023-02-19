@@ -29,16 +29,38 @@ This is the context-free grammar for FISHI, glub.
 ```fishi
 %%grammar
 
-{fishispec}     = {blocks}
+{fishispec}      = {blocks}
 
-{blocks}        = {blocks} {block}
-                | {block}
+{blocks}         = {blocks} {block}
+                 | {block}
 
-{block}         = {token-block} | HEADER {directives}
+{block}          = {tokens-block} | {grammar-block} | {actions-block}
 
-{token-block}   = 
+{tokens-block}   = TOKENS_HEADER {tokens-content}
 
-{directives}    = {}
+{tokens-content} = {state-ins} {token-entries}
+                 | {token-entries}
+
+{state-ins}      = STATE_DIR {state-expr}
+
+{state-expr}     = {id-expr}
+                 | {newlines} {id-expr}
+
+# any of these COULD be an ID, the lexer's weird multi-state thing makes this
+# difficult atm:
+{id-expr}        = ID | TERM | FREEFORM_TEXT
+
+{opt-newlines}   = {newlines}
+                 |
+
+{newlines}       = NEWLINE
+                 | NEWLINE NEWLINE
+
+{token-entries}  = {token-entry}
+                 | {token-entry} NEWLINE
+
+{token-entry}    = {pattern} {opt-newlines}
+
 
 
 ```
@@ -50,53 +72,17 @@ The following gives the lexical specification for the FISHI language.
 ```fishi
 %%tokens
 
-%%[Tt][Oo][Kk][Ee][Nn][Ss]                   %token tokens_header
-%human Token header mark                     %stateshift tokens
+%%[Tt][Oo][Kk][Ee][Nn][Ss]        %token tokens_header
+%human Token header mark          %stateshift tokens
 
-%%[Gg][Rr][Aa][Mm][Mm][Aa][Rr]               %token grammar_header
-%human Grammar header mark                   %stateshift grammar
+%%[Gg][Rr][Aa][Mm][Mm][Aa][Rr]    %token grammar_header  
+%human Grammar header mark        %stateshift grammar
 
-%%[Aa][Cc][Tt][Ii][Oo][Nn][Ss]               %token actions_header
-%human Action header mark                    %stateshift actions
+%%[Aa][Cc][Tt][Ii][Oo][Nn][Ss]    %token actions_header
+%human Action header mark         %stateshift actions
 
-%[Tt][Oo][Kk][Ee][Nn]                        %token token_dir
-%human token directive
-
-%[Sa][Tt][Aa][Tt][Ee][Ss][Hh][Ii][Ff][Tt]    %token shift_dir
-%human state-shift directive
-
-%[Ss][Tt][Aa][Tt][Ee]                        %token state_dir
-%human state directive
-
-%[Hh][Uu][Mm][Aa][Nn]                        %token human_dir
-%human human directive
-
-%[Ss][Tt][Aa][Rr][Tt]                        %token start_dir
+%[Ss][Tt][Aa][Rr][Tt]             %token start_dir
 %human start directive
-
-%[Ss][Yy][Mm][Bb][Oo][Ll]                    %token symbol_dir
-%human symbol directive
-
-%[Pp][Rr][Oo][Dd]                            %token prod_dir
-%human prod directive
-
-%[Ww][Ii][Tt][Hh]                            %token with_dir
-%human with directive
-
-%[Hh][Oo][Oo][Kk]                            %token hook_dir
-%human hook directive
-
-%[Aa][Cc][Ti][Ii][Oo][Nn]                    %token action_dir
-%human action directive
-
-%[Ii][Nn][Dd][Ee][Xx]                        %token index_dir
-%human index directive
-
-%[Dd][Ee][Ff][Aa][Uu][Ll][Tt]                %token default_dir
-%human default directive
-
-
-
 ```
 
 For tokens state:
@@ -105,25 +91,17 @@ For tokens state:
 %state tokens
 
 # escapes need to be handled here
-((?:%!.|.)+)(?:{token_dir}|{human_dir}|{state_dir}|{shift_dir}|\n)
+((?:%!%!.|.)+)(?:{token_dir}|{human_dir}|{state_dir}|{shift_dir}|{:start_dir}|{default_dir}\n)
 %token freeform_text
 %human freeform-text value
 
-%[Sa][Tt][Aa][Tt][Ee][Ss][Hh][Ii][Ff][Tt]    %token shift_dir
-%human state-shift directive
-
-%[Ss][Tt][Aa][Tt][Ee]                        %token state_dir
-%human state directive
-
-%[Hh][Uu][Mm][Aa][Nn]                        %token human_dir
-%human human directive
-
-%[Tt][Oo][Kk][Ee][Nn]                        %token token_dir
-%human token directive
-
-
-\n                                           %token newline
-
+%[Sa][Tt][Aa][Tt][Ee][Ss][Hh][Ii][Ff][Tt]
+                                %token shift_dir    %human state-shift directive
+%[Ss][Tt][Aa][Tt][Ee]           %token state_dir    %human state directive
+%[Hh][Uu][Mm][Aa][Nn]           %token human_dir    %human human directive
+%[Tt][Oo][Kk][Ee][Nn]           %token token_dir    %human token directive
+%[Dd][Ee][Ff][Aa][Uu][Ll][Tt]   %token default_dir  %human default directive
+\n                              %token newline      %human new line
 ```
 
 For grammar state:
@@ -131,37 +109,39 @@ For grammar state:
 ```fishi
 %state grammar
 
-%!{[A-Za-z].*%!}                            %token non-term
-%human non-terminal
 
-# this will result in 
-=                                           %token eq
+\n                          %token newline       %human new line
+\s+                         # discard other whitespace
 
+((?:%!%!.|.)+)(?:{eq}|{alt}|{newline}|\s+|{non-term}|{state_dir}|{:start_dir})
+                            %token term          %human terminal
 
+# this will result in needing to escape equals which may be used. oh well.
+# somefin to fix in later versions
 
+=                           %token eq            %human '='
+\|                          %token alt           %human '|'
+%[Ss][Tt][Aa][Tt][Ee]       %token state_dir     %human state directive
+%!{[A-Za-z].*%!}            %token nonterm       %human non-terminal
+```
 
-(?:(?:\s*(?:\S+\s+)+)|(?:\s+\S+)+|\S+)    %token text
+For actions state:
+```fishi
+%state action
 
+\s+                         # discard all whitespace
 
+[A-Za-z][A-Za-z0-9_-]*(?:\$\d+)?\.[\$A-Za-z][$A-Za-z0-9_-]*
+                             %token attr_ref      %human attribute reference
 
-
-
-
-# this horrible syntax with the escapes everywhere is glubbin due to use of '}'
-# there will always be at least ONE that is a massive pita and for this it is }.
-# esp w the egregious escape char made as such so as not to conflict w backslash
-# which is used in so many glubbin places due to regex
-
-%!{%!{(?:|%!%%!!%!%%!!|%!%%!!}|%!}[^%!}]|[^%!}]|)*%!}%!}
-%token str %human "string"
-
-[]
-
-\n                                      %token newline         %human "new line"
-
-
-\s+                                     # (no action; discard other whitespace)
-                           
-
+%!{[A-Za-z].*%!}             %token nonterm       %human non-terminal
+%[Ss][Yy][Mm][Bb][Oo][Ll]    %token symbol_dir    %human symbol directive
+%[Pp][Rr][Oo][Dd]            %token prod_dir      %human prod directive
+%[Ww][Ii][Tt][Hh]            %token with_dir      %human with directive
+%[Hh][Oo][Oo][Kk]            %token hook_dir      %human hook directive
+%[Ss][Tt][Aa][Tt][Ee]        %token state_dir     %human state directive
+%[Aa][Cc][Ti][Ii][Oo][Nn]    %token action_dir    %human action directive
+%[Ii][Nn][Dd][Ee][Xx]        %token index_dir     %human index directive
+[A-Za-z][A-Za-z0-9_-]*       %token id            %human identifier
 
 ```
