@@ -25,6 +25,33 @@ func Test_GetFishiFromMarkdown(t *testing.T) {
 				"\n" +
 				"%token test\n",
 		},
+		{
+			name: "two fishi blocks",
+			input: "Test block\n" +
+				"only include the fishi blocks\n" +
+				"```fishi\n" +
+				"%%tokens\n" +
+				"\n" +
+				"%token test\n" +
+				"```\n" +
+				"some more text\n" +
+				"```fishi\n" +
+				"\n" +
+				"%token 7\n" +
+				"%%actions\n" +
+				"\n" +
+				"%action go\n" +
+				"```\n" +
+				"other text\n",
+			expect: "%%tokens\n" +
+				"\n" +
+				"%token test\n" +
+				"\n" +
+				"%token 7\n" +
+				"%%actions\n" +
+				"\n" +
+				"%action go\n",
+		},
 	}
 
 	for _, tc := range testCases {
