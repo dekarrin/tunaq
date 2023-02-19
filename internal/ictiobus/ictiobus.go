@@ -226,5 +226,3 @@ func (fe *Frontend[E]) Analyze(r io.Reader) (ir E, err error) {
 
 	return ir, nil
 }
-
-// FrontendFrom

@@ -56,8 +56,6 @@ This is the context-free grammar for FISHI, glub.
 
 {prod-specifier}       = PROD_DIR {prod-addr}
 
-NONTERMINAL ATTR_REF SYMBOL_DIR PROD_DIR WITH_DIR HOOK_DIR ACTION_DIR INDEX_DIR ID TERMINAL INT
-
 {prod-addr}            = INDEX_DIR INT
                        | {actions-production}
                        | # empty; note: only way to specify epsilon production is to use index
@@ -149,12 +147,7 @@ NONTERMINAL ATTR_REF SYMBOL_DIR PROD_DIR WITH_DIR HOOK_DIR ACTION_DIR INDEX_DIR 
 {stateshift}           = SHIFT_DIR FREEFORM_TEXT
 {token}                = TOKEN_DIR FREEFORM_TEXT
 {human}                = HUMAN_DIR FREEFORM_TEXT
-
-
-
-
 ```
-
 
 ## Lexer
 The following gives the lexical specification for the FISHI language.
