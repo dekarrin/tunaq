@@ -57,7 +57,14 @@ func (lx *lexerTemplate) LazyLex(input io.Reader) (types.TokenStream, error) {
 	// move all patterns into "super pattern"; one per state. and separate the
 	// actions into their own data structure
 	for k := range lx.patterns {
-		statePats := lx.patterns[k]
+		var statePats []patAct
+		if k != "" {
+			defPats, ok := lx.patterns[""]
+			if ok {
+				statePats = defPats
+			}
+		}
+		statePats = append(statePats, lx.patterns[k]...)
 		var superRegex strings.Builder
 		superRegex.WriteString("^(?:")
 		lazyActs := make([]Action, len(statePats))
@@ -86,14 +93,20 @@ func (lx *lexerTemplate) LazyLex(input io.Reader) (types.TokenStream, error) {
 
 	// move over classes too (although they might not be needed)
 	for k := range lx.classes {
-		stateClasses := lx.classes[k]
-		stateClassesCopy := make(map[string]types.TokenClass)
-
-		for j := range stateClasses {
-			stateClassesCopy[j] = stateClasses[j]
+		stateClasses := map[string]types.TokenClass{}
+		if k != "" {
+			defClasses, ok := lx.classes[""]
+			if ok {
+				for j := range defClasses {
+					stateClasses[j] = defClasses[j]
+				}
+			}
+		}
+		for j := range lx.classes[k] {
+			stateClasses[j] = lx.classes[k][j]
 		}
 
-		active.classes[k] = stateClassesCopy
+		active.classes[k] = stateClasses
 	}
 
 	// set current line and pos
@@ -114,6 +127,7 @@ func (lx *lazyTokenStream) Next() types.Token {
 		return lx.makeEOTToken()
 	}
 
+	// the rule that you get all default states along with whatever state
 	pat := lx.patterns[lx.state]
 	stateActions := lx.actions[lx.state]
 	stateClasses := lx.classes[lx.state]

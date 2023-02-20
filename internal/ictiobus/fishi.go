@@ -131,7 +131,7 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.RegisterClass(tcDirState, "")
 
 	// default patterns and defs
-	bootLx.AddPattern(`(?:%!.)`, lex.LexAs(tcEscseq.ID()), "")
+	bootLx.AddPattern(`%!.`, lex.LexAs(tcEscseq.ID()), "")
 	bootLx.AddPattern(`%%[Tt][Oo][Kk][Ee][Nn][Ss]`, lex.LexAndSwapState(tcHeaderTokens.ID(), "tokens"), "")
 	bootLx.AddPattern(`%%[Gg][Rr][Aa][Mm][Mm][Aa][Rr]`, lex.LexAndSwapState(tcHeaderGrammar.ID(), "grammar"), "")
 	bootLx.AddPattern(`%%[Aa][Cc][Tt][Ii][Oo][Nn][Ss]`, lex.LexAndSwapState(tcHeaderActions.ID(), "actions"), "")
@@ -152,7 +152,7 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.AddPattern(`%[Tt][Oo][Kk][Ee][Nn]`, lex.LexAs(tcDirToken.ID()), "tokens")
 	bootLx.AddPattern(`%[Dd][Ee][Ff][Aa][Uu][Ll][Tt]`, lex.LexAs(tcDirDefault.ID()), "tokens")
 	bootLx.AddPattern(`\n`, lex.LexAs(tcNewline.ID()), "tokens")
-	bootLx.AddPattern(".+", lex.LexAs(tcFreeformText.ID()), "tokens")
+	bootLx.AddPattern(`[^%\n]+`, lex.LexAs(tcFreeformText.ID()), "tokens")
 
 	// grammar classes
 	bootLx.RegisterClass(tcNewline, "grammar")
@@ -166,8 +166,8 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.AddPattern(`\s+`, lex.Discard(), "grammar")
 	bootLx.AddPattern(`=`, lex.LexAs(tcEq.ID()), "grammar")
 	bootLx.AddPattern(`\|`, lex.LexAs(tcAlt.ID()), "grammar")
-	bootLx.AddPattern(`{[A-Za-z].*}`, lex.LexAs(tcNonterminal.ID()), "grammar")
-	bootLx.AddPattern(`.+`, lex.LexAs(tcTerminal.ID()), "grammar")
+	bootLx.AddPattern(`{[A-Za-z][^}]*}`, lex.LexAs(tcNonterminal.ID()), "grammar")
+	bootLx.AddPattern(`\S+`, lex.LexAs(tcTerminal.ID()), "grammar")
 
 	// actions classes
 	bootLx.RegisterClass(tcAttrRef, "actions")
@@ -184,17 +184,17 @@ func CreateBootstrapLexer() Lexer {
 
 	// actions patterns
 	bootLx.AddPattern(`\s+`, lex.Discard(), "actions")
-	bootLx.AddPattern(`[A-Za-z][A-Za-z0-9_-]*(?:\$\d+)?\.[\$A-Za-z][$A-Za-z0-9_-]*`, lex.LexAs(tcAttrRef.ID()), "actions")
+	bootLx.AddPattern(`(?:{[A-Za-z][^}]*}|\S+)(?:\$\d+)?\.[\$A-Za-z][$A-Za-z0-9_-]*`, lex.LexAs(tcAttrRef.ID()), "actions")
 	bootLx.AddPattern(`[0-9]+`, lex.LexAs(tcInt.ID()), "actions")
-	bootLx.AddPattern(`{[A-Za-z].*}`, lex.LexAs(tcNonterminal.ID()), "actions")
+	bootLx.AddPattern(`{[A-Za-z][^}]*}`, lex.LexAs(tcNonterminal.ID()), "actions")
 	bootLx.AddPattern(`%[Ss][Yy][Mm][Bb][Oo][Ll]`, lex.LexAs(tcDirSymbol.ID()), "actions")
 	bootLx.AddPattern(`%[Pp][Rr][Oo][Dd]`, lex.LexAs(tcDirProd.ID()), "actions")
 	bootLx.AddPattern(`%[Ww][Ii][Tt][Hh]`, lex.LexAs(tcDirWith.ID()), "actions")
 	bootLx.AddPattern(`%[Hh][Oo][Oo][Kk]`, lex.LexAs(tcDirHook.ID()), "actions")
-	bootLx.AddPattern(`%[Aa][Cc][Ti][Ii][Oo][Nn]`, lex.LexAs(tcDirAction.ID()), "actions")
+	bootLx.AddPattern(`%[Aa][Cc][Tt][Ii][Oo][Nn]`, lex.LexAs(tcDirAction.ID()), "actions")
 	bootLx.AddPattern(`%[Ii][Nn][Dd][Ee][Xx]`, lex.LexAs(tcDirIndex.ID()), "actions")
 	bootLx.AddPattern(`[A-Za-z][A-Za-z0-9_-]*`, lex.LexAs(tcId.ID()), "actions")
-	bootLx.AddPattern(`.+`, lex.LexAs(tcTerminal.ID()), "grammar")
+	bootLx.AddPattern(`\S+`, lex.LexAs(tcTerminal.ID()), "actions")
 
 	return bootLx
 }

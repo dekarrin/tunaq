@@ -72,7 +72,7 @@ func (lt lexerToken) FullLine() string {
 
 func (lt lexerToken) String() string {
 	// turn all newline chars into \n because we dont want that in the output
-	fmtStr := "(%s %d:%d \"%s\")"
+	fmtStr := "(%s <%d:%d> \"%s\")"
 	content := strings.ReplaceAll(lt.lexed, "\n", "\\n")
-	return fmt.Sprintf(fmtStr, lt.class.ID(), lt.lineNum, lt.linePos, content)
+	return fmt.Sprintf(fmtStr, strings.ToUpper(lt.class.ID()), lt.lineNum, lt.linePos, content)
 }

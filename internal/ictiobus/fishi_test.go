@@ -1,8 +1,10 @@
 package ictiobus
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/dekarrin/tunaq/internal/ictiobus/icterrors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,6 +14,14 @@ func Test_CompleteRun(t *testing.T) {
 	actual := ReadFishiMdFile("fishi.md")
 
 	assert.NoError(actual)
+
+	if actual != nil {
+		actualSynt, ok := actual.(*icterrors.SyntaxError)
+		if ok {
+			fmt.Println(actualSynt.FullMessage())
+		}
+	}
+
 	nactual := false
 	assert.True(nactual)
 }

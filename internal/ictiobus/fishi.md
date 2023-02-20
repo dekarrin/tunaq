@@ -118,7 +118,7 @@ This is the context-free grammar for FISHI, glub.
 
 # any of these COULD be an ID, the lexer's weird multi-state thing makes this
 # difficult atm:
-{id-expr}              = ID | TERMINAL | FREEFORM_TEXT
+{id-expr}              = ID | TERMINAL | {text}
 
 {opt-newlines}         = {newlines}
                        | #empty string
@@ -144,9 +144,11 @@ This is the context-free grammar for FISHI, glub.
                        | {token}
                        | {human}
 
-{stateshift}           = SHIFT_DIR FREEFORM_TEXT
-{token}                = TOKEN_DIR FREEFORM_TEXT
-{human}                = HUMAN_DIR FREEFORM_TEXT
+{stateshift}           = SHIFT_DIR {text}
+{token}                = TOKEN_DIR {text}
+{human}                = HUMAN_DIR {text}
+{text}                 = {text} {text-element} | {text-element}
+{text-element}         = FREEFORM_TEXT | ESCSEQ
 ```
 
 ## Lexer
@@ -155,21 +157,22 @@ The following gives the lexical specification for the FISHI language.
 ```fishi
 %%tokens
 
-(?:%!.)                           %token escseq       %human escape sequence
+%!%!.                               %token escseq
+%human escape sequence
 
-%%[Tt][Oo][Kk][Ee][Nn][Ss]        %token tokens_header
-%human Token header mark          %stateshift tokens
+%!%%!%[Tt][Oo][Kk][Ee][Nn][Ss]      %token tokens_header
+%human Token header mark            %stateshift tokens
 
-%%[Gg][Rr][Aa][Mm][Mm][Aa][Rr]    %token grammar_header  
-%human Grammar header mark        %stateshift grammar
+%!%%!%[Gg][Rr][Aa][Mm][Mm][Aa][Rr]  %token grammar_header  
+%human Grammar header mark          %stateshift grammar
 
-%%[Aa][Cc][Tt][Ii][Oo][Nn][Ss]    %token actions_header
-%human Action header mark         %stateshift actions
+%!%%!%[Aa][Cc][Tt][Ii][Oo][Nn][Ss]  %token actions_header
+%human Action header mark           %stateshift actions
 
-%[Ss][Tt][Aa][Rr][Tt]             %token start_dir
+%!%[Ss][Tt][Aa][Rr][Tt]             %token start_dir
 %human start directive
 
-%[Ss][Tt][Aa][Tt][Ee]             %token state_dir
+%!%[Ss][Tt][Aa][Tt][Ee]             %token state_dir
 %human state directive
 ```
 
@@ -179,14 +182,14 @@ For tokens state:
 %state tokens
 
 
-%[Sa][Tt][Aa][Tt][Ee][Ss][Hh][Ii][Ff][Tt]
-                                %token shift_dir    %human state-shift directive
-%[Hh][Uu][Mm][Aa][Nn]           %token human_dir    %human human directive
-%[Tt][Oo][Kk][Ee][Nn]           %token token_dir    %human token directive
-%[Dd][Ee][Ff][Aa][Uu][Ll][Tt]   %token default_dir  %human default directive
-\n                              %token newline      %human new line
+%!%[Sa][Tt][Aa][Tt][Ee][Ss][Hh][Ii][Ff][Tt]
+                                 %token shift_dir    %human state-shift directive
+%!%[Hh][Uu][Mm][Aa][Nn]          %token human_dir    %human human directive
+%!%[Tt][Oo][Kk][Ee][Nn]          %token token_dir    %human token directive
+%!%[Dd][Ee][Ff][Aa][Uu][Ll][Tt]  %token default_dir  %human default directive
+\n                               %token newline      %human new line
 
-.+                              %token freeform_text  %human freeform-text value
+[^%!%\n]+                        %token freeform_text  %human freeform-text value
 ```
 
 For grammar state:
@@ -204,8 +207,8 @@ For grammar state:
 
 =                           %token eq            %human '='
 \|                          %token alt           %human '|'
-%!{[A-Za-z].*%!}            %token nonterminal   %human non-terminal
-.+                          %token terminal      %human terminal
+{[A-Za-z][^}]*}             %token nonterminal   %human non-terminal
+\S+                         %token terminal      %human terminal
 ```
 
 For actions state:
@@ -214,17 +217,35 @@ For actions state:
 
 \s+                         # discard all whitespace
 
-[A-Za-z][A-Za-z0-9_-]*(?:\$\d+)?\.[\$A-Za-z][$A-Za-z0-9_-]*
+(?:{[A-Za-z][^}]*}|\S+)(?:\$\d+)?\.[\$A-Za-z][$A-Za-z0-9_-]*
                              %token attr_ref      %human attribute reference
 [0-9]+                       %token int           %human integer
-%!{[A-Za-z].*%!}             %token nonterminal   %human non-terminal
-%[Ss][Yy][Mm][Bb][Oo][Ll]    %token symbol_dir    %human symbol directive
-%[Pp][Rr][Oo][Dd]            %token prod_dir      %human prod directive
-%[Ww][Ii][Tt][Hh]            %token with_dir      %human with directive
-%[Hh][Oo][Oo][Kk]            %token hook_dir      %human hook directive
-%[Aa][Cc][Ti][Ii][Oo][Nn]    %token action_dir    %human action directive
-%[Ii][Nn][Dd][Ee][Xx]        %token index_dir     %human index directive
+{[A-Za-z][^}]*}              %token nonterminal   %human non-terminal
+%!%[Ss][Yy][Mm][Bb][Oo][Ll]  %token symbol_dir    %human symbol directive
+%!%[Pp][Rr][Oo][Dd]          %token prod_dir      %human prod directive
+%!%[Ww][Ii][Tt][Hh]          %token with_dir      %human with directive
+%!%[Hh][Oo][Oo][Kk]          %token hook_dir      %human hook directive
+%!%[Aa][Cc][Tt][Ii][Oo][Nn]  %token action_dir    %human action directive
+%!%[Ii][Nn][Dd][Ee][Xx]      %token index_dir     %human index directive
 [A-Za-z][A-Za-z0-9_-]*       %token id            %human identifier
-.+                           %token terminal      %human terminal
+\S+                          %token terminal      %human terminal
+
+```
+
+## Translation Scheme
+The following gives the Syntax-directed translations for the FISHI language.
+
+```fishi
+%%actions
+
+%symbol {text-element}
+%prod FREEFORM_TEXT
+%action {text-element}.str
+%hook identity  %with FREEFORM_TEXT.$text
+
+%prod ESCSEQ
+%action {text-element}.str
+%hook unescape  %with ESCSEQ.$test
+
 
 ```
