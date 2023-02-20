@@ -8,7 +8,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
+	"github.com/dekarrin/tunaq/internal/ictiobus/icterrors"
 	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/gomarkdown/markdown"
 	mkast "github.com/gomarkdown/markdown/ast"
 	mkparser "github.com/gomarkdown/markdown/parser"
@@ -61,8 +64,12 @@ func ProcessFishiMd(mdText []byte) error {
 	}
 
 	for stream.HasNext() {
-		fmt.Printf("%s\n", stream.Next().String())
+		fmt.Println(stream.Next().String())
 	}
+
+	//g := CreateBootstrapGrammarFromLexerStream(stream)
+
+	//fmt.Println(g.String())
 
 	return nil
 }
@@ -93,34 +100,36 @@ func Preprocess(source []byte) []byte {
 	return []byte(preprocessed.String())
 }
 
+var (
+	tcHeaderTokens  = lex.NewTokenClass("tokens_header", "'tokens' header")
+	tcHeaderGrammar = lex.NewTokenClass("grammar_header", "'grammar' header")
+	tcHeaderActions = lex.NewTokenClass("actions_header", "'actions' header")
+	tcDirAction     = lex.NewTokenClass("action_dir", "'action' directive")
+	tcDirDefault    = lex.NewTokenClass("default_dir", "'default' directive")
+	tcDirHook       = lex.NewTokenClass("hook_dir", "'hook' directive")
+	tcDirHuman      = lex.NewTokenClass("human_dir", "'human' directive")
+	tcDirIndex      = lex.NewTokenClass("index_dir", "'index' directive")
+	tcDirProd       = lex.NewTokenClass("prod_dir", "'prod' directive")
+	tcDirShift      = lex.NewTokenClass("shift_dir", "'stateshift' directive")
+	tcDirStart      = lex.NewTokenClass("start_dir", "'start' directive")
+	tcDirState      = lex.NewTokenClass("state_dir", "'state' directive")
+	tcDirSymbol     = lex.NewTokenClass("symbol_dir", "'symbol' directive")
+	tcDirToken      = lex.NewTokenClass("token_dir", "'token' directive")
+	tcDirWith       = lex.NewTokenClass("with_dir", "'with' directive")
+	tcFreeformText  = lex.NewTokenClass("freeform_text", "freeform text value")
+	tcNewline       = lex.NewTokenClass("newline", "'\n'")
+	tcTerminal      = lex.NewTokenClass("terminal", "terminal symbol")
+	tcNonterminal   = lex.NewTokenClass("nonterminal", "non-terminal symbol")
+	tcEq            = lex.NewTokenClass("eq", "'='")
+	tcAlt           = lex.NewTokenClass("alt", "'|'")
+	tcAttrRef       = lex.NewTokenClass("attr_ref", "attribute reference")
+	tcInt           = lex.NewTokenClass("int", "integer value")
+	tcId            = lex.NewTokenClass("id", "identifier")
+	tcEscseq        = lex.NewTokenClass("escseq", "escape sequence")
+)
+
 func CreateBootstrapLexer() Lexer {
 	bootLx := NewLexer()
-
-	tcHeaderTokens := lex.NewTokenClass("tokens_header", "'tokens' header")
-	tcHeaderGrammar := lex.NewTokenClass("grammar_header", "'grammar' header")
-	tcHeaderActions := lex.NewTokenClass("actions_header", "'actions' header")
-	tcDirAction := lex.NewTokenClass("action_dir", "'action' directive")
-	tcDirDefault := lex.NewTokenClass("default_dir", "'default' directive")
-	tcDirHook := lex.NewTokenClass("hook_dir", "'hook' directive")
-	tcDirHuman := lex.NewTokenClass("human_dir", "'human' directive")
-	tcDirIndex := lex.NewTokenClass("index_dir", "'index' directive")
-	tcDirProd := lex.NewTokenClass("prod_dir", "'prod' directive")
-	tcDirShift := lex.NewTokenClass("shift_dir", "'stateshift' directive")
-	tcDirStart := lex.NewTokenClass("start_dir", "'start' directive")
-	tcDirState := lex.NewTokenClass("state_dir", "'state' directive")
-	tcDirSymbol := lex.NewTokenClass("symbol_dir", "'symbol' directive")
-	tcDirToken := lex.NewTokenClass("token_dir", "'token' directive")
-	tcDirWith := lex.NewTokenClass("with_dir", "'with' directive")
-	tcFreeformText := lex.NewTokenClass("freeform_text", "freeform text value")
-	tcNewline := lex.NewTokenClass("newline", "'\n'")
-	tcTerminal := lex.NewTokenClass("terminal", "terminal symbol")
-	tcNonterminal := lex.NewTokenClass("nonterminal", "non-terminal symbol")
-	tcEq := lex.NewTokenClass("eq", "'='")
-	tcAlt := lex.NewTokenClass("alt", "'|'")
-	tcAttrRef := lex.NewTokenClass("attr_ref", "attribute reference")
-	tcInt := lex.NewTokenClass("int", "integer value")
-	tcId := lex.NewTokenClass("id", "identifier")
-	tcEscseq := lex.NewTokenClass("escseq", "escape sequence")
 
 	// default state, shared by all
 	bootLx.RegisterClass(tcEscseq, "")
@@ -197,4 +206,151 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.AddPattern(`\S+`, lex.LexAs(tcTerminal.ID()), "actions")
 
 	return bootLx
+}
+
+func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar {
+	bootCfg := grammar.Grammar{}
+
+	bootCfg.AddTerm(tcHeaderTokens.ID(), tcHeaderTokens)
+	bootCfg.AddTerm(tcHeaderGrammar.ID(), tcHeaderGrammar)
+	bootCfg.AddTerm(tcHeaderActions.ID(), tcHeaderActions)
+	bootCfg.AddTerm(tcDirAction.ID(), tcDirAction)
+	bootCfg.AddTerm(tcDirDefault.ID(), tcDirDefault)
+	bootCfg.AddTerm(tcDirHook.ID(), tcDirHook)
+	bootCfg.AddTerm(tcDirHuman.ID(), tcDirHuman)
+	bootCfg.AddTerm(tcDirIndex.ID(), tcDirIndex)
+	bootCfg.AddTerm(tcDirProd.ID(), tcDirProd)
+	bootCfg.AddTerm(tcDirShift.ID(), tcDirShift)
+	bootCfg.AddTerm(tcDirStart.ID(), tcDirStart)
+	bootCfg.AddTerm(tcDirState.ID(), tcDirState)
+	bootCfg.AddTerm(tcDirSymbol.ID(), tcDirSymbol)
+	bootCfg.AddTerm(tcDirToken.ID(), tcDirToken)
+	bootCfg.AddTerm(tcDirWith.ID(), tcDirWith)
+	bootCfg.AddTerm(tcFreeformText.ID(), tcFreeformText)
+	bootCfg.AddTerm(tcNewline.ID(), tcNewline)
+	bootCfg.AddTerm(tcTerminal.ID(), tcTerminal)
+	bootCfg.AddTerm(tcNonterminal.ID(), tcNonterminal)
+	bootCfg.AddTerm(tcEq.ID(), tcEq)
+	bootCfg.AddTerm(tcAlt.ID(), tcAlt)
+	bootCfg.AddTerm(tcAttrRef.ID(), tcAttrRef)
+	bootCfg.AddTerm(tcInt.ID(), tcInt)
+	bootCfg.AddTerm(tcId.ID(), tcId)
+	bootCfg.AddTerm(tcEscseq.ID(), tcEscseq)
+
+	var inGrammarBlock bool
+	var atEntryStart bool
+	var forRule string
+	var waitForEq bool
+	var gettingProds bool
+	var curProd []string
+	var prodStarted bool
+
+	convNonTerm := func(s string) string {
+		// chop off leading/trailing {}'s
+		s = s[1 : len(s)-1]
+
+		return strings.ToUpper(s)
+	}
+
+	convTerm := func(s string) string {
+		return strings.ToLower(s)
+	}
+
+	for lx.HasNext() {
+		tok := lx.Next()
+		if !inGrammarBlock {
+			if tok.Class().ID() == tcHeaderGrammar.ID() {
+				inGrammarBlock = true
+				atEntryStart = true
+				waitForEq = false
+				gettingProds = false
+				prodStarted = false
+				curProd = nil
+				continue
+			}
+		}
+
+		if !inGrammarBlock {
+			continue
+		}
+
+		switch tok.Class().ID() {
+		case tcHeaderActions.ID():
+			fallthrough
+		case tcHeaderTokens.ID():
+			if prodStarted {
+				bootCfg.AddRule(forRule, curProd)
+				curProd = nil
+				prodStarted = false
+			}
+			inGrammarBlock = false
+			continue
+		case tcNewline.ID():
+			atEntryStart = true
+			waitForEq = false
+			gettingProds = false
+			continue
+		case tcNonterminal.ID():
+			if atEntryStart {
+				if prodStarted {
+					bootCfg.AddRule(forRule, curProd)
+					curProd = nil
+					prodStarted = false
+				}
+				forRule = convNonTerm(tok.Lexeme())
+				atEntryStart = false
+				waitForEq = true
+				gettingProds = false
+				curProd = nil
+				continue
+			} else if gettingProds {
+				curProd = append(curProd, convNonTerm(tok.Lexeme()))
+			} else {
+				fmt.Println(icterrors.NewSyntaxErrorFromToken("didn't expect a non-terminal", tok).FullMessage())
+				panic("fail")
+			}
+		case tcTerminal.ID():
+			if gettingProds {
+				term := convTerm(tok.Lexeme())
+				curProd = append(curProd, term)
+			} else {
+				fmt.Println(icterrors.NewSyntaxErrorFromToken("didn't expect a terminal", tok).FullMessage())
+				panic("fail")
+			}
+		case tcAlt.ID():
+			if atEntryStart {
+				atEntryStart = false
+				gettingProds = true
+				bootCfg.AddRule(forRule, curProd)
+				curProd = nil
+			} else if gettingProds {
+				bootCfg.AddRule(forRule, curProd)
+				curProd = nil
+			} else {
+				fmt.Println(icterrors.NewSyntaxErrorFromToken("didn't expect an alt", tok).FullMessage())
+				panic("fail")
+			}
+		case tcEq.ID():
+			if waitForEq {
+				prodStarted = true
+				waitForEq = false
+				gettingProds = true
+				continue
+			} else {
+				fmt.Println(icterrors.NewSyntaxErrorFromToken("didn't expect an eq", tok).FullMessage())
+				panic("fail")
+			}
+		default:
+			fmt.Println(icterrors.NewSyntaxErrorFromToken("bootstrap cannot handle token", tok).FullMessage())
+			panic("fail")
+		}
+	}
+
+	if prodStarted {
+		bootCfg.AddRule(forRule, curProd)
+		curProd = nil
+		prodStarted = false
+	}
+
+	return bootCfg
 }
