@@ -42,7 +42,7 @@ func Test_ConstructCanonicalLR1ParseTable(t *testing.T) {
 			g := grammar.MustParse(tc.grammar)
 
 			// execute
-			actual, err := constructCanonicalLR1ParseTable(g)
+			actual, _, err := constructCanonicalLR1ParseTable(g, false)
 
 			// assert
 			if tc.expectErr {
@@ -96,7 +96,7 @@ func Test_CanonicalLR1Parse(t *testing.T) {
 			stream := mockTokens(tc.input...)
 
 			// execute
-			parser, err := GenerateCanonicalLR1Parser(g)
+			parser, _, err := GenerateCanonicalLR1Parser(g, false)
 			assert.NoError(err, "generating CLR parser failed")
 			actual, err := parser.Parse(stream)
 

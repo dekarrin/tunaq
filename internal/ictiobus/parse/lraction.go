@@ -6,6 +6,17 @@ import (
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 )
 
+func isShiftReduceConlict(act1, act2 LRAction) (isSR bool, shiftAct LRAction) {
+	if act1.Type == LRReduce && act2.Type == LRShift {
+		return true, act2
+	}
+	if act2.Type == LRReduce && act1.Type == LRShift {
+		return true, act1
+	}
+
+	return false, act1
+}
+
 func makeLRConflictError(act1, act2 LRAction, onInput string) error {
 	if act1.Type == LRReduce && act2.Type == LRShift || act1.Type == LRShift && act2.Type == LRReduce {
 		// shift-reduce conflict
@@ -16,15 +27,29 @@ func makeLRConflictError(act1, act2 LRAction, onInput string) error {
 		} else {
 			reduceRule = act2.Symbol + " -> " + act2.Production.String()
 		}
-		return fmt.Errorf("shift-reduce conflict detected on terminal %q (shift or reduce %s)", onInput, reduceRule)
+		return fmt.Errorf("shift/reduce conflict detected on terminal %q (shift or reduce %s)", onInput, reduceRule)
 	} else if act1.Type == LRReduce && act2.Type == LRReduce {
 		// reduce-reduce conflict
 
 		reduce1 := act1.Symbol + " -> " + act1.Production.String()
 		reduce2 := act2.Symbol + " -> " + act2.Production.String()
-		return fmt.Errorf("reduce-reduce conflict detected on terminal %q (reduce %s or reduce %s)", onInput, reduce1, reduce2)
+		return fmt.Errorf("reduce/reduce conflict detected on terminal %q (reduce %s or reduce %s)", onInput, reduce1, reduce2)
+	} else if act1.Type == LRAccept || act2.Type == LRAccept {
+		nonAcceptAct := act2
+
+		if act2.Type == LRAccept {
+			nonAcceptAct = act1
+		}
+
+		// accept-? conflict
+		if nonAcceptAct.Type == LRShift {
+			return fmt.Errorf("accept/shift conflict detected on terminal %q", onInput)
+		} else if nonAcceptAct.Type == LRReduce {
+			reduce := nonAcceptAct.Symbol + " -> " + nonAcceptAct.Production.String()
+			return fmt.Errorf("accept/reduce conflict detected on terminal %q (accept or reduce %s)", onInput, reduce)
+		}
 	}
-	return nil
+	return fmt.Errorf("LR action conflict on terminal %q (%s or %s)", onInput, act1.String(), act2.String())
 }
 
 type LRActionType int

@@ -81,31 +81,13 @@ func ProcessFishiMd(mdText []byte) error {
 	// now, can we make a parser from this?
 	var parser Parser
 
-	parser, err = NewLALR1Parser(g)
-	if err != nil {
-		bigParseGenErr := fmt.Sprintf("LALR(1) generation: %s", err.Error())
-		// okay, what about a CLR(1) parser? (though, if LALR doesnt work, dont think CLR will)
-		parser, err = NewCLRParser(g)
-		if err != nil {
-			bigParseGenErr += fmt.Sprintf("\nCLR(1) generation: %s", err.Error())
+	parser, ambigWarns, err := NewParser(g, true)
 
-			// what about an SLR parser?
-			//parser, err = NewSLRParser(g) lol no SLR(1) currently has an error
-			if err != nil {
-				//bigParseGenErr += fmt.Sprintf("\nSLR(1) generation: %s", err.Error())
-
-				// LL?
-				parser, err = NewLL1Parser(g)
-				if err != nil {
-					bigParseGenErr += fmt.Sprintf("\nLL(1) generation: %s", err.Error())
-
-					return fmt.Errorf("generating parser:\n%s", bigParseGenErr)
-				}
-			}
-		}
+	for i := range ambigWarns {
+		fmt.Printf("warn: ambiguous grammar: %s\n", ambigWarns[i])
 	}
 
-	fmt.Printf("successfully built LALR parser:\n%v\n", parser)
+	fmt.Printf("successfully built %s parser:\n%v\n", parser.Type().String(), parser)
 
 	return nil
 }

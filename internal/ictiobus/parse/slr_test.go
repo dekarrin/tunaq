@@ -45,7 +45,7 @@ func Test_ConstructSimpleLRParseTable(t *testing.T) {
 			g := grammar.MustParse(tc.grammar)
 
 			// execute
-			actual, err := constructSimpleLRParseTable(g)
+			actual, _, err := constructSimpleLRParseTable(g, false)
 
 			// assert
 			if tc.expectErr {
@@ -99,7 +99,7 @@ func Test_SLR1Parse(t *testing.T) {
 			stream := mockTokens(tc.input...)
 
 			// execute
-			parser, err := GenerateSimpleLRParser(g)
+			parser, _, err := GenerateSimpleLRParser(g, false)
 			assert.NoError(err, "generating SLR parser failed")
 			actual, err := parser.Parse(stream)
 

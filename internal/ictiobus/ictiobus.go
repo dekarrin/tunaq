@@ -48,6 +48,10 @@ type Parser interface {
 	// Parse parses input text and returns the parse tree built from it, or a
 	// SyntaxError with the description of the problem.
 	Parse(stream types.TokenStream) (types.ParseTree, error)
+
+	// Type returns a string indicating what kind of parser was generated. This
+	// will be "LL(1)", "SLR(1)", "CLR(1)", or "LALR(1)"
+	Type() types.ParserType
 }
 
 // SDD is a series of syntax-directed definitions bound to syntactic rules of
@@ -129,34 +133,71 @@ func NewLazyLexer() Lexer {
 }
 
 // NewParser returns what is the most flexible and efficient parser in this
-// package. At this time, that is the LALR(1) parser. Returns an error if the
-// grammar cannot be parsed by an LALR parser.
-func NewParser(g grammar.Grammar) (Parser, error) {
-	return NewLALR1Parser(g)
+// package that can parse the given grammar. The following parsers will be
+// attempted to be built, in order, with each subsequent one attempted after the
+// prior one fails.
+//
+// * LALR(1)
+// * CLR(1)
+// * SLR(1) (not currently attempted due to bugs)
+// * LL(1)
+//
+// Returns an error if no parser can be generated for the given grammar.
+//
+// allowAmbiguous allows the use of ambiguous grammars in LR parsers. It has no
+// effect on LL(1) parser generation; LL(1) grammars must be unambiguous.
+func NewParser(g grammar.Grammar, allowAmbiguous bool) (parser Parser, ambigWarns []string, err error) {
+	parser, ambigWarns, err = NewLALR1Parser(g, allowAmbiguous)
+	if err != nil {
+		bigParseGenErr := fmt.Sprintf("LALR(1) generation: %s", err.Error())
+		// okay, what about a CLR(1) parser? (though, if LALR doesnt work, dont think CLR will)
+		parser, ambigWarns, err = NewCLRParser(g, allowAmbiguous)
+		if err != nil {
+			bigParseGenErr += fmt.Sprintf("\nCLR(1) generation: %s", err.Error())
+
+			// what about an SLR parser?
+			// TODO: SLR fails and panics on some inputs (such as FISHI spec), fix this
+			//parser, ambigWarns, err = NewSLRParser(g, allowAmbiguous) lol no SLR(1) currently has an error
+			if err != nil {
+				//bigParseGenErr += fmt.Sprintf("\nSLR(1) generation: %s", err.Error())
+
+				// LL?
+				ambigWarns = nil
+				parser, err = NewLL1Parser(g)
+				if err != nil {
+					bigParseGenErr += fmt.Sprintf("\nLL(1) generation: %s", err.Error())
+
+					return nil, nil, fmt.Errorf("generating parser:\n%s", bigParseGenErr)
+				}
+			}
+		}
+	}
+
+	return parser, ambigWarns, nil
 }
 
 // NewLALR1Parser returns an LALR(1) parser that can generate parse trees for
 // the given grammar. Returns an error if the grammar is not LALR(1).
-func NewLALR1Parser(g grammar.Grammar) (Parser, error) {
-	return parse.GenerateLALR1Parser(g)
+func NewLALR1Parser(g grammar.Grammar, allowAmbiguous bool) (parser Parser, ambigWarns []string, err error) {
+	return parse.GenerateLALR1Parser(g, allowAmbiguous)
 }
 
 // NewSLRParser returns an SLR(1) parser that can generate parse trees for the
 // given grammar. Returns an error if the grammar is not SLR(1).
-func NewSLRParser(g grammar.Grammar) (Parser, error) {
-	return parse.GenerateSimpleLRParser(g)
+func NewSLRParser(g grammar.Grammar, allowAmbiguous bool) (parser Parser, ambigWarns []string, err error) {
+	return parse.GenerateSimpleLRParser(g, allowAmbiguous)
 }
 
 // NewLL1Parser returns an LL(1) parser that can generate parse trees for the
 // given grammar. Returns an error if the grammar is not LL(1).
-func NewLL1Parser(g grammar.Grammar) (Parser, error) {
+func NewLL1Parser(g grammar.Grammar) (parser Parser, err error) {
 	return parse.GenerateLL1Parser(g)
 }
 
 // NewCLRParser returns a canonical-LR(0) parser that can generate parse trees
 // for the given grammar. Returns an error if the grammar is not CLR(1)
-func NewCLRParser(g grammar.Grammar) (Parser, error) {
-	return parse.GenerateCanonicalLR1Parser(g)
+func NewCLRParser(g grammar.Grammar, allowAmbiguous bool) (parser Parser, ambigWarns []string, err error) {
+	return parse.GenerateCanonicalLR1Parser(g, allowAmbiguous)
 }
 
 // NewSDD returns a new Syntax-Directed Definition Scheme.

@@ -42,7 +42,12 @@ type LRParseTable interface {
 }
 
 type lrParser struct {
-	table LRParseTable
+	table     LRParseTable
+	parseType types.ParserType
+}
+
+func (lr lrParser) Type() types.ParserType {
+	return lr.parseType
 }
 
 // Parse parses the input stream with the internal LR parse table.

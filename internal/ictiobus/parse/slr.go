@@ -7,18 +7,24 @@ import (
 	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/ictiobus/automaton"
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
+	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/dekarrin/tunaq/internal/util"
 )
 
 // GenerateSimpleLRParser returns a parser that uses SLR bottom-up parsing to
 // parse languages in g. It will return an error if g is not an SLR(1) grammar.
-func GenerateSimpleLRParser(g grammar.Grammar) (lrParser, error) {
-	table, err := constructSimpleLRParseTable(g)
+//
+// allowAmbig allows the use of ambiguous grammars; in cases where there is a
+// shift-reduce conflict, shift will be preferred. If the grammar is detected as
+// ambiguous, the 2nd arg 'ambiguity warnings' will be filled with each
+// ambiguous case detected.
+func GenerateSimpleLRParser(g grammar.Grammar, allowAmbig bool) (lrParser, []string, error) {
+	table, ambigWarns, err := constructSimpleLRParseTable(g, allowAmbig)
 	if err != nil {
-		return lrParser{}, err
+		return lrParser{}, ambigWarns, err
 	}
 
-	return lrParser{table: table}, nil
+	return lrParser{table: table, parseType: types.ParserSLR1}, ambigWarns, nil
 }
 
 // constructSimpleLRParseTable constructs the SLR(1) table for G. It augments
@@ -30,7 +36,13 @@ func GenerateSimpleLRParser(g grammar.Grammar) (lrParser, error) {
 // directly from the textbook, GOTO[i, A] refers to the vaue of the table's
 // GOTO column at state i, symbol A, while GOTO(i, A) refers to the "precomputed
 // GOTO function for grammar G'".
-func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
+//
+// allowAmbig allows the use of an ambiguous grammar; in this case, shift/reduce
+// conflicts are resolved by preferring shift. Grammars which result in
+// reduce/reduce conflicts will still be rejected. If the grammar is detected as
+// ambiguous, the 2nd arg 'ambiguity warnings' will be filled with each
+// ambiguous case detected.
+func constructSimpleLRParseTable(g grammar.Grammar, allowAmbig bool) (LRParseTable, []string, error) {
 	// we will skip a few steps here and simply grab the LR0 DFA for G' which
 	// will pretty immediately give us our GOTO() function, since as purple
 	// dragon book mentions, "intuitively, the GOTO function is used to define
@@ -38,12 +50,13 @@ func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
 	lr0Automaton := automaton.NewLR0ViablePrefixNFA(g).ToDFA()
 
 	table := &slrTable{
-		gPrime:    g.Augmented(),
-		gStart:    g.StartSymbol(),
-		gTerms:    g.Terminals(),
-		gNonTerms: g.NonTerminals(),
-		lr0:       lr0Automaton,
-		itemCache: map[string]grammar.LR0Item{},
+		gPrime:     g.Augmented(),
+		gStart:     g.StartSymbol(),
+		gTerms:     g.Terminals(),
+		gNonTerms:  g.NonTerminals(),
+		lr0:        lr0Automaton,
+		itemCache:  map[string]grammar.LR0Item{},
+		allowAmbig: allowAmbig,
 	}
 
 	for _, item := range table.gPrime.LR0Items() {
@@ -51,6 +64,7 @@ func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
 	}
 
 	// check ahead to see if we would get conflicts in ACTION function
+	var ambigWarns []string
 	for i := range lr0Automaton.States() {
 		for _, a := range table.gPrime.Terminals() {
 			itemSet := table.lr0.GetValue(i)
@@ -72,28 +86,40 @@ func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
 					j, err := table.Goto(i, a)
 					if err == nil {
 						// match found
-						newAct := LRAction{Type: LRShift, State: j}
-						if matchFound && !newAct.Equal(act) {
-							return nil, fmt.Errorf("grammar is not SLR(1): %w", makeLRConflictError(act, newAct, a))
+						shiftAct := LRAction{Type: LRShift, State: j}
+						if matchFound && !shiftAct.Equal(act) {
+							if allowAmbig {
+								act = shiftAct
+								ambigWarns = append(ambigWarns, makeLRConflictError(act, shiftAct, a).Error())
+							} else {
+								return nil, ambigWarns, fmt.Errorf("grammar is not SLR(1): %w", makeLRConflictError(act, shiftAct, a))
+							}
+						} else {
+							act = shiftAct
+							matchFound = true
 						}
-						act = newAct
-						matchFound = true
 					}
 				}
 
 				if len(beta) == 0 && A != table.gPrime.StartSymbol() && followA.Has(a) {
-					newAct := LRAction{Type: LRReduce, Symbol: A, Production: grammar.Production(alpha)}
-					if matchFound && !newAct.Equal(act) {
-						return nil, fmt.Errorf("grammar is not SLR(1): %w", makeLRConflictError(act, newAct, a))
+					reduceAct := LRAction{Type: LRReduce, Symbol: A, Production: grammar.Production(alpha)}
+					if matchFound && !reduceAct.Equal(act) {
+						if isSRConflict, _ := isShiftReduceConlict(act, reduceAct); isSRConflict && allowAmbig {
+							// do nothing; new action is a reduce so it's already resolved
+							ambigWarns = append(ambigWarns, makeLRConflictError(act, reduceAct, a).Error())
+						} else {
+							return nil, ambigWarns, fmt.Errorf("grammar is not SLR(1): %w", makeLRConflictError(act, reduceAct, a))
+						}
+					} else {
+						act = reduceAct
+						matchFound = true
 					}
-					act = newAct
-					matchFound = true
 				}
 
 				if a == "$" && A == table.gPrime.StartSymbol() && len(alpha) == 1 && alpha[0] == table.gStart && len(beta) == 0 {
 					newAct := LRAction{Type: LRAccept}
 					if matchFound && !newAct.Equal(act) {
-						return nil, fmt.Errorf("grammar is not SLR(1): %w", makeLRConflictError(act, newAct, a))
+						return nil, ambigWarns, fmt.Errorf("grammar is not SLR(1): %w", makeLRConflictError(act, newAct, a))
 					}
 					act = newAct
 					matchFound = true
@@ -102,16 +128,17 @@ func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
 		}
 	}
 
-	return table, nil
+	return table, ambigWarns, nil
 }
 
 type slrTable struct {
-	gPrime    grammar.Grammar
-	gStart    string
-	lr0       automaton.DFA[util.SVSet[grammar.LR0Item]]
-	itemCache map[string]grammar.LR0Item
-	gTerms    []string
-	gNonTerms []string
+	gPrime     grammar.Grammar
+	gStart     string
+	lr0        automaton.DFA[util.SVSet[grammar.LR0Item]]
+	itemCache  map[string]grammar.LR0Item
+	gTerms     []string
+	gNonTerms  []string
+	allowAmbig bool
 }
 
 func (slr *slrTable) String() string {
@@ -281,12 +308,21 @@ func (slr *slrTable) Action(i, a string) LRAction {
 			// set in this case but unshore), so it is not a match.
 			if err == nil {
 				// match found
-				newAct := LRAction{Type: LRShift, State: j}
-				if alreadySet && !newAct.Equal(act) {
-					panic(fmt.Sprintf("grammar is not SLR: found both %s and %s actions for input %q", act.String(), newAct.String(), a))
+				shiftAct := LRAction{Type: LRShift, State: j}
+				if alreadySet && !shiftAct.Equal(act) {
+					// assuming shift/shift conflicts do not occur, and assuming
+					// we have just created a shift, we must be in a
+					// shift/reduce conflict here.
+					if slr.allowAmbig {
+						// this is fine, resolve in favor of shift
+						act = shiftAct
+					} else {
+						panic(fmt.Sprintf("grammar is not SLR(1): %s", makeLRConflictError(act, shiftAct, a).Error()))
+					}
+				} else {
+					act = shiftAct
+					alreadySet = true
 				}
-				act = newAct
-				alreadySet = true
 			}
 		}
 
@@ -296,21 +332,28 @@ func (slr *slrTable) Action(i, a string) LRAction {
 		// we'll assume α can be empty.
 		// the beta we previously retrieved MUST be empty
 		if len(beta) == 0 && A != slr.gPrime.StartSymbol() && followA.Has(a) {
-			newAct := LRAction{Type: LRReduce, Symbol: A, Production: grammar.Production(alpha)}
-			if alreadySet && !newAct.Equal(act) {
-				panic(fmt.Sprintf("grammar is not SLR(1): found both %s and %s actions for input %q", act.String(), newAct.String(), a))
+			reduceAct := LRAction{Type: LRReduce, Symbol: A, Production: grammar.Production(alpha)}
+			if alreadySet && !reduceAct.Equal(act) {
+				if isSRConflict, _ := isShiftReduceConlict(act, reduceAct); isSRConflict && slr.allowAmbig {
+					// we are in a shift/reduce conflict; the prior def is a
+					// shift. resolve this in favor of shift by simply not assigning
+					// the new one.
+				} else {
+					panic(fmt.Sprintf("grammar is not SLR(1): %s", makeLRConflictError(act, reduceAct, a).Error()))
+				}
+			} else {
+				act = reduceAct
+				alreadySet = true
 			}
-			act = newAct
-			alreadySet = true
 		}
 
 		// (c) If [S' -> S.] is in Iᵢ, then set ACTION[i, $] to "accept".
 		if a == "$" && A == slr.gPrime.StartSymbol() && len(alpha) == 1 && alpha[0] == slr.gStart && len(beta) == 0 {
-			newAct := LRAction{Type: LRAccept}
-			if alreadySet && !newAct.Equal(act) {
-				panic(fmt.Sprintf("grammar is not SLR(1): found both %s and %s actions for input %q", act.String(), newAct.String(), a))
+			acceptAct := LRAction{Type: LRAccept}
+			if alreadySet && !acceptAct.Equal(act) {
+				panic(fmt.Sprintf("grammar is not SLR(1): %s", makeLRConflictError(act, acceptAct, a).Error()))
 			}
-			act = newAct
+			act = acceptAct
 			alreadySet = true
 		}
 	}

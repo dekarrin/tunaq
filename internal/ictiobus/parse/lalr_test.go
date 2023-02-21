@@ -40,7 +40,7 @@ func Test_ConstructLALR1ParseTable(t *testing.T) {
 			g := grammar.MustParse(tc.grammar)
 
 			// execute
-			actual, err := constructLALR1ParseTable(g)
+			actual, _, err := constructLALR1ParseTable(g, false)
 
 			// assert
 			if tc.expectErr {
@@ -99,7 +99,7 @@ func Test_LALR1Parse(t *testing.T) {
 			stream := mockTokens(tc.input...)
 
 			// execute
-			parser, err := GenerateLALR1Parser(g)
+			parser, _, err := GenerateLALR1Parser(g, false)
 			assert.NoError(err, "generating LALR parser failed")
 			actual, err := parser.Parse(stream)
 
