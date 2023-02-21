@@ -34,7 +34,12 @@ This is the context-free grammar for FISHI, glub.
 {blocks}               = {blocks} {block}
                        | {block}
 
-{block}                = {tokens-block} | {grammar-block} | {actions-block}
+{block}                = {grammar-block}
+
+
+```
+
+```
 
 {actions-block}        = ACTIONS_HEADER {actions-content}
 

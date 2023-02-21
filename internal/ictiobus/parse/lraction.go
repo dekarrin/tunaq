@@ -48,6 +48,8 @@ func makeLRConflictError(act1, act2 LRAction, onInput string) error {
 			reduce := nonAcceptAct.Symbol + " -> " + nonAcceptAct.Production.String()
 			return fmt.Errorf("accept/reduce conflict detected on terminal %q (accept or reduce %s)", onInput, reduce)
 		}
+	} else if act1.Type == LRShift && act2.Type == LRShift {
+		return fmt.Errorf("(!) shift/shift conflict on terminal %q", onInput)
 	}
 	return fmt.Errorf("LR action conflict on terminal %q (%s or %s)", onInput, act1.String(), act2.String())
 }

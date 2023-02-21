@@ -82,12 +82,30 @@ func ProcessFishiMd(mdText []byte) error {
 	var parser Parser
 
 	parser, ambigWarns, err := NewParser(g, true)
+	if err != nil {
+		return err
+	}
 
 	for i := range ambigWarns {
 		fmt.Printf("warn: ambiguous grammar: %s\n", ambigWarns[i])
 	}
 
 	fmt.Printf("successfully built %s parser:\n%v\n", parser.Type().String(), parser)
+
+	// now, try to make a parse tree for your own grammar
+	fishiSource = GetFishiFromMarkdown(mdText)
+	fishiSource = Preprocess(fishiSource)
+	fishi = bytes.NewBuffer(fishiSource)
+	stream, err = lx.Lex(fishi)
+	if err != nil {
+		return err
+	}
+	pt, err := parser.Parse(stream)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("successfully parsed own spec:\n")
+	fmt.Printf("%s\n", pt.String())
 
 	return nil
 }
