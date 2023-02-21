@@ -13,8 +13,11 @@ import (
 // GenerateCanonicalLR1Parser returns a parser that uses the set of canonical
 // LR(1) items from g to parse input in language g. The provided language must
 // be in LR(1) or else the a non-nil error is returned.
-func GenerateCanonicalLR1Parser(g grammar.Grammar) (lrParser, error) {
-	table, err := constructCanonicalLR1ParseTable(g)
+//
+// allowAmbig allows the use of ambiguous grammars; in cases where there is a
+// shift-reduce conflict, shift will be preferred. This will allow the
+func GenerateCanonicalLR1Parser(g grammar.Grammar, allowAmbig bool) (lrParser, error) {
+	table, err := constructCanonicalLR1ParseTable(g, allowAmbig)
 	if err != nil {
 		return lrParser{}, err
 	}
@@ -32,7 +35,11 @@ func GenerateCanonicalLR1Parser(g grammar.Grammar) (lrParser, error) {
 // is lifted directly from the textbook, GOTO[i, A] refers to the vaue of the
 // table's GOTO column at state i, symbol A, while GOTO(i, A) refers to the
 // "precomputed GOTO function for grammar G'".
-func constructCanonicalLR1ParseTable(g grammar.Grammar) (LRParseTable, error) {
+//
+// allowAmbig allows the use of an ambiguous grammar; in this case, shift/reduce
+// conflicts are resolved by preferring shift. Grammars which result in
+// reduce/reduce conflicts will still be rejected.
+func constructCanonicalLR1ParseTable(g grammar.Grammar, allowAmbig bool) (LRParseTable, error) {
 	// we will skip a few steps here and simply grab the LR0 DFA for G' which
 	// will pretty immediately give us our GOTO() function, since as purple
 	// dragon book mentions, "intuitively, the GOTO function is used to define
@@ -75,6 +82,7 @@ func constructCanonicalLR1ParseTable(g grammar.Grammar) (LRParseTable, error) {
 						// match found
 						newAct := LRAction{Type: LRShift, State: j}
 						if matchFound && !newAct.Equal(act) {
+							// todo check for s/r conflict and if ambig is on, allow it.
 							return nil, fmt.Errorf("grammar is not LR(1): %w", makeLRConflictError(act, newAct, a))
 						}
 						act = newAct
