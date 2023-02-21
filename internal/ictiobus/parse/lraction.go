@@ -6,6 +6,27 @@ import (
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 )
 
+func makeLRConflictError(act1, act2 LRAction, onInput string) error {
+	if act1.Type == LRReduce && act2.Type == LRShift || act1.Type == LRShift && act2.Type == LRReduce {
+		// shift-reduce conflict
+
+		reduceRule := ""
+		if act1.Type == LRReduce {
+			reduceRule = act1.Symbol + " -> " + act1.Production.String()
+		} else {
+			reduceRule = act2.Symbol + " -> " + act2.Production.String()
+		}
+		return fmt.Errorf("shift-reduce conflict detected on terminal %q (shift or reduce %s)", onInput, reduceRule)
+	} else if act1.Type == LRReduce && act2.Type == LRReduce {
+		// reduce-reduce conflict
+
+		reduce1 := act1.Symbol + " -> " + act1.Production.String()
+		reduce2 := act2.Symbol + " -> " + act2.Production.String()
+		return fmt.Errorf("reduce-reduce conflict detected on terminal %q (reduce %s or reduce %s)", onInput, reduce1, reduce2)
+	}
+	return nil
+}
+
 type LRActionType int
 
 const (

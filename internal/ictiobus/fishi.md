@@ -144,6 +144,7 @@ This is the context-free grammar for FISHI, glub.
                        | {token}
                        | {human}
 
+{pattern}              = {text}
 {stateshift}           = SHIFT_DIR {text}
 {token}                = TOKEN_DIR {text}
 {human}                = HUMAN_DIR {text}
@@ -169,8 +170,9 @@ The following gives the lexical specification for the FISHI language.
 %!%%!%[Aa][Cc][Tt][Ii][Oo][Nn][Ss]  %token actions_header
 %human Action header mark           %stateshift actions
 
-%!%[Ss][Tt][Aa][Rr][Tt]             %token start_dir
-%human start directive
+#not in use at this time, for future version
+#%!%[Ss][Tt][Aa][Rr][Tt]             %token start_dir
+#%human start directive
 
 %!%[Ss][Tt][Aa][Tt][Ee]             %token state_dir
 %human state directive
@@ -186,7 +188,10 @@ For tokens state:
                                  %token shift_dir    %human state-shift directive
 %!%[Hh][Uu][Mm][Aa][Nn]          %token human_dir    %human human directive
 %!%[Tt][Oo][Kk][Ee][Nn]          %token token_dir    %human token directive
-%!%[Dd][Ee][Ff][Aa][Uu][Ll][Tt]  %token default_dir  %human default directive
+
+#not in use at this time, for future version
+#%!%[Dd][Ee][Ff][Aa][Uu][Ll][Tt]  %token default_dir  %human default directive
+
 \n                               %token newline      %human new line
 
 [^%!%\n]+                        %token freeform_text  %human freeform-text value
@@ -198,7 +203,7 @@ For grammar state:
 %state grammar
 
 \n                          %token newline       %human new line
-\s+                         # discard other whitespace
+[^\S\n]+                    # discard other whitespace
 
 
 

@@ -74,7 +74,7 @@ func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
 						// match found
 						newAct := LRAction{Type: LRShift, State: j}
 						if matchFound && !newAct.Equal(act) {
-							return nil, fmt.Errorf("grammar is not SLR: found both %s and %s actions for input %q", act.String(), newAct.String(), a)
+							return nil, fmt.Errorf("grammar is not SLR(1): %w", makeLRConflictError(act, newAct, a))
 						}
 						act = newAct
 						matchFound = true
@@ -84,7 +84,7 @@ func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
 				if len(beta) == 0 && A != table.gPrime.StartSymbol() && followA.Has(a) {
 					newAct := LRAction{Type: LRReduce, Symbol: A, Production: grammar.Production(alpha)}
 					if matchFound && !newAct.Equal(act) {
-						return nil, fmt.Errorf("grammar is not SLR(1): found both %s and %s actions for input %q", act.String(), newAct.String(), a)
+						return nil, fmt.Errorf("grammar is not SLR(1): %w", makeLRConflictError(act, newAct, a))
 					}
 					act = newAct
 					matchFound = true
@@ -93,7 +93,7 @@ func constructSimpleLRParseTable(g grammar.Grammar) (LRParseTable, error) {
 				if a == "$" && A == table.gPrime.StartSymbol() && len(alpha) == 1 && alpha[0] == table.gStart && len(beta) == 0 {
 					newAct := LRAction{Type: LRAccept}
 					if matchFound && !newAct.Equal(act) {
-						return nil, fmt.Errorf("grammar is not SLR(1): found both %s and %s actions for input %q", act.String(), newAct.String(), a)
+						return nil, fmt.Errorf("grammar is not SLR(1): %w", makeLRConflictError(act, newAct, a))
 					}
 					act = newAct
 					matchFound = true

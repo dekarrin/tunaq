@@ -53,8 +53,14 @@ func ReadFishiMdFile(filename string) error {
 }
 
 func ProcessFishiMd(mdText []byte) error {
+
+	// debug steps: output source after preprocess
+	// output token stream
+	// output grammar constructed
+
 	fishiSource := GetFishiFromMarkdown(mdText)
 	fishiSource = Preprocess(fishiSource)
+	fmt.Println(string(fishiSource))
 	fishi := bytes.NewBuffer(fishiSource)
 
 	lx := CreateBootstrapLexer()
@@ -63,13 +69,43 @@ func ProcessFishiMd(mdText []byte) error {
 		return err
 	}
 
-	for stream.HasNext() {
+	/*for stream.HasNext() {
 		fmt.Println(stream.Next().String())
+	}*/
+
+	g := CreateBootstrapGrammarFromLexerStream(stream)
+	if err := g.Validate(); err != nil {
+		return err
 	}
 
-	//g := CreateBootstrapGrammarFromLexerStream(stream)
+	// now, can we make a parser from this?
+	var parser Parser
 
-	//fmt.Println(g.String())
+	parser, err = NewLALR1Parser(g)
+	if err != nil {
+		bigParseGenErr := fmt.Sprintf("LALR(1) generation: %s", err.Error())
+		// okay, what about a CLR(1) parser? (though, if LALR doesnt work, dont think CLR will)
+		parser, err = NewCLRParser(g)
+		if err != nil {
+			bigParseGenErr += fmt.Sprintf("\nCLR(1) generation: %s", err.Error())
+
+			// what about an SLR parser?
+			//parser, err = NewSLRParser(g) lol no SLR(1) currently has an error
+			if err != nil {
+				//bigParseGenErr += fmt.Sprintf("\nSLR(1) generation: %s", err.Error())
+
+				// LL?
+				parser, err = NewLL1Parser(g)
+				if err != nil {
+					bigParseGenErr += fmt.Sprintf("\nLL(1) generation: %s", err.Error())
+
+					return fmt.Errorf("generating parser:\n%s", bigParseGenErr)
+				}
+			}
+		}
+	}
+
+	fmt.Printf("successfully built LALR parser:\n%v\n", parser)
 
 	return nil
 }
@@ -91,7 +127,11 @@ func Preprocess(source []byte) []byte {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		line = strings.TrimSpace(line)
+		if strings.HasSuffix(line, "\r\n") || strings.HasPrefix(line, "\n\r") {
+			line = line[0 : len(line)-2]
+		} else {
+			line = strings.TrimSuffix(line, "\n")
+		}
 		line, _, _ = strings.Cut(line, "#")
 		preprocessed.WriteString(line)
 		preprocessed.WriteRune('\n')
@@ -101,17 +141,22 @@ func Preprocess(source []byte) []byte {
 }
 
 var (
+
+	// %default is not in this version, not needed to self-describe
+	//tcDirDefault    = lex.NewTokenClass("default_dir", "'default' directive")
+
+	// %start is not in this version, not needed to self-describe
+	//tcDirStart      = lex.NewTokenClass("start_dir", "'start' directive")
+
 	tcHeaderTokens  = lex.NewTokenClass("tokens_header", "'tokens' header")
 	tcHeaderGrammar = lex.NewTokenClass("grammar_header", "'grammar' header")
 	tcHeaderActions = lex.NewTokenClass("actions_header", "'actions' header")
 	tcDirAction     = lex.NewTokenClass("action_dir", "'action' directive")
-	tcDirDefault    = lex.NewTokenClass("default_dir", "'default' directive")
 	tcDirHook       = lex.NewTokenClass("hook_dir", "'hook' directive")
 	tcDirHuman      = lex.NewTokenClass("human_dir", "'human' directive")
 	tcDirIndex      = lex.NewTokenClass("index_dir", "'index' directive")
 	tcDirProd       = lex.NewTokenClass("prod_dir", "'prod' directive")
 	tcDirShift      = lex.NewTokenClass("shift_dir", "'stateshift' directive")
-	tcDirStart      = lex.NewTokenClass("start_dir", "'start' directive")
 	tcDirState      = lex.NewTokenClass("state_dir", "'state' directive")
 	tcDirSymbol     = lex.NewTokenClass("symbol_dir", "'symbol' directive")
 	tcDirToken      = lex.NewTokenClass("token_dir", "'token' directive")
@@ -136,7 +181,7 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.RegisterClass(tcHeaderTokens, "")
 	bootLx.RegisterClass(tcHeaderGrammar, "")
 	bootLx.RegisterClass(tcHeaderActions, "")
-	bootLx.RegisterClass(tcDirStart, "")
+	//bootLx.RegisterClass(tcDirStart, "")
 	bootLx.RegisterClass(tcDirState, "")
 
 	// default patterns and defs
@@ -144,7 +189,7 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.AddPattern(`%%[Tt][Oo][Kk][Ee][Nn][Ss]`, lex.LexAndSwapState(tcHeaderTokens.ID(), "tokens"), "")
 	bootLx.AddPattern(`%%[Gg][Rr][Aa][Mm][Mm][Aa][Rr]`, lex.LexAndSwapState(tcHeaderGrammar.ID(), "grammar"), "")
 	bootLx.AddPattern(`%%[Aa][Cc][Tt][Ii][Oo][Nn][Ss]`, lex.LexAndSwapState(tcHeaderActions.ID(), "actions"), "")
-	bootLx.AddPattern(`%[Ss][Tt][Aa][Rr][Tt]`, lex.LexAs(tcDirStart.ID()), "")
+	//bootLx.AddPattern(`%[Ss][Tt][Aa][Rr][Tt]`, lex.LexAs(tcDirStart.ID()), "")
 	bootLx.AddPattern(`%[Ss][Tt][Aa][Tt][Ee]`, lex.LexAs(tcDirState.ID()), "")
 
 	// tokens classes
@@ -152,14 +197,14 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.RegisterClass(tcDirShift, "tokens")
 	bootLx.RegisterClass(tcDirHuman, "tokens")
 	bootLx.RegisterClass(tcDirToken, "tokens")
-	bootLx.RegisterClass(tcDirDefault, "tokens")
+	//bootLx.RegisterClass(tcDirDefault, "tokens")
 	bootLx.RegisterClass(tcNewline, "tokens")
 
 	// tokens patterns
 	bootLx.AddPattern(`%[Sa][Tt][Aa][Tt][Ee][Ss][Hh][Ii][Ff][Tt]`, lex.LexAs(tcDirShift.ID()), "tokens")
 	bootLx.AddPattern(`%[Hh][Uu][Mm][Aa][Nn]`, lex.LexAs(tcDirHuman.ID()), "tokens")
 	bootLx.AddPattern(`%[Tt][Oo][Kk][Ee][Nn]`, lex.LexAs(tcDirToken.ID()), "tokens")
-	bootLx.AddPattern(`%[Dd][Ee][Ff][Aa][Uu][Ll][Tt]`, lex.LexAs(tcDirDefault.ID()), "tokens")
+	//bootLx.AddPattern(`%[Dd][Ee][Ff][Aa][Uu][Ll][Tt]`, lex.LexAs(tcDirDefault.ID()), "tokens")
 	bootLx.AddPattern(`\n`, lex.LexAs(tcNewline.ID()), "tokens")
 	bootLx.AddPattern(`[^%\n]+`, lex.LexAs(tcFreeformText.ID()), "tokens")
 
@@ -172,7 +217,7 @@ func CreateBootstrapLexer() Lexer {
 
 	// gramamr patterns
 	bootLx.AddPattern(`\n`, lex.LexAs(tcNewline.ID()), "grammar")
-	bootLx.AddPattern(`\s+`, lex.Discard(), "grammar")
+	bootLx.AddPattern(`[^\S\n]+`, lex.Discard(), "grammar")
 	bootLx.AddPattern(`=`, lex.LexAs(tcEq.ID()), "grammar")
 	bootLx.AddPattern(`\|`, lex.LexAs(tcAlt.ID()), "grammar")
 	bootLx.AddPattern(`{[A-Za-z][^}]*}`, lex.LexAs(tcNonterminal.ID()), "grammar")
@@ -215,13 +260,13 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 	bootCfg.AddTerm(tcHeaderGrammar.ID(), tcHeaderGrammar)
 	bootCfg.AddTerm(tcHeaderActions.ID(), tcHeaderActions)
 	bootCfg.AddTerm(tcDirAction.ID(), tcDirAction)
-	bootCfg.AddTerm(tcDirDefault.ID(), tcDirDefault)
+	//bootCfg.AddTerm(tcDirDefault.ID(), tcDirDefault)
 	bootCfg.AddTerm(tcDirHook.ID(), tcDirHook)
 	bootCfg.AddTerm(tcDirHuman.ID(), tcDirHuman)
 	bootCfg.AddTerm(tcDirIndex.ID(), tcDirIndex)
 	bootCfg.AddTerm(tcDirProd.ID(), tcDirProd)
 	bootCfg.AddTerm(tcDirShift.ID(), tcDirShift)
-	bootCfg.AddTerm(tcDirStart.ID(), tcDirStart)
+	//bootCfg.AddTerm(tcDirStart.ID(), tcDirStart)
 	bootCfg.AddTerm(tcDirState.ID(), tcDirState)
 	bootCfg.AddTerm(tcDirSymbol.ID(), tcDirSymbol)
 	bootCfg.AddTerm(tcDirToken.ID(), tcDirToken)
@@ -256,6 +301,8 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 		return strings.ToLower(s)
 	}
 
+	firstRule := ""
+
 	for lx.HasNext() {
 		tok := lx.Next()
 		if !inGrammarBlock {
@@ -279,6 +326,9 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 			fallthrough
 		case tcHeaderTokens.ID():
 			if prodStarted {
+				if len(curProd) == 0 {
+					curProd = append(curProd, "")
+				}
 				bootCfg.AddRule(forRule, curProd)
 				curProd = nil
 				prodStarted = false
@@ -293,11 +343,17 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 		case tcNonterminal.ID():
 			if atEntryStart {
 				if prodStarted {
+					if len(curProd) == 0 {
+						curProd = append(curProd, "")
+					}
 					bootCfg.AddRule(forRule, curProd)
 					curProd = nil
 					prodStarted = false
 				}
 				forRule = convNonTerm(tok.Lexeme())
+				if firstRule == "" {
+					firstRule = forRule
+				}
 				atEntryStart = false
 				waitForEq = true
 				gettingProds = false
@@ -321,9 +377,17 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 			if atEntryStart {
 				atEntryStart = false
 				gettingProds = true
+
+				if len(curProd) == 0 {
+					curProd = append(curProd, "")
+				}
 				bootCfg.AddRule(forRule, curProd)
 				curProd = nil
 			} else if gettingProds {
+
+				if len(curProd) == 0 {
+					curProd = append(curProd, "")
+				}
 				bootCfg.AddRule(forRule, curProd)
 				curProd = nil
 			} else {
@@ -347,10 +411,16 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 	}
 
 	if prodStarted {
+
+		if len(curProd) == 0 {
+			curProd = append(curProd, "")
+		}
 		bootCfg.AddRule(forRule, curProd)
 		curProd = nil
 		prodStarted = false
 	}
+
+	bootCfg.Start = firstRule
 
 	return bootCfg
 }

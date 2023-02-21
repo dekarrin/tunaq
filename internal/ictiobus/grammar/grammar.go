@@ -1640,6 +1640,12 @@ func (g Grammar) FIRST_STRING(X ...string) util.ISet[string] {
 }
 
 func (g Grammar) FIRST(X string) util.ISet[string] {
+	return g.firstSetSafeRecurse(X, util.NewStringSet())
+}
+
+// TODO: seen should be a util.ISet[string]
+func (g Grammar) firstSetSafeRecurse(X string, seen util.StringSet) util.ISet[string] {
+	seen.Add(X)
 	if strings.ToLower(X) == X {
 		// terminal or epsilon
 		return util.NewStringSet(map[string]bool{X: true})
@@ -1651,21 +1657,23 @@ func (g Grammar) FIRST(X string) util.ISet[string] {
 			Y := r.Productions[ntIdx]
 			var gotToEnd bool
 			for k := 0; k < len(Y); k++ {
-				firstY := g.FIRST(Y[k])
-				for _, str := range firstY.Elements() {
-					if str != "" {
-						firsts.Add(str)
+				if !seen.Has(Y[k]) {
+					firstY := g.FIRST(Y[k])
+					for _, str := range firstY.Elements() {
+						if str != "" {
+							firsts.Add(str)
+						}
 					}
-				}
-				if firstY.Len() == 1 && firstY.Has(Epsilon[0]) {
-					firsts.Add(Epsilon[0])
-				}
-				if !firstY.Has(Epsilon[0]) {
-					// if its not, then break
-					break
-				}
-				if k+1 >= len(Y) {
-					gotToEnd = true
+					if firstY.Len() == 1 && firstY.Has(Epsilon[0]) {
+						firsts.Add(Epsilon[0])
+					}
+					if !firstY.Has(Epsilon[0]) {
+						// if its not, then break
+						break
+					}
+					if k+1 >= len(Y) {
+						gotToEnd = true
+					}
 				}
 			}
 			if gotToEnd {
