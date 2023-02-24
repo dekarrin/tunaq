@@ -354,7 +354,7 @@ func GenerateLALR1Parser(g grammar.Grammar, allowAmbig bool) (lrParser, []string
 		return lrParser{}, nil, err
 	}
 
-	return lrParser{table: table, parseType: types.ParserLALR1}, ambigWarns, nil
+	return lrParser{table: table, parseType: types.ParserLALR1, gram: g}, ambigWarns, nil
 }
 
 // constructLALR1ParseTable constructs the LALR(1) table for G.

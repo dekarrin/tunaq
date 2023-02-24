@@ -24,7 +24,7 @@ func GenerateSimpleLRParser(g grammar.Grammar, allowAmbig bool) (lrParser, []str
 		return lrParser{}, ambigWarns, err
 	}
 
-	return lrParser{table: table, parseType: types.ParserSLR1}, ambigWarns, nil
+	return lrParser{table: table, parseType: types.ParserSLR1, gram: g}, ambigWarns, nil
 }
 
 // constructSimpleLRParseTable constructs the SLR(1) table for G. It augments

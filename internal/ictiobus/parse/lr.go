@@ -1,8 +1,10 @@
 package parse
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/ictiobus/icterrors"
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/dekarrin/tunaq/internal/util"
@@ -44,10 +46,15 @@ type LRParseTable interface {
 type lrParser struct {
 	table     LRParseTable
 	parseType types.ParserType
+	gram      grammar.Grammar
 }
 
 func (lr lrParser) Type() types.ParserType {
 	return lr.parseType
+}
+
+func (lr lrParser) TableString() string {
+	return lr.table.String()
 }
 
 // Parse parses the input stream with the internal LR parse table.
@@ -118,7 +125,7 @@ func (lr lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 			// push GOTO[t, A] onto the stack
 			toPush, err := lr.table.Goto(t, A)
 			if err != nil {
-				return types.ParseTree{}, icterrors.NewSyntaxErrorFromToken("parsing failed", a)
+				return types.ParseTree{}, icterrors.NewSyntaxErrorFromToken(fmt.Sprintf("LR parsing error; DFA has no valid transition from here on %q", A), a)
 			}
 			stateStack.Push(toPush)
 
@@ -131,7 +138,62 @@ func (lr lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 		case LRError:
 			// call error-recovery routine
 			// TODO: error recovery, for now, just report it
-			return types.ParseTree{}, icterrors.NewSyntaxErrorFromToken("parsing failed", a)
+			expMessage := lr.getExpectedString(s)
+			return types.ParseTree{}, icterrors.NewSyntaxErrorFromToken(fmt.Sprintf("unexpected %s; %s", a.Class().Human(), expMessage), a)
 		}
 	}
+}
+
+func (lr lrParser) getExpectedString(stateName string) string {
+	expected := lr.findExpectedTokens(stateName)
+
+	var sb strings.Builder
+
+	sb.WriteString("expected ")
+
+	commas := false
+	finalOr := false
+
+	if len(expected) > 1 {
+		finalOr = true
+		if len(expected) > 2 {
+			commas = true
+		}
+	}
+	for i := range expected {
+		t := expected[i]
+
+		if i == 0 {
+			sb.WriteString(util.ArticleFor(t.Human(), false))
+			sb.WriteRune(' ')
+		}
+
+		if finalOr && i+1 == len(expected) {
+			sb.WriteString(" or ")
+		}
+
+		sb.WriteString(t.Human())
+		if commas && i+1 < len(expected) {
+			sb.WriteString(", ")
+		}
+	}
+
+	return sb.String()
+}
+
+// findExpectedAt returns all token classes that are allowed/expected for
+// the given state, that is, those symbols that result in a non-error entry.
+func (lr lrParser) findExpectedTokens(stateName string) []types.TokenClass {
+	terms := lr.gram.Terminals()
+
+	classes := make([]types.TokenClass, 0)
+	for i := range terms {
+		t := lr.gram.Term(terms[i])
+		act := lr.table.Action(stateName, t.ID())
+		if act.Type != LRError {
+			classes = append(classes, t)
+		}
+	}
+
+	return classes
 }

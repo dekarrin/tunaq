@@ -15,6 +15,10 @@ type ll1Parser struct {
 	g     grammar.Grammar
 }
 
+func (ll ll1Parser) TableString() string {
+	return ll.table.String()
+}
+
 // GenerateLL1Parser generates a parser for LL1 grammar g. The grammar must
 // already be LL1 or convertible to an LL1 grammar.
 //

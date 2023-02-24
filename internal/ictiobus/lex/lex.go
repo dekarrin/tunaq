@@ -23,6 +23,8 @@ type lexerTemplate struct {
 
 	// classes by ID by state
 	classes map[string]map[string]types.TokenClass
+
+	listener func(types.Token)
 }
 
 func NewLexer(lazy bool) *lexerTemplate {
@@ -48,6 +50,10 @@ func (lx *lexerTemplate) SetStartingState(s string) {
 
 func (lx *lexerTemplate) StartingState() string {
 	return lx.startState
+}
+
+func (lx *lexerTemplate) RegisterTokenListener(fn func(t types.Token)) {
+	lx.listener = fn
 }
 
 // AddClass adds the given token class to the lexer. This will mark that token

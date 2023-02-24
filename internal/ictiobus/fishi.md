@@ -34,12 +34,7 @@ This is the context-free grammar for FISHI, glub.
 {blocks}               = {blocks} {block}
                        | {block}
 
-{block}                = {grammar-block}
-
-
-```
-
-```
+{block}                = {tokens-block} | {grammar-block} | {actions-block}
 
 {actions-block}        = ACTIONS_HEADER {actions-content}
 
@@ -63,7 +58,7 @@ This is the context-free grammar for FISHI, glub.
 
 {prod-addr}            = INDEX_DIR INT
                        | {actions-production}
-                       | # empty; note: only way to specify epsilon production is to use index
+                       | {}
 
 {actions-production}   = {actions-production} {symbol}
                        | {symbol}
@@ -75,7 +70,7 @@ This is the context-free grammar for FISHI, glub.
 
 {with-clause}          = {explicit-with} {implicit-withs}
                        | {explicit-with}
-                       | # empty string
+                       | {}
 
 {explicit-with}        = WITH_DIR ATTR_REF
 
@@ -85,7 +80,7 @@ This is the context-free grammar for FISHI, glub.
 {implicit-with}        = {explicit-with}
                        | ATTR_REF
 
-{grammar-block}        = GRAMMAR_HEADER {grammar-content}
+{grammar-block}        = GRAMMAR_HEADER {opt-newlines} {grammar-content}
 
 {grammar-content}      = {grammar-state-block}
                        | {grammar-content} {grammar-state-block}
@@ -126,7 +121,7 @@ This is the context-free grammar for FISHI, glub.
 {id-expr}              = ID | TERMINAL | {text}
 
 {opt-newlines}         = {newlines}
-                       | #empty string
+                       | {}
 
 {newlines}             = NEWLINE
                        | {newlines} NEWLINE

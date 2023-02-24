@@ -676,6 +676,47 @@ func (g *Grammar) AddTerm(terminal string, class types.TokenClass) {
 	g.terminals[terminal] = class
 }
 
+// RemoveUnusedTerminals removes all terminals that are not currently used by
+// any rule.
+func (g *Grammar) RemoveUnusedTerminals() {
+	producedTerms := util.NewStringSet()
+	terms := g.Terminals()
+
+	for i := range g.rules {
+		rule := g.rules[i]
+		for _, alt := range rule.Productions {
+			for _, sym := range alt {
+				// if its empty its the empty non-terminal (episilon production) so skip
+				if sym == "" {
+					continue
+				}
+				if strings.ToUpper(sym) != sym {
+					producedTerms.Add(sym)
+				}
+			}
+		}
+	}
+
+	// drop every term that isn't in use
+	for _, term := range terms {
+		if _, ok := producedTerms[term]; !ok {
+			g.RemoveTerm(term)
+		}
+	}
+
+}
+
+// RemoveTerm eliminates the given terminal from the grammar. The terminal
+// will no longer be considered a valid symbol for a rule in the Grammar to
+// produce.
+//
+// If the grammar already does not contain the given nonterminal this function
+// has no effect.
+func (g *Grammar) RemoveTerm(t string) {
+	// is this rule even present?
+	delete(g.terminals, t)
+}
+
 // RemoveRule eliminates all productions of the given nonterminal from the
 // grammar. The nonterminal will no longer be considered to be a part of the
 // Grammar.

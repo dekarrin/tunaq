@@ -43,6 +43,9 @@ type lazyTokenStream struct {
 	// for a state and placing them in capturing groups separated by alternation
 	// operators.
 	patterns map[string]*regexp.Regexp
+
+	// listener is called whenever a token is produced
+	listener func(types.Token)
 }
 
 func (lx *lexerTemplate) LazyLex(input io.Reader) (types.TokenStream, error) {
@@ -52,6 +55,7 @@ func (lx *lexerTemplate) LazyLex(input io.Reader) (types.TokenStream, error) {
 		classes:  make(map[string]map[string]types.TokenClass),
 		actions:  make(map[string][]Action),
 		state:    lx.StartingState(),
+		listener: lx.listener,
 	}
 
 	// move all patterns into "super pattern"; one per state. and separate the
@@ -223,6 +227,9 @@ func (lx *lazyTokenStream) Next() types.Token {
 
 		// return token if we do that now
 		if retToken {
+			if lx.listener != nil {
+				lx.listener(tok)
+			}
 			return tok
 		}
 	}

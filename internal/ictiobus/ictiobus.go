@@ -42,6 +42,8 @@ type Lexer interface {
 
 	SetStartingState(s string)
 	StartingState() string
+
+	RegisterTokenListener(func(t types.Token))
 }
 
 type Parser interface {
@@ -52,6 +54,9 @@ type Parser interface {
 	// Type returns a string indicating what kind of parser was generated. This
 	// will be "LL(1)", "SLR(1)", "CLR(1)", or "LALR(1)"
 	Type() types.ParserType
+
+	// TableString returns the parsing table as a string.
+	TableString() string
 }
 
 // SDD is a series of syntax-directed definitions bound to syntactic rules of

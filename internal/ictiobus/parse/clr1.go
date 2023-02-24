@@ -25,7 +25,7 @@ func GenerateCanonicalLR1Parser(g grammar.Grammar, allowAmbig bool) (lrParser, [
 		return lrParser{}, ambigWarns, err
 	}
 
-	return lrParser{table: table, parseType: types.ParserCLR1}, ambigWarns, nil
+	return lrParser{table: table, parseType: types.ParserCLR1, gram: g}, ambigWarns, nil
 }
 
 // constructCanonicalLR1ParseTable constructs the canonical LR(1) table for G.
