@@ -91,6 +91,7 @@ func ProcessFishiMd(mdText []byte) error {
 
 	fmt.Printf("successfully built %s parser:\n", parser.Type().String())
 
+	// DFA IS NOT OUTPUTTING, POSSIBLE ISSUE
 	dfa := parser.GetDFA()
 	if dfa != nil {
 		fmt.Printf("\nDFA:\n%s\n", dfa.String())
