@@ -1,7 +1,5 @@
 package automaton
 
-// TODO: several of the NFA method receivers do not need to be pointers.
-
 import (
 	"fmt"
 	"strings"
@@ -22,7 +20,7 @@ type NFATransitionTo struct {
 	index int
 }
 
-func (nfa *NFA[E]) AcceptingStates() util.StringSet {
+func (nfa NFA[E]) AcceptingStates() util.StringSet {
 	accepting := util.NewStringSet()
 	allStates := nfa.States().Elements()
 	for i := range allStates {
@@ -35,7 +33,7 @@ func (nfa *NFA[E]) AcceptingStates() util.StringSet {
 }
 
 // returns a list of 2-tuples that have (fromState, input)
-func (nfa *NFA[E]) AllTransitionsTo(toState string) []NFATransitionTo {
+func (nfa NFA[E]) AllTransitionsTo(toState string) []NFATransitionTo {
 	if _, ok := nfa.states[toState]; !ok {
 		// Gr8! We are done.
 		return []NFATransitionTo{}
@@ -65,10 +63,11 @@ func (nfa *NFA[E]) AllTransitionsTo(toState string) []NFATransitionTo {
 }
 
 // Copy returns a duplicate of this NFA.
-func (nfa *NFA[E]) Copy() *NFA[E] {
-	copied := &NFA[E]{
+func (nfa NFA[E]) Copy() NFA[E] {
+	copied := NFA[E]{
 		Start:  nfa.Start,
 		states: make(map[string]NFAState[E]),
+		order:  nfa.order,
 	}
 
 	for k := range nfa.states {
@@ -79,7 +78,7 @@ func (nfa *NFA[E]) Copy() *NFA[E] {
 }
 
 // States returns all states in the dfa.
-func (nfa *NFA[E]) States() util.StringSet {
+func (nfa NFA[E]) States() util.StringSet {
 	states := util.NewStringSet()
 
 	for k := range nfa.states {
@@ -93,7 +92,7 @@ func (nfa *NFA[E]) States() util.StringSet {
 // same strings.
 //
 // This is an implementation of algorithm 3.20 from the purple dragon book.
-func (nfa *NFA[E]) ToDFA() *DFA[util.SVSet[E]] {
+func (nfa NFA[E]) ToDFA() DFA[util.SVSet[E]] {
 	inputSymbols := nfa.InputSymbols()
 
 	Dstart := nfa.EpsilonClosure(nfa.Start)
@@ -105,7 +104,7 @@ func (nfa *NFA[E]) ToDFA() *DFA[util.SVSet[E]] {
 	// these are Dstates but represented in actual format for placement into
 	// our implement8ion of DFAs, which is also where transition function info
 	// and acceptance info is stored.
-	dfa := &DFA[util.SVSet[E]]{
+	dfa := DFA[util.SVSet[E]]{
 		states: map[string]DFAState[util.SVSet[E]]{},
 	}
 
@@ -184,7 +183,7 @@ func (nfa *NFA[E]) ToDFA() *DFA[util.SVSet[E]] {
 
 // InputSymbols returns the set of all input symbols processed by some
 // transition in the NFA.
-func (nfa *NFA[E]) InputSymbols() util.StringSet {
+func (nfa NFA[E]) InputSymbols() util.StringSet {
 	symbols := util.NewStringSet()
 	for sName := range nfa.states {
 		st := nfa.states[sName]
@@ -200,7 +199,7 @@ func (nfa *NFA[E]) InputSymbols() util.StringSet {
 // MOVE returns the set of states reachable with one transition from some state
 // in X on input a. Purple dragon book calls this function MOVE(T, a) and it is
 // on page 153 as part of algorithm 3.20.
-func (nfa *NFA[E]) MOVE(X util.ISet[string], a string) util.StringSet {
+func (nfa NFA[E]) MOVE(X util.ISet[string], a string) util.StringSet {
 	moves := util.NewStringSet()
 
 	for _, s := range X.Elements() {
@@ -222,8 +221,8 @@ func (nfa *NFA[E]) MOVE(X util.ISet[string], a string) util.StringSet {
 // does a direct conversion of nfa to dfa without joining any states. this is NOT
 // a merging algorithm; it will return an error if the given NFA[E] is not
 // already de-facto deterministic.
-func directNFAToDFA[E any](nfa *NFA[E]) (*DFA[E], error) {
-	dfa := &DFA[E]{
+func directNFAToDFA[E any](nfa NFA[E]) (DFA[E], error) {
+	dfa := DFA[E]{
 		Start:  nfa.Start,
 		states: map[string]DFAState[E]{},
 	}
@@ -245,7 +244,7 @@ func directNFAToDFA[E any](nfa *NFA[E]) (*DFA[E], error) {
 			goesTo := ""
 			for i := range nTransList {
 				if nTransList[i].next == "" {
-					return &DFA[E]{}, fmt.Errorf("state %q has empty transition-to for %q", nState.name, sym)
+					return DFA[E]{}, fmt.Errorf("state %q has empty transition-to for %q", nState.name, sym)
 				}
 				if goesTo == "" {
 					// first time we are seeing this, set it now
@@ -258,7 +257,7 @@ func directNFAToDFA[E any](nfa *NFA[E]) (*DFA[E], error) {
 					// if there's more transitions, they simply need to go to the
 					// same place.
 					if nTransList[i].next != goesTo {
-						return &DFA[E]{}, fmt.Errorf("state %q has non-deterministic transition for symbol %q", nState.name, sym)
+						return DFA[E]{}, fmt.Errorf("state %q has non-deterministic transition for symbol %q", nState.name, sym)
 					}
 				}
 			}
@@ -272,7 +271,7 @@ func directNFAToDFA[E any](nfa *NFA[E]) (*DFA[E], error) {
 
 // EpsilonClosureOfSet gives the set of states reachable from some state in
 // X using one or more ε-moves.
-func (nfa *NFA[E]) EpsilonClosureOfSet(X util.ISet[string]) util.StringSet {
+func (nfa NFA[E]) EpsilonClosureOfSet(X util.ISet[string]) util.StringSet {
 	allClosures := util.NewStringSet()
 
 	for _, s := range X.Elements() {
@@ -285,7 +284,7 @@ func (nfa *NFA[E]) EpsilonClosureOfSet(X util.ISet[string]) util.StringSet {
 
 // EpsilonClosure gives the set of states reachable from state using one or more
 // ε-moves.
-func (nfa *NFA[E]) EpsilonClosure(s string) util.StringSet {
+func (nfa NFA[E]) EpsilonClosure(s string) util.StringSet {
 	stateItem, ok := nfa.states[s]
 	if !ok {
 		return nil
@@ -328,7 +327,7 @@ func (nfa *NFA[E]) EpsilonClosure(s string) util.StringSet {
 	return closure
 }
 
-func (nfa *NFA[E]) String() string {
+func (nfa NFA[E]) String() string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", nfa.Start))
@@ -387,7 +386,7 @@ func (nfa *NFA[E]) NumberStates() {
 	// NFA using our mapping rules to adjust names as we go, then steal its
 	// states map.
 
-	newNfa := &NFA[E]{
+	newNfa := NFA[E]{
 		states: make(map[string]NFAState[E]),
 		Start:  numMapping[nfa.Start],
 	}
@@ -451,12 +450,12 @@ func (nfa *NFA[E]) NumberStates() {
 // after creation, they must use the state-naming convention mentioned above,
 // while states mentioned in fromToOther should use the original names of the
 // states.
-func (nfa *NFA[E]) Join(other *NFA[E], fromToOther [][3]string, otherToFrom [][3]string, addAccept []string, removeAccept []string) (*NFA[E], error) {
+func (nfa NFA[E]) Join(other NFA[E], fromToOther [][3]string, otherToFrom [][3]string, addAccept []string, removeAccept []string) (NFA[E], error) {
 	if len(fromToOther) < 1 {
-		return &NFA[E]{}, fmt.Errorf("need to provide at least one mapping in fromToOther")
+		return NFA[E]{}, fmt.Errorf("need to provide at least one mapping in fromToOther")
 	}
 
-	joined := &NFA[E]{
+	joined := NFA[E]{
 		states: make(map[string]NFAState[E]),
 		Start:  "1:" + nfa.Start,
 	}
@@ -627,12 +626,12 @@ func (nfa *NFA[E]) AddTransition(fromState string, input string, toState string)
 // closures of the transitions, call ToDFA on the output of this function.
 //
 // To get a DFA whose values are
-func NewLR0ViablePrefixNFA(g grammar.Grammar) *NFA[grammar.LR0Item] {
+func NewLR0ViablePrefixNFA(g grammar.Grammar) NFA[grammar.LR0Item] {
 	// add the dummy production
 	oldStart := g.StartSymbol()
 	g = g.Augmented()
 
-	nfa := &NFA[grammar.LR0Item]{}
+	nfa := NFA[grammar.LR0Item]{}
 
 	// set the start state
 	nfa.Start = grammar.LR0Item{NonTerminal: g.StartSymbol(), Right: []string{oldStart}}.String()

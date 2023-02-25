@@ -57,7 +57,7 @@ func constructCanonicalLR1ParseTable(g grammar.Grammar, allowAmbig bool) (LRPars
 		gStart:     g.StartSymbol(),
 		gTerms:     g.Terminals(),
 		gNonTerms:  g.NonTerminals(),
-		lr1:        *lr1Automaton,
+		lr1:        lr1Automaton,
 		itemCache:  map[string]grammar.LR1Item{},
 		allowAmbig: allowAmbig,
 	}
@@ -144,7 +144,7 @@ type canonicalLR1Table struct {
 }
 
 func (clr1 *canonicalLR1Table) GetDFA() automaton.DFA[util.StringSet] {
-	trans := automaton.TransformDFA(&clr1.lr1, func(old util.SVSet[grammar.LR1Item]) util.StringSet {
+	trans := automaton.TransformDFA(clr1.lr1, func(old util.SVSet[grammar.LR1Item]) util.StringSet {
 		newSet := util.NewStringSet()
 
 		for _, name := range old.Elements() {
@@ -154,7 +154,7 @@ func (clr1 *canonicalLR1Table) GetDFA() automaton.DFA[util.StringSet] {
 
 		return newSet
 	})
-	return *trans
+	return trans
 }
 
 func (clr1 *canonicalLR1Table) String() string {

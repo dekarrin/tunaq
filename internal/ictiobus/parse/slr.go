@@ -55,7 +55,7 @@ func constructSimpleLRParseTable(g grammar.Grammar, allowAmbig bool) (LRParseTab
 		gStart:     g.StartSymbol(),
 		gTerms:     g.Terminals(),
 		gNonTerms:  g.NonTerminals(),
-		lr0:        *lr0Automaton,
+		lr0:        lr0Automaton,
 		itemCache:  map[string]grammar.LR0Item{},
 		allowAmbig: allowAmbig,
 	}
@@ -143,7 +143,7 @@ type slrTable struct {
 }
 
 func (slr *slrTable) GetDFA() automaton.DFA[util.StringSet] {
-	trans := automaton.TransformDFA(&slr.lr0, func(old util.SVSet[grammar.LR0Item]) util.StringSet {
+	trans := automaton.TransformDFA(slr.lr0, func(old util.SVSet[grammar.LR0Item]) util.StringSet {
 		newSet := util.NewStringSet()
 
 		for _, name := range old.Elements() {
@@ -153,7 +153,7 @@ func (slr *slrTable) GetDFA() automaton.DFA[util.StringSet] {
 
 		return newSet
 	})
-	return *trans
+	return trans
 }
 
 func (slr *slrTable) String() string {

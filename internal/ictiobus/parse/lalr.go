@@ -382,7 +382,7 @@ func constructLALR1ParseTable(g grammar.Grammar, allowAmbig bool) (LRParseTable,
 		gTerms:     g.Terminals(),
 		gStart:     g.StartSymbol(),
 		gNonTerms:  g.NonTerminals(),
-		dfa:        *dfa,
+		dfa:        dfa,
 		itemCache:  map[string]grammar.LR1Item{},
 		allowAmbig: allowAmbig,
 	}
@@ -469,7 +469,7 @@ type lalr1Table struct {
 }
 
 func (lalr1 *lalr1Table) GetDFA() automaton.DFA[util.StringSet] {
-	trans := automaton.TransformDFA(&lalr1.dfa, func(old util.SVSet[grammar.LR1Item]) util.StringSet {
+	trans := automaton.TransformDFA(lalr1.dfa, func(old util.SVSet[grammar.LR1Item]) util.StringSet {
 		newSet := util.NewStringSet()
 
 		for _, name := range old.Elements() {
@@ -479,7 +479,7 @@ func (lalr1 *lalr1Table) GetDFA() automaton.DFA[util.StringSet] {
 
 		return newSet
 	})
-	return *trans
+	return trans
 }
 
 func (lalr1 *lalr1Table) Action(i, a string) LRAction {

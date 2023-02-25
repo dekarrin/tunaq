@@ -1,7 +1,5 @@
 package automaton
 
-// TODO: several of the DFA method receivers do not need to be pointers.
-
 import (
 	"fmt"
 	"sort"
@@ -19,10 +17,11 @@ type DFA[E any] struct {
 }
 
 // Copy returns a duplicate of this DFA.
-func (dfa *DFA[E]) Copy() *DFA[E] {
-	copied := &DFA[E]{
+func (dfa DFA[E]) Copy() DFA[E] {
+	copied := DFA[E]{
 		Start:  dfa.Start,
 		states: make(map[string]DFAState[E]),
+		order:  dfa.order,
 	}
 
 	for k := range dfa.states {
@@ -32,10 +31,11 @@ func (dfa *DFA[E]) Copy() *DFA[E] {
 	return copied
 }
 
-func TransformDFA[E1, E2 any](dfa *DFA[E1], transform func(old E1) E2) *DFA[E2] {
-	copied := &DFA[E2]{
+func TransformDFA[E1, E2 any](dfa DFA[E1], transform func(old E1) E2) DFA[E2] {
+	copied := DFA[E2]{
 		states: make(map[string]DFAState[E2]),
 		Start:  dfa.Start,
+		order:  dfa.order,
 	}
 
 	for k := range dfa.states {
@@ -62,10 +62,11 @@ func TransformDFA[E1, E2 any](dfa *DFA[E1], transform func(old E1) E2) *DFA[E2] 
 //
 // TODO: generics hell if trying to make this a method on DFA. need to figure
 // that out.
-func DFAToNFA[E any](dfa *DFA[E]) *NFA[E] {
-	nfa := &NFA[E]{
+func DFAToNFA[E any](dfa DFA[E]) NFA[E] {
+	nfa := NFA[E]{
 		Start:  dfa.Start,
 		states: map[string]NFAState[E]{},
+		order:  dfa.order,
 	}
 
 	for sName := range dfa.states {
@@ -182,7 +183,7 @@ func (dfa *DFA[E]) GetValue(state string) E {
 
 // IsAccepting returns whether the given state is an accepting (terminating)
 // state. Returns false if the state does not exist.
-func (dfa *DFA[E]) IsAccepting(state string) bool {
+func (dfa DFA[E]) IsAccepting(state string) bool {
 	s, ok := dfa.states[state]
 	if !ok {
 		return false
@@ -196,7 +197,7 @@ func (dfa *DFA[E]) IsAccepting(state string) bool {
 // Any state impossible to reach (no transitions to it).
 // Any transition leading to a state that doesn't exist.
 // A start that isn't a state that exists.
-func (dfa *DFA[E]) Validate() error {
+func (dfa DFA[E]) Validate() error {
 	errs := ""
 	// all states must be reachable somehow. Must be reachable by some other
 	// state if not the start state.
@@ -257,7 +258,7 @@ func (dfa *DFA[E]) Validate() error {
 }
 
 // States returns all states in the dfa.
-func (dfa *DFA[E]) States() util.StringSet {
+func (dfa DFA[E]) States() util.StringSet {
 	states := util.NewStringSet()
 
 	for k := range dfa.states {
@@ -270,7 +271,7 @@ func (dfa *DFA[E]) States() util.StringSet {
 // Next returns the next state of the DFA, given a current state and an input.
 // Will return "" if state is not an existing state or if there is no transition
 // from the given state on the given input.
-func (dfa *DFA[E]) Next(fromState string, input string) string {
+func (dfa DFA[E]) Next(fromState string, input string) string {
 	state, ok := dfa.states[fromState]
 	if !ok {
 		return ""
@@ -285,7 +286,7 @@ func (dfa *DFA[E]) Next(fromState string, input string) string {
 }
 
 // returns a list of 2-tuples that have (fromState, input)
-func (dfa *DFA[E]) AllTransitionsTo(toState string) [][2]string {
+func (dfa DFA[E]) AllTransitionsTo(toState string) [][2]string {
 	if _, ok := dfa.states[toState]; !ok {
 		// Gr8! We are done.
 		return [][2]string{}
@@ -389,7 +390,7 @@ func (dfa *DFA[E]) AddTransition(fromState string, input string, toState string)
 	dfa.states[fromState] = curFromState
 }
 
-func (dfa *DFA[E]) String() string {
+func (dfa DFA[E]) String() string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", dfa.Start))
@@ -413,7 +414,7 @@ func (dfa *DFA[E]) String() string {
 }
 
 // g must be non-augmented
-func NewLALR1ViablePrefixDFA(g grammar.Grammar) (*DFA[util.SVSet[grammar.LR1Item]], error) {
+func NewLALR1ViablePrefixDFA(g grammar.Grammar) (DFA[util.SVSet[grammar.LR1Item]], error) {
 	lr1Dfa := NewLR1ViablePrefixDFA(g)
 
 	// get an NFA so we can start fixing things
@@ -617,13 +618,13 @@ func NewLALR1ViablePrefixDFA(g grammar.Grammar) (*DFA[util.SVSet[grammar.LR1Item
 
 	lalrDfa, err := directNFAToDFA(lalrNfa)
 	if err != nil {
-		return &DFA[util.SVSet[grammar.LR1Item]]{}, fmt.Errorf("grammar is not LALR(1); resulted in inconsistent state merges")
+		return DFA[util.SVSet[grammar.LR1Item]]{}, fmt.Errorf("grammar is not LALR(1); resulted in inconsistent state merges")
 	}
 
 	return lalrDfa, nil
 }
 
-func NewLR1ViablePrefixDFA(g grammar.Grammar) *DFA[util.SVSet[grammar.LR1Item]] {
+func NewLR1ViablePrefixDFA(g grammar.Grammar) DFA[util.SVSet[grammar.LR1Item]] {
 	oldStart := g.StartSymbol()
 	g = g.Augmented()
 
@@ -708,7 +709,7 @@ func NewLR1ViablePrefixDFA(g grammar.Grammar) *DFA[util.SVSet[grammar.LR1Item]] 
 	// okay, we've actually pre-calculated all DFA items so we can now add them.
 	// might be able to optimize to add on-the-fly during above loop but this is
 	// easier for the moment.
-	dfa := &DFA[util.SVSet[grammar.LR1Item]]{}
+	dfa := DFA[util.SVSet[grammar.LR1Item]]{}
 
 	// add states
 	for sName, state := range stateSets {
