@@ -93,7 +93,7 @@ func DFAToNFA[E any](dfa DFA[E]) NFA[E] {
 
 // NumberStates renames all states to each have a unique name based on an
 // increasing number sequence. The starting state is guaranteed to be numbered
-// 0; beyond that, the states are put in alphabetical order.
+// 0; beyond that, the states are put in order they were added.
 func (dfa *DFA[E]) NumberStates() {
 	if _, ok := dfa.states[dfa.Start]; !ok {
 		panic("can't number states of DFA with no start state set")
@@ -113,6 +113,9 @@ func (dfa *DFA[E]) NumberStates() {
 	}
 
 	origStateNames = append(origStateNames[:startIdx], origStateNames[startIdx+1:]...)
+	origStateNames = util.SortBy(origStateNames, func(s1, s2 string) bool {
+		return dfa.states[s1].ordering < dfa.states[s2].ordering
+	})
 	origStateNames = append([]string{dfa.Start}, origStateNames...)
 
 	numMapping := map[string]string{}

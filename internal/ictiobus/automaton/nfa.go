@@ -352,7 +352,7 @@ func (nfa NFA[E]) String() string {
 
 // NumberStates renames all states to each have a unique name based on an
 // increasing number sequence. The starting state is guaranteed to be numbered
-// 0; beyond that, the states are put in alphabetical order.
+// 0; beyond that, the states are put in the order they were added.
 func (nfa *NFA[E]) NumberStates() {
 	if _, ok := nfa.states[nfa.Start]; !ok {
 		panic("can't number states of NFA with no start state set")
@@ -372,6 +372,9 @@ func (nfa *NFA[E]) NumberStates() {
 	}
 
 	origStateNames = append(origStateNames[:startIdx], origStateNames[startIdx+1:]...)
+	origStateNames = util.SortBy(origStateNames, func(s1, s2 string) bool {
+		return nfa.states[s1].ordering < nfa.states[s2].ordering
+	})
 	origStateNames = append([]string{nfa.Start}, origStateNames...)
 
 	numMapping := map[string]string{}
