@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/dekarrin/tunaq/internal/ictiobus/automaton"
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/ictiobus/icterrors"
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
@@ -41,6 +42,10 @@ type LRParseTable interface {
 	// String prints a string representation of the table. If two LRParseTables
 	// produce the same String() output, they are considered equal.
 	String() string
+
+	// GetDFA returns the DFA simulated by the table. Some tables may in fact
+	// be the DFA itself along with supplementary info.
+	GetDFA() automaton.DFA[string]
 }
 
 type lrParser struct {
@@ -48,6 +53,11 @@ type lrParser struct {
 	parseType types.ParserType
 	gram      grammar.Grammar
 	trace     func(s string)
+}
+
+func (lr *lrParser) GetDFA() *automaton.DFA[string] {
+	dfa := lr.table.GetDFA()
+	return &dfa
 }
 
 func (lr *lrParser) RegisterTraceListener(listener func(s string)) {
@@ -73,27 +83,27 @@ func (lr lrParser) notifyTrace(fmtStr string, args ...interface{}) {
 }
 
 func (lr lrParser) notifyStatePeek(s string) {
-	lr.notifyTrace("states.peek(): %q", s)
+	lr.notifyTrace("states.peek(): %s", s)
 }
 
 func (lr lrParser) notifyStatePush(s string) {
-	lr.notifyTrace("states.push(): %q", s)
+	lr.notifyTrace("states.push(): %s", s)
 }
 
 func (lr lrParser) notifyStatePop(s string) {
 	if s == "" {
 		lr.notifyTrace("states.pop()")
 	} else {
-		lr.notifyTrace("states.pop(): %q", s)
+		lr.notifyTrace("states.pop(): %s", s)
 	}
 }
 
 func (lr lrParser) notifyAction(act LRAction) {
-	lr.notifyTrace("action: %q", act.Type.String())
+	lr.notifyTrace("Action: %s", act.Type.String())
 }
 
 func (lr lrParser) notifyNextToken(tok types.Token) {
-	lr.notifyTrace("got next token: %q", tok.String())
+	lr.notifyTrace("Got next token: %s", tok.String())
 }
 
 func (lr lrParser) notifyTokenStack(st util.Stack[types.Token]) {
@@ -118,9 +128,9 @@ func (lr lrParser) notifyTokenStack(st util.Stack[types.Token]) {
 			tokStr.WriteString("(empty)")
 		}
 
-		str := fmt.Sprintf("token stack (tlexed): %s", lexStr.String())
+		str := fmt.Sprintf("Token stack (lexed): %s", lexStr.String())
 		str += "\n"
-		str += fmt.Sprintf("token stack (ttype ): %s", tokStr.String())
+		str += fmt.Sprintf("Token stack (ttype): %s", tokStr.String())
 
 		return str
 	})

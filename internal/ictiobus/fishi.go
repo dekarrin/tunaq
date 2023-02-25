@@ -82,7 +82,7 @@ func ProcessFishiMd(mdText []byte) error {
 		return err
 	}
 	parser.RegisterTraceListener(func(s string) {
-		fmt.Println(s)
+		fmt.Printf(">> %s\n", strings.ReplaceAll(s, "\n", "\n   "))
 	})
 
 	for i := range ambigWarns {

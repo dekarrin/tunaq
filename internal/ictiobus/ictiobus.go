@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/dekarrin/tunaq/internal/ictiobus/automaton"
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 	"github.com/dekarrin/tunaq/internal/ictiobus/parse"
@@ -58,7 +59,15 @@ type Parser interface {
 	// TableString returns the parsing table as a string.
 	TableString() string
 
+	// RegisterTraceListener sets up a function to call when an event occurs.
+	// The events are determined by the individual parsers but involve
+	// examination of the parser stack or other critical moments that may aid in
+	// debugging.
 	RegisterTraceListener(func(s string))
+
+	// GetDFA returns the DFA for this parser, if one so exists. May return nil
+	// if the parser is not of the type to have a DFA.
+	GetDFA() *automaton.DFA[string]
 }
 
 // SDD is a series of syntax-directed definitions bound to syntactic rules of

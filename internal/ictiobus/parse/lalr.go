@@ -467,6 +467,10 @@ type lalr1Table struct {
 	allowAmbig bool
 }
 
+func (lalr1 *lalr1Table) GetDFA() automaton.DFA[string] {
+	curDfa := lalr1.dfa
+}
+
 func (lalr1 *lalr1Table) Action(i, a string) LRAction {
 	// Algorithm 4.59, which we are using for construction of the LALR(1) parse
 	// table, explicitly mentions to construct the Action table as it is done
