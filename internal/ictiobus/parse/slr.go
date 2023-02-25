@@ -18,13 +18,13 @@ import (
 // shift-reduce conflict, shift will be preferred. If the grammar is detected as
 // ambiguous, the 2nd arg 'ambiguity warnings' will be filled with each
 // ambiguous case detected.
-func GenerateSimpleLRParser(g grammar.Grammar, allowAmbig bool) (lrParser, []string, error) {
+func GenerateSimpleLRParser(g grammar.Grammar, allowAmbig bool) (*lrParser, []string, error) {
 	table, ambigWarns, err := constructSimpleLRParseTable(g, allowAmbig)
 	if err != nil {
-		return lrParser{}, ambigWarns, err
+		return &lrParser{}, ambigWarns, err
 	}
 
-	return lrParser{table: table, parseType: types.ParserSLR1, gram: g}, ambigWarns, nil
+	return &lrParser{table: table, parseType: types.ParserSLR1, gram: g}, ambigWarns, nil
 }
 
 // constructSimpleLRParseTable constructs the SLR(1) table for G. It augments

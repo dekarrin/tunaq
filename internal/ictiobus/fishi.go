@@ -60,17 +60,9 @@ func ProcessFishiMd(mdText []byte) error {
 
 	fishiSource := GetFishiFromMarkdown(mdText)
 	fishiSource = Preprocess(fishiSource)
-	fmt.Println(string(fishiSource))
 	fishi := bytes.NewBuffer(fishiSource)
 
 	lx := CreateBootstrapLexer()
-	printedToks := 0
-	lx.RegisterTokenListener(func(t types.Token) {
-		if printedToks < 20 {
-			fmt.Println(t)
-			printedToks++
-		}
-	})
 	stream, err := lx.Lex(fishi)
 	if err != nil {
 		return err
@@ -82,8 +74,6 @@ func ProcessFishiMd(mdText []byte) error {
 		return err
 	}
 
-	printedToks = 0
-
 	// now, can we make a parser from this?
 	var parser Parser
 
@@ -91,6 +81,9 @@ func ProcessFishiMd(mdText []byte) error {
 	if err != nil {
 		return err
 	}
+	parser.RegisterTraceListener(func(s string) {
+		fmt.Println(s)
+	})
 
 	for i := range ambigWarns {
 		fmt.Printf("warn: ambiguous grammar: %s\n", ambigWarns[i])
@@ -100,11 +93,11 @@ func ProcessFishiMd(mdText []byte) error {
 
 	// now, try to make a parse tree for your own grammar
 	fishiSource = []byte(`%%grammar
-{A}
+{RULE}
 
 %%grammar
 
-{A}
+{RULE}
 	`)
 	fishiSource = Preprocess(fishiSource)
 	fishi = bytes.NewBuffer(fishiSource)
@@ -154,15 +147,24 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 
 	bootCfg.AddRule("FISHISPEC", []string{"BLOCKS"})
 
-	bootCfg.AddRule("BLOCKS", []string{"BLOCK"})
 	bootCfg.AddRule("BLOCKS", []string{"BLOCKS", "BLOCK"})
+	bootCfg.AddRule("BLOCKS", []string{"BLOCK"})
 
 	bootCfg.AddRule("BLOCK", []string{"GRAMMAR-BLOCK"})
 
 	bootCfg.AddRule("GRAMMAR-BLOCK", []string{tcHeaderGrammar.ID(), "GRAMMAR-CONTENT"})
 	bootCfg.AddRule("GRAMMAR-BLOCK", []string{tcHeaderGrammar.ID(), "NEWLINES", "GRAMMAR-CONTENT"})
 
-	bootCfg.AddRule("GRAMMAR-CONTENT", []string{tcNonterminal.ID(), "NEWLINES"})
+	bootCfg.AddRule("GRAMMAR-CONTENT", []string{"GRAMMAR-CONTENT", "GRAMMAR-STATE-BLOCK"})
+	bootCfg.AddRule("GRAMMAR-CONTENT", []string{"GRAMMAR-STATE-BLOCK"})
+
+	//	bootCfg.AddRule("GRAMMAR-STATE-BLOCK", []string{tcDirState.ID(), "GRAMMAR-RULES"})
+	bootCfg.AddRule("GRAMMAR-STATE-BLOCK", []string{"GRAMMAR-RULES"})
+
+	bootCfg.AddRule("GRAMMAR-RULES", []string{"GRAMMAR-RULES", "NEWLINES", "GRAMMAR-RULE"})
+	bootCfg.AddRule("GRAMMAR-RULES", []string{"GRAMMAR-RULE"})
+
+	bootCfg.AddRule("GRAMMAR-RULE", []string{tcNonterminal.ID()})
 
 	/*
 

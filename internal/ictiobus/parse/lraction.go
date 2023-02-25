@@ -63,6 +63,21 @@ const (
 	LRError
 )
 
+func (lt LRActionType) String() string {
+	switch lt {
+	case LRShift:
+		return "SHIFT"
+	case LRReduce:
+		return "REDUCE"
+	case LRAccept:
+		return "ACCEPT"
+	case LRError:
+		return "ERROR"
+	default:
+		return fmt.Sprintf("LRActionType<%d>", lt)
+	}
+}
+
 type LRAction struct {
 	Type LRActionType
 

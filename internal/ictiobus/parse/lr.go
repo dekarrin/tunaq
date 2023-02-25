@@ -47,21 +47,90 @@ type lrParser struct {
 	table     LRParseTable
 	parseType types.ParserType
 	gram      grammar.Grammar
+	trace     func(s string)
 }
 
-func (lr lrParser) Type() types.ParserType {
+func (lr *lrParser) RegisterTraceListener(listener func(s string)) {
+	lr.trace = listener
+}
+
+func (lr *lrParser) Type() types.ParserType {
 	return lr.parseType
 }
 
-func (lr lrParser) TableString() string {
+func (lr *lrParser) TableString() string {
 	return lr.table.String()
+}
+
+func (lr lrParser) notifyTraceFn(fn func() string) {
+	if lr.trace != nil {
+		lr.trace(fn())
+	}
+}
+
+func (lr lrParser) notifyTrace(fmtStr string, args ...interface{}) {
+	lr.notifyTraceFn(func() string { return fmt.Sprintf(fmtStr, args...) })
+}
+
+func (lr lrParser) notifyStatePeek(s string) {
+	lr.notifyTrace("states.peek(): %q", s)
+}
+
+func (lr lrParser) notifyStatePush(s string) {
+	lr.notifyTrace("states.push(): %q", s)
+}
+
+func (lr lrParser) notifyStatePop(s string) {
+	if s == "" {
+		lr.notifyTrace("states.pop()")
+	} else {
+		lr.notifyTrace("states.pop(): %q", s)
+	}
+}
+
+func (lr lrParser) notifyAction(act LRAction) {
+	lr.notifyTrace("action: %q", act.Type.String())
+}
+
+func (lr lrParser) notifyNextToken(tok types.Token) {
+	lr.notifyTrace("got next token: %q", tok.String())
+}
+
+func (lr lrParser) notifyTokenStack(st util.Stack[types.Token]) {
+	lr.notifyTraceFn(func() string {
+		var lexStr strings.Builder
+		var tokStr strings.Builder
+		for i := range st.Of {
+			tok := st.Of[i]
+			lexStr.WriteRune('"')
+			lexStr.WriteString(tok.Lexeme())
+			lexStr.WriteRune('"')
+
+			tokStr.WriteString(strings.ToUpper(tok.Class().ID()))
+
+			if i+1 < len(st.Of) {
+				lexStr.WriteString(", ")
+				tokStr.WriteString(", ")
+			}
+		}
+		if st.Empty() {
+			lexStr.WriteString("(empty)")
+			tokStr.WriteString("(empty)")
+		}
+
+		str := fmt.Sprintf("token stack (tlexed): %s", lexStr.String())
+		str += "\n"
+		str += fmt.Sprintf("token stack (ttype ): %s", tokStr.String())
+
+		return str
+	})
 }
 
 // Parse parses the input stream with the internal LR parse table.
 //
 // This is an implementation of Algorithm 4.44, "LR-parsing algorithm", from
 // the purple dragon book.
-func (lr lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
+func (lr *lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 	stateStack := util.Stack[string]{Of: []string{lr.table.Initial()}}
 
 	// we will use these to build our parse tree
@@ -70,12 +139,17 @@ func (lr lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 
 	// let a be the first symbol of w$;
 	a := stream.Next()
+	lr.notifyNextToken(a)
 
 	for { /* repeat forever */
+		lr.notifyTokenStack(tokenBuffer)
+
 		// let s be the state on top of the stack;
 		s := stateStack.Peek()
+		lr.notifyStatePeek(s)
 
 		ACTION := lr.table.Action(s, a.Class().ID())
+		lr.notifyAction(ACTION)
 
 		switch ACTION.Type {
 		case LRShift: // if ( ACTION[s, a] = shift t )
@@ -86,9 +160,11 @@ func (lr lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 
 			// push t onto the stack
 			stateStack.Push(t)
+			lr.notifyStatePush(t)
 
 			// let a be the next input symbol
 			a = stream.Next()
+			lr.notifyNextToken(a)
 		case LRReduce: // else if ( ACTION[s, a] = reduce A -> β )
 			A := ACTION.Symbol
 			beta := ACTION.Production
@@ -117,10 +193,12 @@ func (lr lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 			// pop |β| symbols off the stack;
 			for i := 0; i < len(beta); i++ {
 				stateStack.Pop()
+				lr.notifyStatePop("")
 			}
 
 			// let state t now be on top of the stack
 			t := stateStack.Peek()
+			lr.notifyStatePeek(t)
 
 			// push GOTO[t, A] onto the stack
 			toPush, err := lr.table.Goto(t, A)
@@ -128,9 +206,10 @@ func (lr lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 				return types.ParseTree{}, icterrors.NewSyntaxErrorFromToken(fmt.Sprintf("LR parsing error; DFA has no valid transition from here on %q", A), a)
 			}
 			stateStack.Push(toPush)
+			lr.notifyStatePush(toPush)
 
 			// output the production A -> β
-			// TODO: put it on the parse tree
+			// (TODO: put it on the parse tree)
 		case LRAccept: // else if ( ACTION[s, a] = accept )
 			// parsing is done. there should be at least one item on the stack
 			pt := subTreeRoots.Pop()

@@ -348,13 +348,13 @@ func getLR0Kernels(g grammar.Grammar) util.VSet[string, util.SVSet[grammar.LR0It
 // shift-reduce conflict, shift will be preferred. If the grammar is detected as
 // ambiguous, the 2nd arg 'ambiguity warnings' will be filled with each
 // ambiguous case detected.
-func GenerateLALR1Parser(g grammar.Grammar, allowAmbig bool) (lrParser, []string, error) {
+func GenerateLALR1Parser(g grammar.Grammar, allowAmbig bool) (*lrParser, []string, error) {
 	table, ambigWarns, err := constructLALR1ParseTable(g, allowAmbig)
 	if err != nil {
-		return lrParser{}, nil, err
+		return &lrParser{}, nil, err
 	}
 
-	return lrParser{table: table, parseType: types.ParserLALR1, gram: g}, ambigWarns, nil
+	return &lrParser{table: table, parseType: types.ParserLALR1, gram: g}, ambigWarns, nil
 }
 
 // constructLALR1ParseTable constructs the LALR(1) table for G.

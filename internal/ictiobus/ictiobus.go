@@ -57,6 +57,8 @@ type Parser interface {
 
 	// TableString returns the parsing table as a string.
 	TableString() string
+
+	RegisterTraceListener(func(s string))
 }
 
 // SDD is a series of syntax-directed definitions bound to syntactic rules of

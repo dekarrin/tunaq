@@ -13,9 +13,14 @@ import (
 type ll1Parser struct {
 	table grammar.LL1Table
 	g     grammar.Grammar
+	trace func(s string)
 }
 
-func (ll ll1Parser) TableString() string {
+func (ll *ll1Parser) RegisterTraceListener(listener func(s string)) {
+	ll.trace = listener
+}
+
+func (ll *ll1Parser) TableString() string {
 	return ll.table.String()
 }
 
@@ -25,22 +30,35 @@ func (ll ll1Parser) TableString() string {
 // The returned parser parses the input using LL(k) parsing rules on the
 // context-free Grammar g (k=1). The grammar must already be LL(1); it will not
 // be forced to it.
-func GenerateLL1Parser(g grammar.Grammar) (ll1Parser, error) {
+func GenerateLL1Parser(g grammar.Grammar) (*ll1Parser, error) {
 	M, err := g.LLParseTable()
 	if err != nil {
-		return ll1Parser{}, err
+		return &ll1Parser{}, err
 	}
-	return ll1Parser{table: M, g: g.Copy()}, nil
+	return &ll1Parser{table: M, g: g.Copy()}, nil
 }
 
-func (ll1 ll1Parser) Type() types.ParserType {
+func (ll1 *ll1Parser) Type() types.ParserType {
 	return types.ParserLL1
 }
 
-func (ll1 ll1Parser) Parse(stream types.TokenStream) (types.ParseTree, error) {
+func (ll1 ll1Parser) notifyPopped(s string) {
+	if ll1.trace != nil {
+		ll1.trace(fmt.Sprintf("popped %q", s))
+	}
+}
+
+func (ll1 ll1Parser) notifyPushed(s string) {
+	if ll1.trace != nil {
+		ll1.trace(fmt.Sprintf("pushed %q", s))
+	}
+}
+
+func (ll1 *ll1Parser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 	stack := util.Stack[string]{Of: []string{ll1.g.StartSymbol(), "$"}}
 	next := stream.Peek()
 	X := stack.Peek()
+	ll1.notifyPopped(X)
 	pt := types.ParseTree{Value: ll1.g.StartSymbol()}
 	ptStack := util.Stack[*types.ParseTree]{Of: []*types.ParseTree{&pt}}
 
@@ -56,6 +74,7 @@ func (ll1 ll1Parser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 				node.Source = next
 				stack.Pop()
 				X = stack.Peek()
+				ll1.notifyPopped(X)
 				ptStack.Pop()
 				node = ptStack.Peek()
 			} else {
@@ -74,6 +93,7 @@ func (ll1 ll1Parser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 			for i := len(nextProd) - 1; i >= 0; i-- {
 				if nextProd[i] != grammar.Epsilon[0] {
 					stack.Push(nextProd[i])
+					ll1.notifyPushed(nextProd[i])
 				}
 
 				child := &types.ParseTree{Value: nextProd[i]}
@@ -88,6 +108,7 @@ func (ll1 ll1Parser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 			}
 
 			X = stack.Peek()
+			ll1.notifyPopped(X)
 
 			// node stack will always be one smaller than symbol stack bc
 			// glub, we dont put a node onto the stack for "$".

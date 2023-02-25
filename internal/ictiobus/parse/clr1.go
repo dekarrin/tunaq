@@ -19,13 +19,13 @@ import (
 // shift-reduce conflict, shift will be preferred. If the grammar is detected as
 // ambiguous, the 2nd arg 'ambiguity warnings' will be filled with each
 // ambiguous case detected.
-func GenerateCanonicalLR1Parser(g grammar.Grammar, allowAmbig bool) (lrParser, []string, error) {
+func GenerateCanonicalLR1Parser(g grammar.Grammar, allowAmbig bool) (*lrParser, []string, error) {
 	table, ambigWarns, err := constructCanonicalLR1ParseTable(g, allowAmbig)
 	if err != nil {
-		return lrParser{}, ambigWarns, err
+		return &lrParser{}, ambigWarns, err
 	}
 
-	return lrParser{table: table, parseType: types.ParserCLR1, gram: g}, ambigWarns, nil
+	return &lrParser{table: table, parseType: types.ParserCLR1, gram: g}, ambigWarns, nil
 }
 
 // constructCanonicalLR1ParseTable constructs the canonical LR(1) table for G.
