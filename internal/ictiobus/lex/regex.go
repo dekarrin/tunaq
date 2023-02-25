@@ -34,12 +34,12 @@ func createSingleSymbolFA(symbol string) automaton.NFA[string] {
 func createJuxtapositionFA(left, right automaton.NFA[string]) automaton.NFA[string] {
 	accept := getSingleAcceptState(left)
 
-	nfa, err := left.Join(right, [][3]string{{accept, "", right.Start}}, nil, nil, []string{"1:" + accept})
+	nfa, err := left.Join(&right, [][3]string{{accept, "", right.Start}}, nil, nil, []string{"1:" + accept})
 	if err != nil {
 		panic(err.Error())
 	}
 
-	return nfa
+	return *nfa
 }
 
 // regex simplification rewrites:
@@ -51,10 +51,11 @@ func createKleeneStarFA(expr automaton.NFA[string]) automaton.NFA[string] {
 	exprAccept := getSingleAcceptState(expr)
 
 	// add an epsilon transition from start to end of the expr
-	expr = expr.Copy()
+	exprCopy := expr.Copy()
+	expr = *exprCopy
 	expr.AddTransition(exprAccept, "", expr.Start)
 
-	var nfa automaton.NFA[string]
+	var nfa *automaton.NFA[string]
 	var err error
 
 	nfa.AddState("A", false)
@@ -63,12 +64,12 @@ func createKleeneStarFA(expr automaton.NFA[string]) automaton.NFA[string] {
 	nfa.Start = "A"
 	nfaAccept := "B"
 
-	nfa, err = nfa.Join(expr, [][3]string{{nfa.Start, "", expr.Start}}, [][3]string{{exprAccept, "", nfaAccept}}, nil, []string{"1:" + exprAccept})
+	nfa, err = nfa.Join(&expr, [][3]string{{nfa.Start, "", expr.Start}}, [][3]string{{exprAccept, "", nfaAccept}}, nil, []string{"1:" + exprAccept})
 	if err != nil {
 		panic(err.Error())
 	}
 
-	return nfa
+	return *nfa
 }
 
 // for any expression s|t, but s and t need to already have been turned to NFAs.
@@ -78,7 +79,7 @@ func createAlternationFA(left, right automaton.NFA[string]) automaton.NFA[string
 	leftAccept := getSingleAcceptState(left)
 	rightAccept := getSingleAcceptState(right)
 
-	var nfa automaton.NFA[string]
+	var nfa *automaton.NFA[string]
 	var err error
 
 	nfa.AddState("A", false)
@@ -87,19 +88,19 @@ func createAlternationFA(left, right automaton.NFA[string]) automaton.NFA[string
 	nfaAccept := "B"
 
 	// join with left side
-	nfa, err = nfa.Join(left, [][3]string{{nfa.Start, "", left.Start}}, [][3]string{{leftAccept, "", nfaAccept}}, nil, []string{"1:" + leftAccept})
+	nfa, err = nfa.Join(&left, [][3]string{{nfa.Start, "", left.Start}}, [][3]string{{leftAccept, "", nfaAccept}}, nil, []string{"1:" + leftAccept})
 	if err != nil {
 		panic(err.Error())
 	}
 
 	// join with right side
-	nfaAccept = getSingleAcceptState(nfa)
-	nfa, err = nfa.Join(right, [][3]string{{nfa.Start, "", right.Start}}, [][3]string{{rightAccept, "", nfaAccept}}, nil, []string{"1:" + rightAccept})
+	nfaAccept = getSingleAcceptState(*nfa)
+	nfa, err = nfa.Join(&right, [][3]string{{nfa.Start, "", right.Start}}, [][3]string{{rightAccept, "", nfaAccept}}, nil, []string{"1:" + rightAccept})
 	if err != nil {
 		panic(err.Error())
 	}
 
-	return nfa
+	return *nfa
 }
 
 // panics if there is not exactly one accepting state in provided nfa

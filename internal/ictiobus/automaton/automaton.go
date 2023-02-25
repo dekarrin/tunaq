@@ -77,6 +77,7 @@ func parseFATransition(s string) (FATransition, error) {
 }
 
 type DFAState[E any] struct {
+	ordering    uint64
 	name        string
 	value       E
 	transitions map[string]FATransition
@@ -85,6 +86,7 @@ type DFAState[E any] struct {
 
 func (ds DFAState[E]) Copy() DFAState[E] {
 	copied := DFAState[E]{
+		ordering:    ds.ordering,
 		name:        ds.name,
 		value:       ds.value,
 		transitions: make(map[string]FATransition),
@@ -121,6 +123,7 @@ func (ns DFAState[E]) String() string {
 }
 
 type NFAState[E any] struct {
+	ordering    uint64
 	name        string
 	value       E
 	transitions map[string][]FATransition
@@ -129,6 +132,7 @@ type NFAState[E any] struct {
 
 func (ns NFAState[E]) Copy() NFAState[E] {
 	copied := NFAState[E]{
+		ordering:    ns.ordering,
 		name:        ns.name,
 		value:       ns.value,
 		transitions: make(map[string][]FATransition),

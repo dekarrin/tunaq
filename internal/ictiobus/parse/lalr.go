@@ -382,7 +382,7 @@ func constructLALR1ParseTable(g grammar.Grammar, allowAmbig bool) (LRParseTable,
 		gTerms:     g.Terminals(),
 		gStart:     g.StartSymbol(),
 		gNonTerms:  g.NonTerminals(),
-		dfa:        dfa,
+		dfa:        *dfa,
 		itemCache:  map[string]grammar.LR1Item{},
 		allowAmbig: allowAmbig,
 	}

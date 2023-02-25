@@ -55,7 +55,7 @@ func constructSimpleLRParseTable(g grammar.Grammar, allowAmbig bool) (LRParseTab
 		gStart:     g.StartSymbol(),
 		gTerms:     g.Terminals(),
 		gNonTerms:  g.NonTerminals(),
-		lr0:        lr0Automaton,
+		lr0:        *lr0Automaton,
 		itemCache:  map[string]grammar.LR0Item{},
 		allowAmbig: allowAmbig,
 	}

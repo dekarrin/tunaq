@@ -57,7 +57,7 @@ func constructCanonicalLR1ParseTable(g grammar.Grammar, allowAmbig bool) (LRPars
 		gStart:     g.StartSymbol(),
 		gTerms:     g.Terminals(),
 		gNonTerms:  g.NonTerminals(),
-		lr1:        lr1Automaton,
+		lr1:        *lr1Automaton,
 		itemCache:  map[string]grammar.LR1Item{},
 		allowAmbig: allowAmbig,
 	}
