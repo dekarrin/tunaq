@@ -2,6 +2,7 @@ package automaton
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
@@ -333,10 +334,63 @@ func (nfa NFA[E]) String() string {
 	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", nfa.Start))
 
 	orderedStates := util.OrderedKeys(nfa.states)
+	orderedStates = util.SortBy(orderedStates, func(s1, s2 string) bool {
+		n1, err := strconv.Atoi(s1)
+		if err != nil {
+			// fallback; str comparison
+			return s1 < s2
+		}
+
+		n2, err := strconv.Atoi(s2)
+		if err != nil {
+			// fallback; str comparison
+			return s1 < s2
+		}
+
+		return n1 < n2
+	})
 
 	for i := range orderedStates {
 		sb.WriteString("\n\t")
 		sb.WriteString(nfa.states[orderedStates[i]].String())
+
+		if i+1 < len(nfa.states) {
+			sb.WriteRune(',')
+		} else {
+			sb.WriteRune('\n')
+		}
+	}
+
+	sb.WriteRune('>')
+
+	return sb.String()
+}
+
+func (nfa NFA[E]) ValueString() string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", nfa.Start))
+
+	orderedStates := util.OrderedKeys(nfa.states)
+	orderedStates = util.SortBy(orderedStates, func(s1, s2 string) bool {
+		n1, err := strconv.Atoi(s1)
+		if err != nil {
+			// fallback; str comparison
+			return s1 < s2
+		}
+
+		n2, err := strconv.Atoi(s2)
+		if err != nil {
+			// fallback; str comparison
+			return s1 < s2
+		}
+
+		return n1 < n2
+	})
+
+	for i := range orderedStates {
+		sb.WriteString("\n\t")
+		sb.WriteString(nfa.states[orderedStates[i]].ValueString())
 
 		if i+1 < len(nfa.states) {
 			sb.WriteRune(',')

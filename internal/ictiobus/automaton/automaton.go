@@ -122,6 +122,28 @@ func (ns DFAState[E]) String() string {
 	return str
 }
 
+func (ns DFAState[E]) ValueString() string {
+	var moves strings.Builder
+
+	inputs := util.OrderedKeys(ns.transitions)
+
+	for i, input := range inputs {
+		moves.WriteString(ns.transitions[input].String())
+		if i+1 < len(inputs) {
+			moves.WriteRune(',')
+			moves.WriteRune(' ')
+		}
+	}
+
+	str := fmt.Sprintf("(%s %q [%s])", ns.name, fmt.Sprintf("%v", ns.value), moves.String())
+
+	if ns.accepting {
+		str = "(" + str + ")"
+	}
+
+	return str
+}
+
 type NFAState[E any] struct {
 	ordering    uint64
 	name        string
@@ -173,6 +195,38 @@ func (ns NFAState[E]) String() string {
 	}
 
 	str := fmt.Sprintf("(%s [%s])", ns.name, moves.String())
+
+	if ns.accepting {
+		str = "(" + str + ")"
+	}
+
+	return str
+}
+
+func (ns NFAState[E]) ValueString() string {
+	var moves strings.Builder
+
+	inputs := util.OrderedKeys(ns.transitions)
+
+	for i, input := range inputs {
+		var tStrings []string
+
+		for _, t := range ns.transitions[input] {
+			tStrings = append(tStrings, t.String())
+		}
+
+		sort.Strings(tStrings)
+
+		for tIdx, t := range tStrings {
+			moves.WriteString(t)
+			if tIdx+1 < len(tStrings) || i+1 < len(inputs) {
+				moves.WriteRune(',')
+				moves.WriteRune(' ')
+			}
+		}
+	}
+
+	str := fmt.Sprintf("(%s %q [%s])", ns.name, fmt.Sprintf("%v", ns.value), moves.String())
 
 	if ns.accepting {
 		str = "(" + str + ")"

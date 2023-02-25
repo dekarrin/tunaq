@@ -3,6 +3,7 @@ package automaton
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
@@ -51,6 +52,8 @@ func TransformDFA[E1, E2 any](dfa DFA[E1], transform func(old E1) E2) DFA[E2] {
 		for sym := range oldState.transitions {
 			copiedState.transitions[sym] = oldState.transitions[sym]
 		}
+
+		copied.states[k] = copiedState
 	}
 
 	return copied
@@ -399,10 +402,63 @@ func (dfa DFA[E]) String() string {
 	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", dfa.Start))
 
 	orderedStates := util.OrderedKeys(dfa.states)
+	orderedStates = util.SortBy(orderedStates, func(s1, s2 string) bool {
+		n1, err := strconv.Atoi(s1)
+		if err != nil {
+			// fallback; str comparison
+			return s1 < s2
+		}
+
+		n2, err := strconv.Atoi(s2)
+		if err != nil {
+			// fallback; str comparison
+			return s1 < s2
+		}
+
+		return n1 < n2
+	})
 
 	for i := range orderedStates {
 		sb.WriteString("\n\t")
 		sb.WriteString(dfa.states[orderedStates[i]].String())
+
+		if i+1 < len(dfa.states) {
+			sb.WriteRune(',')
+		} else {
+			sb.WriteRune('\n')
+		}
+	}
+
+	sb.WriteRune('>')
+
+	return sb.String()
+}
+
+func (dfa DFA[E]) ValueString() string {
+	var sb strings.Builder
+
+	sb.WriteString(fmt.Sprintf("<START: %q, STATES:", dfa.Start))
+
+	orderedStates := util.OrderedKeys(dfa.states)
+	orderedStates = util.SortBy(orderedStates, func(s1, s2 string) bool {
+		n1, err := strconv.Atoi(s1)
+		if err != nil {
+			// fallback; str comparison
+			return s1 < s2
+		}
+
+		n2, err := strconv.Atoi(s2)
+		if err != nil {
+			// fallback; str comparison
+			return s1 < s2
+		}
+
+		return n1 < n2
+	})
+
+	for i := range orderedStates {
+		sb.WriteString("\n\t")
+		sb.WriteString(dfa.states[orderedStates[i]].ValueString())
 
 		if i+1 < len(dfa.states) {
 			sb.WriteRune(',')

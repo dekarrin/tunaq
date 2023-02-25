@@ -89,12 +89,12 @@ func ProcessFishiMd(mdText []byte) error {
 		fmt.Printf("warn: ambiguous grammar: %s\n", ambigWarns[i])
 	}
 
+	// GOAL: output dfa.
 	fmt.Printf("successfully built %s parser:\n", parser.Type().String())
 
-	// DFA IS NOT OUTPUTTING, POSSIBLE ISSUE
 	dfa := parser.GetDFA()
 	if dfa != nil {
-		fmt.Printf("\nDFA:\n%s\n", dfa.String())
+		fmt.Printf("\nDFA:\n%s\n", dfa.ValueString())
 	}
 
 	// now, try to make a parse tree for your own grammar
