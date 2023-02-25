@@ -346,37 +346,33 @@ func (nfa NFA[E]) String() string {
 
 // NumberStates renames all states to each have a unique name based on an
 // increasing number sequence. The starting state is guaranteed to be numbered
-// 0; beyond that no ordering is gauranteed.
+// 0; beyond that, the states are put in alphabetical order.
 func (nfa *NFA[E]) NumberStates() {
-	origStateNames := nfa.States().Elements()
+	if _, ok := nfa.states[nfa.Start]; !ok {
+		panic("can't number states of NFA with no start state set")
+	}
+	origStateNames := util.OrderedKeys(nfa.States())
+
+	// make shore to pull out starting state and place at front
+	startIdx := -1
+	for i := range origStateNames {
+		if origStateNames[i] == nfa.Start {
+			startIdx = i
+			break
+		}
+	}
+	if startIdx == -1 {
+		panic("couldn't find starting state; should never happen")
+	}
+
+	origStateNames = append(origStateNames[:startIdx], origStateNames[startIdx+1:]...)
+	origStateNames = append([]string{nfa.Start}, origStateNames...)
+
 	numMapping := map[string]string{}
 	for i := range origStateNames {
 		name := origStateNames[i]
 		newName := fmt.Sprintf("%d", i)
 		numMapping[name] = newName
-	}
-
-	// make shore starting state is 0
-	for k := range numMapping {
-		if k == nfa.Start {
-			newStartName := numMapping[k]
-			if newStartName != "0" {
-				// who took this
-				var slotThief string
-				for j := range numMapping {
-					if numMapping[j] == "0" {
-						slotThief = j
-						break
-					}
-				}
-				if slotThief == "" {
-					panic("couldn't make starting state be 0; should never happen")
-				}
-
-				numMapping[slotThief] = newStartName
-				numMapping[k] = "0"
-			}
-		}
 	}
 
 	// to keep things simple, instead of searching for every instance of each

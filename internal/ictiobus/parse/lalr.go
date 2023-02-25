@@ -375,6 +375,7 @@ func GenerateLALR1Parser(g grammar.Grammar, allowAmbig bool) (*lrParser, []strin
 // ambiguous case detected.
 func constructLALR1ParseTable(g grammar.Grammar, allowAmbig bool) (LRParseTable, []string, error) {
 	dfa, _ := automaton.NewLALR1ViablePrefixDFA(g)
+	dfa.NumberStates()
 
 	table := &lalr1Table{
 		gPrime:     g.Augmented(),
@@ -467,8 +468,18 @@ type lalr1Table struct {
 	allowAmbig bool
 }
 
-func (lalr1 *lalr1Table) GetDFA() automaton.DFA[string] {
-	curDfa := lalr1.dfa
+func (lalr1 *lalr1Table) GetDFA() automaton.DFA[util.StringSet] {
+	trans := automaton.TransformDFA(&lalr1.dfa, func(old util.SVSet[grammar.LR1Item]) util.StringSet {
+		newSet := util.NewStringSet()
+
+		for _, name := range old.Elements() {
+			item := old.Get(name)
+			newSet.Add(item.String())
+		}
+
+		return newSet
+	})
+	return *trans
 }
 
 func (lalr1 *lalr1Table) Action(i, a string) LRAction {

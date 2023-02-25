@@ -45,7 +45,7 @@ type LRParseTable interface {
 
 	// GetDFA returns the DFA simulated by the table. Some tables may in fact
 	// be the DFA itself along with supplementary info.
-	GetDFA() automaton.DFA[string]
+	GetDFA() automaton.DFA[util.StringSet]
 }
 
 type lrParser struct {
@@ -55,7 +55,7 @@ type lrParser struct {
 	trace     func(s string)
 }
 
-func (lr *lrParser) GetDFA() *automaton.DFA[string] {
+func (lr *lrParser) GetDFA() *automaton.DFA[util.StringSet] {
 	dfa := lr.table.GetDFA()
 	return &dfa
 }

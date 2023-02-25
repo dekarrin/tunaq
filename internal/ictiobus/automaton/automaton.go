@@ -83,6 +83,21 @@ type DFAState[E any] struct {
 	accepting   bool
 }
 
+func (ds DFAState[E]) Copy() DFAState[E] {
+	copied := DFAState[E]{
+		name:        ds.name,
+		value:       ds.value,
+		transitions: make(map[string]FATransition),
+		accepting:   ds.accepting,
+	}
+
+	for k := range ds.transitions {
+		copied.transitions[k] = ds.transitions[k]
+	}
+
+	return copied
+}
+
 func (ns DFAState[E]) String() string {
 	var moves strings.Builder
 

@@ -29,6 +29,7 @@ import (
 	"github.com/dekarrin/tunaq/internal/ictiobus/parse"
 	"github.com/dekarrin/tunaq/internal/ictiobus/translation"
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
+	"github.com/dekarrin/tunaq/internal/util"
 )
 
 type Lexer interface {
@@ -67,7 +68,7 @@ type Parser interface {
 
 	// GetDFA returns the DFA for this parser, if one so exists. May return nil
 	// if the parser is not of the type to have a DFA.
-	GetDFA() *automaton.DFA[string]
+	GetDFA() *automaton.DFA[util.StringSet]
 }
 
 // SDD is a series of syntax-directed definitions bound to syntactic rules of

@@ -14,6 +14,43 @@ type DFA[E any] struct {
 	Start  string
 }
 
+// Copy returns a duplicate of this DFA.
+func (dfa DFA[E]) Copy() DFA[E] {
+	copied := DFA[E]{
+		Start:  dfa.Start,
+		states: make(map[string]DFAState[E]),
+	}
+
+	for k := range dfa.states {
+		copied.states[k] = dfa.states[k].Copy()
+	}
+
+	return copied
+}
+
+func TransformDFA[E1, E2 any](dfa *DFA[E1], transform func(old E1) E2) *DFA[E2] {
+	copied := &DFA[E2]{
+		states: make(map[string]DFAState[E2]),
+		Start:  dfa.Start,
+	}
+
+	for k := range dfa.states {
+		oldState := dfa.states[k]
+		copiedState := DFAState[E2]{
+			name:        oldState.name,
+			value:       transform(oldState.value),
+			transitions: make(map[string]FATransition),
+			accepting:   oldState.accepting,
+		}
+
+		for sym := range oldState.transitions {
+			copiedState.transitions[sym] = oldState.transitions[sym]
+		}
+	}
+
+	return copied
+}
+
 // DFAToNFA converts the DFA into an equivalent non-deterministic finite automaton
 // type. Note that the type change doesn't suddenly make usage non-deterministic
 // but it does allow for non-deterministic transitions to be added.
@@ -49,37 +86,33 @@ func DFAToNFA[E any](dfa DFA[E]) NFA[E] {
 
 // NumberStates renames all states to each have a unique name based on an
 // increasing number sequence. The starting state is guaranteed to be numbered
-// 0; beyond that no ordering is gauranteed.
+// 0; beyond that, the states are put in alphabetical order.
 func (dfa *DFA[E]) NumberStates() {
-	origStateNames := dfa.States().Elements()
+	if _, ok := dfa.states[dfa.Start]; !ok {
+		panic("can't number states of DFA with no start state set")
+	}
+	origStateNames := util.OrderedKeys(dfa.States())
+
+	// make shore to pull out starting state and place at front
+	startIdx := -1
+	for i := range origStateNames {
+		if origStateNames[i] == dfa.Start {
+			startIdx = i
+			break
+		}
+	}
+	if startIdx == -1 {
+		panic("couldn't find starting state; should never happen")
+	}
+
+	origStateNames = append(origStateNames[:startIdx], origStateNames[startIdx+1:]...)
+	origStateNames = append([]string{dfa.Start}, origStateNames...)
+
 	numMapping := map[string]string{}
 	for i := range origStateNames {
 		name := origStateNames[i]
 		newName := fmt.Sprintf("%d", i)
 		numMapping[name] = newName
-	}
-
-	// make shore starting state is 0
-	for k := range numMapping {
-		if k == dfa.Start {
-			newStartName := numMapping[k]
-			if newStartName != "0" {
-				// who took this
-				var slotThief string
-				for j := range numMapping {
-					if numMapping[j] == "0" {
-						slotThief = j
-						break
-					}
-				}
-				if slotThief == "" {
-					panic("couldn't make starting state be 0; should never happen")
-				}
-
-				numMapping[slotThief] = newStartName
-				numMapping[k] = "0"
-			}
-		}
 	}
 
 	// to keep things simple, instead of searching for every instance of each

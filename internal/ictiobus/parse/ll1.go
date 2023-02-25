@@ -17,7 +17,7 @@ type ll1Parser struct {
 	trace func(s string)
 }
 
-func (ll *ll1Parser) GetDFA() *automaton.DFA[string] {
+func (ll *ll1Parser) GetDFA() *automaton.DFA[util.StringSet] {
 	return nil
 }
 

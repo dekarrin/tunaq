@@ -50,6 +50,7 @@ func constructCanonicalLR1ParseTable(g grammar.Grammar, allowAmbig bool) (LRPars
 	// dragon book mentions, "intuitively, the GOTO function is used to define
 	// the transitions in the LR(0) automaton for a grammar."
 	lr1Automaton := automaton.NewLR1ViablePrefixDFA(g)
+	lr1Automaton.NumberStates()
 
 	table := &canonicalLR1Table{
 		gPrime:     g.Augmented(),
@@ -140,6 +141,20 @@ type canonicalLR1Table struct {
 	gTerms     []string
 	gNonTerms  []string
 	allowAmbig bool
+}
+
+func (clr1 *canonicalLR1Table) GetDFA() automaton.DFA[util.StringSet] {
+	trans := automaton.TransformDFA(&clr1.lr1, func(old util.SVSet[grammar.LR1Item]) util.StringSet {
+		newSet := util.NewStringSet()
+
+		for _, name := range old.Elements() {
+			item := old.Get(name)
+			newSet.Add(item.String())
+		}
+
+		return newSet
+	})
+	return *trans
 }
 
 func (clr1 *canonicalLR1Table) String() string {
