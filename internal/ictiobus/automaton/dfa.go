@@ -511,16 +511,26 @@ func OutputSetValuedDFA[E fmt.Stringer](w io.Writer, dfa DFA[util.SVSet[E]]) {
 			transData = append(transData, []string{cell})
 		}
 
+		layout = layout.
+			InsertTable(rosed.End, nameData, 80)
+
+		if len(itemData) > 0 {
+			layout = layout.
+				LinesFrom(-1).
+				Delete(0, 81).
+				Commit().
+				InsertTable(rosed.End, itemData, 80)
+		}
+
+		if len(transData) > 0 {
+			layout = layout.
+				LinesFrom(-1).
+				Delete(0, 81).
+				Commit().
+				InsertTable(rosed.End, transData, 80)
+		}
+
 		str := layout.
-			InsertTable(rosed.End, nameData, 80).
-			LinesFrom(-1).
-			Delete(0, 81).
-			Commit().
-			InsertTable(rosed.End, itemData, 80).
-			LinesFrom(-1).
-			Delete(0, 81).
-			Commit().
-			InsertTable(rosed.End, transData, 80).
 			Indent(1).
 			String()
 
