@@ -23,13 +23,11 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/dekarrin/tunaq/internal/ictiobus/automaton"
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
 	"github.com/dekarrin/tunaq/internal/ictiobus/parse"
 	"github.com/dekarrin/tunaq/internal/ictiobus/translation"
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
-	"github.com/dekarrin/tunaq/internal/util"
 )
 
 type Lexer interface {
@@ -66,9 +64,10 @@ type Parser interface {
 	// debugging.
 	RegisterTraceListener(func(s string))
 
-	// GetDFA returns the DFA for this parser, if one so exists. May return nil
-	// if the parser is not of the type to have a DFA.
-	GetDFA() *automaton.DFA[util.StringSet]
+	// GetDFA returns a string representation of the DFA for this parser, if one
+	// so exists. Will return the empty string if the parser is not of the type
+	// to have a DFA.
+	GetDFA() string
 }
 
 // SDD is a series of syntax-directed definitions bound to syntactic rules of

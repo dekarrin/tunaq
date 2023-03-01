@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dekarrin/tunaq/internal/ictiobus/automaton"
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/ictiobus/icterrors"
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
@@ -45,7 +44,7 @@ type LRParseTable interface {
 
 	// GetDFA returns the DFA simulated by the table. Some tables may in fact
 	// be the DFA itself along with supplementary info.
-	GetDFA() automaton.DFA[util.StringSet]
+	GetDFA() string
 }
 
 type lrParser struct {
@@ -55,9 +54,8 @@ type lrParser struct {
 	trace     func(s string)
 }
 
-func (lr *lrParser) GetDFA() *automaton.DFA[util.StringSet] {
-	dfa := lr.table.GetDFA()
-	return &dfa
+func (lr *lrParser) GetDFA() string {
+	return lr.table.GetDFA()
 }
 
 func (lr *lrParser) RegisterTraceListener(listener func(s string)) {

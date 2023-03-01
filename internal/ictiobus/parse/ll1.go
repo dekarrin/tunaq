@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dekarrin/tunaq/internal/ictiobus/automaton"
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/ictiobus/icterrors"
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
@@ -17,8 +16,8 @@ type ll1Parser struct {
 	trace func(s string)
 }
 
-func (ll *ll1Parser) GetDFA() *automaton.DFA[util.StringSet] {
-	return nil
+func (ll *ll1Parser) GetDFA() string {
+	return ""
 }
 
 func (ll *ll1Parser) RegisterTraceListener(listener func(s string)) {

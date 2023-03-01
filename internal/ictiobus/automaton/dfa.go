@@ -1,11 +1,14 @@
 package automaton
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/util"
 )
@@ -432,6 +435,102 @@ func (dfa DFA[E]) String() string {
 	sb.WriteRune('>')
 
 	return sb.String()
+}
+
+// OutputLR1ItemBasedDFA writes a pretty-print representation of a DFA whose
+// states are built from and contain sets of LR1 items. The representation is
+// written to w.
+//
+// The returned error will be non-nil only if there is an issue writting to the
+// provider writer.
+func OutputSetValuedDFA[E fmt.Stringer](w io.Writer, dfa DFA[util.SVSet[E]]) {
+	// lol let's get some buffering here
+	bw := bufio.NewWriter(w)
+
+	bw.WriteString("DFA:\n")
+	bw.WriteString("\tStart: ")
+	bw.WriteRune('"')
+	bw.WriteString(dfa.Start)
+	bw.WriteString("\"\n")
+
+	// now get ordered states
+	orderedStates := util.OrderedKeys(dfa.states)
+	orderedStates = util.SortBy(orderedStates, func(s1, s2 string) bool {
+		n1, err := strconv.Atoi(s1)
+		if err != nil {
+			// fallback; str comparison
+			return s1 < s2
+		}
+
+		n2, err := strconv.Atoi(s2)
+		if err != nil {
+			// fallback; str comparison
+			return s1 < s2
+		}
+
+		return n1 < n2
+	})
+
+	tabOpts := rosed.Options{TableBorders: true}
+
+	bw.WriteString("\tStates:")
+	// write out each state in a reasonable way
+	for i := range orderedStates {
+		bw.WriteString("\n")
+		state := dfa.states[orderedStates[i]]
+		layout := rosed.Editor{Options: tabOpts}
+
+		// get name and accepting data
+		nameCell := fmt.Sprintf("%q", state.name)
+		if state.accepting {
+			nameCell = "(" + nameCell + ")"
+		}
+		nameData := [][]string{{nameCell}}
+
+		// get item data for the state, in deterministic ordering
+		itemData := [][]string{}
+		items := state.value
+
+		lrItemNames := items.Elements()
+		sort.Strings(lrItemNames)
+
+		for i := range lrItemNames {
+			it := items.Get(lrItemNames[i])
+			cell := fmt.Sprintf("[%s]", it.String())
+			itemData = append(itemData, []string{cell})
+		}
+
+		// okay, finally, get transitions, in deterministic ordering
+		transData := [][]string{}
+		transOrdered := util.OrderedKeys(state.transitions)
+
+		for i := range transOrdered {
+			t := state.transitions[transOrdered[i]]
+
+			cell := fmt.Sprintf("%q ==> %q", t.input, t.next)
+			transData = append(transData, []string{cell})
+		}
+
+		str := layout.
+			InsertTable(rosed.End, nameData, 80).
+			LinesFrom(-1).
+			Delete(0, 81).
+			Commit().
+			InsertTable(rosed.End, itemData, 80).
+			LinesFrom(-1).
+			Delete(0, 81).
+			Commit().
+			InsertTable(rosed.End, transData, 80).
+			Indent(1).
+			String()
+
+		bw.WriteString(str)
+	}
+	if len(orderedStates) == 0 {
+		bw.WriteString(" (none)\n")
+	}
+
+	bw.Flush()
 }
 
 func (dfa DFA[E]) ValueString() string {

@@ -93,8 +93,8 @@ func ProcessFishiMd(mdText []byte) error {
 	fmt.Printf("successfully built %s parser:\n", parser.Type().String())
 
 	dfa := parser.GetDFA()
-	if dfa != nil {
-		fmt.Printf("\nDFA:\n%s\n", dfa.ValueString())
+	if dfa != "" {
+		fmt.Printf("%s\n", dfa)
 	}
 
 	// now, try to make a parse tree for your own grammar

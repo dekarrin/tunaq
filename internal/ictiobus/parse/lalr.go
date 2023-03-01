@@ -3,6 +3,7 @@ package parse
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/ictiobus/automaton"
@@ -468,18 +469,10 @@ type lalr1Table struct {
 	allowAmbig bool
 }
 
-func (lalr1 *lalr1Table) GetDFA() automaton.DFA[util.StringSet] {
-	trans := automaton.TransformDFA(lalr1.dfa, func(old util.SVSet[grammar.LR1Item]) util.StringSet {
-		newSet := util.NewStringSet()
-
-		for _, name := range old.Elements() {
-			item := old.Get(name)
-			newSet.Add(item.String())
-		}
-
-		return newSet
-	})
-	return trans
+func (lalr1 *lalr1Table) GetDFA() string {
+	var sb strings.Builder
+	automaton.OutputSetValuedDFA(&sb, lalr1.dfa)
+	return sb.String()
 }
 
 func (lalr1 *lalr1Table) Action(i, a string) LRAction {
