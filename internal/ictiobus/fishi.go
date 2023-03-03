@@ -81,29 +81,33 @@ func ProcessFishiMd(mdText []byte) error {
 	if err != nil {
 		return err
 	}
-	parser.RegisterTraceListener(func(s string) {
+	/*parser.RegisterTraceListener(func(s string) {
 		fmt.Printf(">> %s\n", strings.ReplaceAll(s, "\n", "\n   "))
-	})
+	})*/
 
 	for i := range ambigWarns {
 		fmt.Printf("warn: ambiguous grammar: %s\n", ambigWarns[i])
 	}
 
-	// GOAL: output dfa.
 	fmt.Printf("successfully built %s parser:\n", parser.Type().String())
 
-	dfa := parser.GetDFA()
+	/*dfa := parser.GetDFA()
 	if dfa != "" {
 		fmt.Printf("%s\n", dfa)
-	}
+	}*/
 
 	// now, try to make a parse tree for your own grammar
 	fishiSource = []byte(`%%grammar
-{RULE}
+{RULE} =   {SOMEBULLSHIT}
 
 %%grammar
+{RULE}=                           {WOAH} | n
+{RULE}				= =+  {DAMN} cool | okaythen + 2 | {}
+                 | {SOMEFIN ELSE}
 
-{RULE}
+%state someState
+
+{RULE}=		{HMM}
 	`)
 	fishiSource = Preprocess(fishiSource)
 	fishi = bytes.NewBuffer(fishiSource)
@@ -162,15 +166,48 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 	bootCfg.AddRule("GRAMMAR-BLOCK", []string{tcHeaderGrammar.ID(), "NEWLINES", "GRAMMAR-CONTENT"})
 
 	bootCfg.AddRule("GRAMMAR-CONTENT", []string{"GRAMMAR-CONTENT", "GRAMMAR-STATE-BLOCK"})
+	bootCfg.AddRule("GRAMMAR-CONTENT", []string{"GRAMMAR-CONTENT", "GRAMMAR-RULES"})
 	bootCfg.AddRule("GRAMMAR-CONTENT", []string{"GRAMMAR-STATE-BLOCK"})
+	bootCfg.AddRule("GRAMMAR-CONTENT", []string{"GRAMMAR-RULES"})
 
-	//	bootCfg.AddRule("GRAMMAR-STATE-BLOCK", []string{tcDirState.ID(), "GRAMMAR-RULES"})
-	bootCfg.AddRule("GRAMMAR-STATE-BLOCK", []string{"GRAMMAR-RULES"})
+	bootCfg.AddRule("GRAMMAR-STATE-BLOCK", []string{"STATE-INSTRUCTION", "NEWLINES", "GRAMMAR-RULES"})
 
 	bootCfg.AddRule("GRAMMAR-RULES", []string{"GRAMMAR-RULES", "NEWLINES", "GRAMMAR-RULE"})
 	bootCfg.AddRule("GRAMMAR-RULES", []string{"GRAMMAR-RULE"})
 
-	bootCfg.AddRule("GRAMMAR-RULE", []string{tcNonterminal.ID()})
+	bootCfg.AddRule("GRAMMAR-RULE", []string{tcNonterminal.ID(), tcEq.ID(), "ALTERNATIONS"})
+	bootCfg.AddRule("GRAMMAR-RULE", []string{tcNonterminal.ID(), tcEq.ID(), "ALTERNATIONS", "NEWLINES"})
+
+	bootCfg.AddRule("ALTERNATIONS", []string{"PRODUCTION"})
+	bootCfg.AddRule("ALTERNATIONS", []string{"ALTERNATIONS", tcAlt.ID(), "PRODUCTION"})
+	bootCfg.AddRule("ALTERNATIONS", []string{"ALTERNATIONS", "NEWLINES", tcAlt.ID(), "PRODUCTION"})
+
+	// TODO: this allows epsilon to glue with other symbols in production, need to
+	// raise epsilon to entirely be the alternation
+	bootCfg.AddRule("PRODUCTION", []string{"SYMBOL-SEQUENCE"})
+	bootCfg.AddRule("PRODUCTION", []string{tcEpsilon.ID()})
+
+	bootCfg.AddRule("SYMBOL-SEQUENCE", []string{"SYMBOL-SEQUENCE", "SYMBOL"})
+	bootCfg.AddRule("SYMBOL-SEQUENCE", []string{"SYMBOL"})
+
+	bootCfg.AddRule("SYMBOL", []string{tcNonterminal.ID()})
+	bootCfg.AddRule("SYMBOL", []string{tcTerminal.ID()})
+
+	bootCfg.AddRule("NEWLINES", []string{"NEWLINES", tcNewline.ID()})
+	bootCfg.AddRule("NEWLINES", []string{tcNewline.ID()})
+
+	bootCfg.AddRule("STATE-INSTRUCTION", []string{tcDirState.ID(), "NEWLINES", "ID-EXPR"})
+	bootCfg.AddRule("STATE-INSTRUCTION", []string{tcDirState.ID(), "ID-EXPR"})
+
+	bootCfg.AddRule("ID-EXPR", []string{tcId.ID()})
+	bootCfg.AddRule("ID-EXPR", []string{tcTerminal.ID()})
+	bootCfg.AddRule("ID-EXPR", []string{"TEXT"})
+
+	// todo: make this be text-elements glued together as well.
+	bootCfg.AddRule("TEXT", []string{"TEXT-ELEMENT"})
+
+	bootCfg.AddRule("TEXT-ELEMENT", []string{tcFreeformText.ID()})
+	bootCfg.AddRule("TEXT-ELEMENT", []string{tcEscseq.ID()})
 
 	/*
 
@@ -199,155 +236,10 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 		bootCfg.AddRule("SYMBOL", []string{tcEq.ID()})
 		bootCfg.AddRule("SYMBOL", []string{tcNonterminal.ID()})
 	*/
-	bootCfg.AddRule("NEWLINES", []string{"NEWLINES", tcNewline.ID()})
-	bootCfg.AddRule("NEWLINES", []string{tcNewline.ID()})
 
 	bootCfg.Start = "FISHISPEC"
 	bootCfg.RemoveUnusedTerminals()
 
-	/*
-
-			var inGrammarBlock bool
-			var atEntryStart bool
-			var forRule string
-			var waitForEq bool
-			var gettingProds bool
-			var curProd []string
-			var prodStarted bool
-
-			convNonTerm := func(s string) string {
-				// chop off leading/trailing {}'s
-				s = s[1 : len(s)-1]
-
-				return strings.ToUpper(s)
-			}
-
-			convTerm := func(s string) string {
-				return strings.ToLower(s)
-			}
-
-			firstRule := ""
-
-			for lx.HasNext() {
-				tok := lx.Next()
-				if !inGrammarBlock {
-					if tok.Class().ID() == tcHeaderGrammar.ID() {
-						inGrammarBlock = true
-						atEntryStart = true
-						waitForEq = false
-						gettingProds = false
-						prodStarted = false
-						curProd = nil
-						continue
-					}
-				}
-
-				if !inGrammarBlock {
-					continue
-				}
-
-				switch tok.Class().ID() {
-				case tcHeaderActions.ID():
-					fallthrough
-				case tcHeaderTokens.ID():
-					if prodStarted {
-						if len(curProd) == 0 {
-							curProd = append(curProd, "")
-						}
-						bootCfg.AddRule(forRule, curProd)
-						curProd = nil
-						prodStarted = false
-					}
-					inGrammarBlock = false
-					continue
-				case tcNewline.ID():
-					atEntryStart = true
-					waitForEq = false
-					gettingProds = false
-					continue
-				case tcNonterminal.ID():
-					if atEntryStart {
-						if prodStarted {
-							if len(curProd) == 0 {
-								curProd = append(curProd, "")
-							}
-							bootCfg.AddRule(forRule, curProd)
-							curProd = nil
-							prodStarted = false
-						}
-						forRule = convNonTerm(tok.Lexeme())
-						if firstRule == "" {
-							firstRule = forRule
-						}
-						atEntryStart = false
-						waitForEq = true
-						gettingProds = false
-						curProd = nil
-						continue
-					} else if gettingProds {
-						curProd = append(curProd, convNonTerm(tok.Lexeme()))
-					} else {
-						fmt.Println(icterrors.NewSyntaxErrorFromToken("didn't expect a non-terminal", tok).FullMessage())
-						panic("fail")
-					}
-				case tcTerminal.ID():
-					if gettingProds {
-						term := convTerm(tok.Lexeme())
-						curProd = append(curProd, term)
-					} else {
-						fmt.Println(icterrors.NewSyntaxErrorFromToken("didn't expect a terminal", tok).FullMessage())
-						panic("fail")
-					}
-				case tcAlt.ID():
-					if atEntryStart {
-						atEntryStart = false
-						gettingProds = true
-
-						if len(curProd) == 0 {
-							curProd = append(curProd, "")
-						}
-						bootCfg.AddRule(forRule, curProd)
-						curProd = nil
-					} else if gettingProds {
-
-						if len(curProd) == 0 {
-							curProd = append(curProd, "")
-						}
-						bootCfg.AddRule(forRule, curProd)
-						curProd = nil
-					} else {
-						fmt.Println(icterrors.NewSyntaxErrorFromToken("didn't expect an alt", tok).FullMessage())
-						panic("fail")
-					}
-				case tcEq.ID():
-					if waitForEq {
-						prodStarted = true
-						waitForEq = false
-						gettingProds = true
-						continue
-					} else {
-						fmt.Println(icterrors.NewSyntaxErrorFromToken("didn't expect an eq", tok).FullMessage())
-						panic("fail")
-					}
-				default:
-					fmt.Println(icterrors.NewSyntaxErrorFromToken("bootstrap cannot handle token", tok).FullMessage())
-					panic("fail")
-				}
-			}
-
-			if prodStarted {
-
-				if len(curProd) == 0 {
-					curProd = append(curProd, "")
-				}
-				bootCfg.AddRule(forRule, curProd)
-				curProd = nil
-				prodStarted = false
-			}
-
-
-		bootCfg.Start = firstRule
-	*/
 	return bootCfg
 }
 
@@ -459,14 +351,13 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.RegisterClass(tcEpsilon, "grammar")
 
 	// gramamr patterns
-	bootLx.AddPattern(`%[Ee][Pp][Ss]`, lex.LexAs(tcEpsilon.ID()), "grammar")
 	bootLx.AddPattern(`\n`, lex.LexAs(tcNewline.ID()), "grammar")
 	bootLx.AddPattern(`[^\S\n]+`, lex.Discard(), "grammar")
-	bootLx.AddPattern(`=`, lex.LexAs(tcEq.ID()), "grammar")
 	bootLx.AddPattern(`\|`, lex.LexAs(tcAlt.ID()), "grammar")
 	bootLx.AddPattern(`{}`, lex.LexAs(tcEpsilon.ID()), "grammar")
 	bootLx.AddPattern(`{[A-Za-z][^}]*}`, lex.LexAs(tcNonterminal.ID()), "grammar")
-	bootLx.AddPattern(`\S+`, lex.LexAs(tcTerminal.ID()), "grammar")
+	bootLx.AddPattern(`[^=\s]\S*|\S\S+`, lex.LexAs(tcTerminal.ID()), "grammar")
+	bootLx.AddPattern(`=`, lex.LexAs(tcEq.ID()), "grammar")
 
 	// actions classes
 	bootLx.RegisterClass(tcAttrRef, "actions")

@@ -222,13 +222,17 @@ func (nfa NFA[E]) MOVE(X util.ISet[string], a string) util.StringSet {
 // does a direct conversion of nfa to dfa without joining any states. this is NOT
 // a merging algorithm; it will return an error if the given NFA[E] is not
 // already de-facto deterministic.
+//
+// adds states in a deterministic order.
 func directNFAToDFA[E any](nfa NFA[E]) (DFA[E], error) {
 	dfa := DFA[E]{
 		Start:  nfa.Start,
 		states: map[string]DFAState[E]{},
 	}
 
-	for sName := range nfa.states {
+	nfaNames := util.OrderedKeys(nfa.states)
+
+	for _, sName := range nfaNames {
 		nState := nfa.states[sName]
 
 		dState := DFAState[E]{
@@ -744,6 +748,8 @@ func NewLR0ViablePrefixNFA(g grammar.Grammar) NFA[grammar.LR0Item] {
 			}
 		}
 	}
+
+	// TODO: deterministic construction of NFA
 
 	return nfa
 }

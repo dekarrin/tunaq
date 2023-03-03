@@ -880,7 +880,12 @@ func NewLR1ViablePrefixDFA(g grammar.Grammar) DFA[util.SVSet[grammar.LR1Item]] {
 	dfa := DFA[util.SVSet[grammar.LR1Item]]{}
 
 	// add states
-	for sName, state := range stateSets {
+	stateElems := stateSets.Elements()
+	sort.Strings(stateElems)
+
+	for i := range stateElems {
+		sName := stateElems[i]
+		state := stateSets.Get(sName)
 		dfa.AddState(sName, true)
 		dfa.SetValue(sName, state)
 	}

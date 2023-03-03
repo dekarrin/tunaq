@@ -109,9 +109,9 @@ func (lr lrParser) notifyTokenStack(st util.Stack[types.Token]) {
 		var lexStr strings.Builder
 		var tokStr strings.Builder
 		for i := range st.Of {
-			tok := st.Of[i]
+			tok := st.Of[(len(st.Of)-1)-i]
 			lexStr.WriteRune('"')
-			lexStr.WriteString(tok.Lexeme())
+			lexStr.WriteString(strings.ReplaceAll(tok.Lexeme(), "\n", "\\n"))
 			lexStr.WriteRune('"')
 
 			tokStr.WriteString(strings.ToUpper(tok.Class().ID()))
@@ -150,11 +150,11 @@ func (lr *lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 	lr.notifyNextToken(a)
 
 	for { /* repeat forever */
-		lr.notifyTokenStack(tokenBuffer)
-
 		// let s be the state on top of the stack;
 		s := stateStack.Peek()
-		lr.notifyStatePeek(s)
+
+		lr.notifyTrace("NEXT PASS: state=%s, tok=%s", s, a.String())
+		lr.notifyTokenStack(tokenBuffer)
 
 		ACTION := lr.table.Action(s, a.Class().ID())
 		lr.notifyAction(ACTION)
@@ -176,6 +176,7 @@ func (lr *lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 		case LRReduce: // else if ( ACTION[s, a] = reduce A -> β )
 			A := ACTION.Symbol
 			beta := ACTION.Production
+			lr.notifyTrace("%s -> %s", strings.ToLower(A), strings.ToUpper(beta.String()))
 
 			// use the reduce to create a node in the parse tree
 			node := &types.ParseTree{Value: A, Children: make([]*types.ParseTree, 0)}
@@ -206,7 +207,7 @@ func (lr *lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 
 			// let state t now be on top of the stack
 			t := stateStack.Peek()
-			lr.notifyStatePeek(t)
+			lr.notifyTrace("back to old state %s", t)
 
 			// push GOTO[t, A] onto the stack
 			toPush, err := lr.table.Goto(t, A)
@@ -214,6 +215,7 @@ func (lr *lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 				return types.ParseTree{}, icterrors.NewSyntaxErrorFromToken(fmt.Sprintf("LR parsing error; DFA has no valid transition from here on %q", A), a)
 			}
 			stateStack.Push(toPush)
+			lr.notifyTrace("Transition %s =(%q)=> %s", t, strings.ToLower(A), toPush)
 			lr.notifyStatePush(toPush)
 
 			// output the production A -> β
@@ -228,6 +230,7 @@ func (lr *lrParser) Parse(stream types.TokenStream) (types.ParseTree, error) {
 			expMessage := lr.getExpectedString(s)
 			return types.ParseTree{}, icterrors.NewSyntaxErrorFromToken(fmt.Sprintf("unexpected %s; %s", a.Class().Human(), expMessage), a)
 		}
+		lr.notifyTrace("-----------------")
 	}
 }
 
@@ -247,6 +250,8 @@ func (lr lrParser) getExpectedString(stateName string) string {
 			commas = true
 		}
 	}
+
+	var prevEndedWithSpace bool
 	for i := range expected {
 		t := expected[i]
 
@@ -256,12 +261,18 @@ func (lr lrParser) getExpectedString(stateName string) string {
 		}
 
 		if finalOr && i+1 == len(expected) {
-			sb.WriteString(" or ")
+			if !prevEndedWithSpace {
+				sb.WriteRune(' ')
+			}
+			sb.WriteString("or ")
 		}
 
 		sb.WriteString(t.Human())
 		if commas && i+1 < len(expected) {
 			sb.WriteString(", ")
+			prevEndedWithSpace = true
+		} else {
+			prevEndedWithSpace = false
 		}
 	}
 

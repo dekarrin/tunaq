@@ -2,6 +2,7 @@ package icterrors
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 )
@@ -71,10 +72,14 @@ func (se SyntaxError) SourceLineWithCursor() string {
 	cursorLine := ""
 	// pos will be 1-indexed.
 	for i := 0; i < se.pos-1; i++ {
-		cursorLine += " "
+		if se.sourceLine[i] == '\t' {
+			cursorLine += "    "
+		} else {
+			cursorLine += " "
+		}
 	}
 
-	return se.sourceLine + "\n" + cursorLine + "^"
+	return strings.ReplaceAll(se.sourceLine, "\t", "    ") + "\n" + cursorLine + "^"
 }
 
 func NewSyntaxErrorFromToken(msg string, tok types.Token) *SyntaxError {

@@ -107,6 +107,17 @@ func (s sorter[E]) Less(i, j int) bool {
 	return s.lt(s.src[i], s.src[j])
 }
 
+// TruncateWith truncates s to maxLen. If s is longer than maxLen, it is
+// truncated and the cont string is placed after it. If it is shorter or equal
+// to maxLen, it is returned unchanged.
+func TruncateWith(s string, maxLen int, cont string) string {
+	if len(s) <= maxLen {
+		return s
+	}
+
+	return s[:maxLen] + cont
+}
+
 // SortBy takes the items and uses the provided function to sort the list. The
 // function should return true if left is less than (comes before) right.
 //

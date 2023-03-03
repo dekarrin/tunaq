@@ -75,6 +75,7 @@ func constructCanonicalLR1ParseTable(g grammar.Grammar, allowAmbig bool) (LRPars
 	// check that we dont hit conflicts in ACTION
 	var ambigWarns []string
 	for i := range lr1Automaton.States() {
+		fromState := fmt.Sprintf(" (from DFA state %q)", util.TruncateWith(i, 4, "..."))
 		for _, a := range table.gPrime.Terminals() {
 			itemSet := table.lr1.GetValue(i)
 			var matchFound bool
@@ -92,8 +93,8 @@ func constructCanonicalLR1ParseTable(g grammar.Grammar, allowAmbig bool) (LRPars
 						shiftAct := LRAction{Type: LRShift, State: j}
 						if matchFound && !shiftAct.Equal(act) {
 							if allowAmbig {
+								ambigWarns = append(ambigWarns, makeLRConflictError(act, shiftAct, a).Error()+fromState)
 								act = shiftAct
-								ambigWarns = append(ambigWarns, makeLRConflictError(act, shiftAct, a).Error())
 							} else {
 								return nil, ambigWarns, fmt.Errorf("grammar is not LR(1): %w", makeLRConflictError(act, shiftAct, a))
 							}
@@ -109,7 +110,7 @@ func constructCanonicalLR1ParseTable(g grammar.Grammar, allowAmbig bool) (LRPars
 					if matchFound && !reduceAct.Equal(act) {
 						if isSRConflict, _ := isShiftReduceConlict(act, reduceAct); isSRConflict && allowAmbig {
 							// do nothing; new action is a reduce so it's already resolved
-							ambigWarns = append(ambigWarns, makeLRConflictError(act, reduceAct, a).Error())
+							ambigWarns = append(ambigWarns, makeLRConflictError(act, reduceAct, a).Error()+fromState)
 						} else {
 							return nil, ambigWarns, fmt.Errorf("grammar is not LR(1): %w", makeLRConflictError(act, reduceAct, a))
 						}
