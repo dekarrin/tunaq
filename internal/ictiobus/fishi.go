@@ -81,9 +81,9 @@ func ProcessFishiMd(mdText []byte) error {
 	if err != nil {
 		return err
 	}
-	/*parser.RegisterTraceListener(func(s string) {
+	parser.RegisterTraceListener(func(s string) {
 		fmt.Printf(">> %s\n", strings.ReplaceAll(s, "\n", "\n   "))
-	})*/
+	})
 
 	for i := range ambigWarns {
 		fmt.Printf("warn: ambiguous grammar: %s\n", ambigWarns[i])
@@ -97,18 +97,22 @@ func ProcessFishiMd(mdText []byte) error {
 	}*/
 
 	// now, try to make a parse tree for your own grammar
-	fishiSource = []byte(`%%grammar
-{RULE} =   {SOMEBULLSHIT}
+	fishiSource = []byte(`%%tokens
 
-%%grammar
-{RULE}=                           {WOAH} | n
-{RULE}				= =+  {DAMN} cool | okaythen + 2 | {}
-                 | {SOMEFIN ELSE}
+glub
+	
+`) /*%%grammar
+	{RULE} =   {SOMEBULLSHIT}
 
-%state someState
+	%%grammar
+	{RULE}=                           {WOAH} | n
+	{RULE}				= =+  {DAMN} cool | okaythen + 2 | {}
+	                 | {SOMEFIN ELSE}
 
-{RULE}=		{HMM}
-	`)
+	%state someState
+
+	{RULE}=		{HMM}
+		`)*/
 	fishiSource = Preprocess(fishiSource)
 	fishi = bytes.NewBuffer(fishiSource)
 	stream, err = lx.Lex(fishi)
@@ -161,6 +165,26 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 	bootCfg.AddRule("BLOCKS", []string{"BLOCK"})
 
 	bootCfg.AddRule("BLOCK", []string{"GRAMMAR-BLOCK"})
+	bootCfg.AddRule("BLOCK", []string{"TOKENS-BLOCK"})
+
+	// TODO: tokens-block is entering a rather absurd reduction chain, examine it
+	// and make sure it's correctly reading in the next set of tokens, then uncomment
+	// the full test string and try it with that
+
+	bootCfg.AddRule("TOKENS-BLOCK", []string{tcHeaderTokens.ID(), "TOKENS-CONTENT"})
+	bootCfg.AddRule("TOKENS-BLOCK", []string{tcHeaderTokens.ID(), "NEWLINES", "TOKENS-CONTENT"})
+
+	bootCfg.AddRule("TOKENS-CONTENT", []string{"TOKENS-CONTENT", "TOKENS-STATE-BLOCK"})
+	bootCfg.AddRule("TOKENS-CONTENT", []string{"TOKENS-CONTENT", "TOKENS-ENTRIES"})
+	bootCfg.AddRule("TOKENS-CONTENT", []string{"TOKENS-STATE-BLOCK"})
+	bootCfg.AddRule("TOKENS-CONTENT", []string{"TOKENS-ENTRIES"})
+
+	bootCfg.AddRule("TOKENS-STATE-BLOCK", []string{"STATE-INSTRUCTION", "NEWLINES", "TOKENS-ENTRIES"})
+
+	bootCfg.AddRule("TOKENS-ENTRIES", []string{"TOKENS-ENTRIES", "NEWLINES", "TOKENS-ENTRY"})
+	bootCfg.AddRule("TOKENS-ENTRIES", []string{"TOKENS-ENTRY"})
+
+	bootCfg.AddRule("TOKENS-ENTRY", []string{"TEXT"})
 
 	bootCfg.AddRule("GRAMMAR-BLOCK", []string{tcHeaderGrammar.ID(), "GRAMMAR-CONTENT"})
 	bootCfg.AddRule("GRAMMAR-BLOCK", []string{tcHeaderGrammar.ID(), "NEWLINES", "GRAMMAR-CONTENT"})
@@ -182,8 +206,6 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 	bootCfg.AddRule("ALTERNATIONS", []string{"ALTERNATIONS", tcAlt.ID(), "PRODUCTION"})
 	bootCfg.AddRule("ALTERNATIONS", []string{"ALTERNATIONS", "NEWLINES", tcAlt.ID(), "PRODUCTION"})
 
-	// TODO: this allows epsilon to glue with other symbols in production, need to
-	// raise epsilon to entirely be the alternation
 	bootCfg.AddRule("PRODUCTION", []string{"SYMBOL-SEQUENCE"})
 	bootCfg.AddRule("PRODUCTION", []string{tcEpsilon.ID()})
 
@@ -208,34 +230,6 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 
 	bootCfg.AddRule("TEXT-ELEMENT", []string{tcFreeformText.ID()})
 	bootCfg.AddRule("TEXT-ELEMENT", []string{tcEscseq.ID()})
-
-	/*
-
-		bootCfg.AddRule("GRAMMAR-BLOCK", []string{tcHeaderGrammar.ID(), "GRAMMAR-CONTENT"})
-		bootCfg.AddRule("GRAMMAR-BLOCK", []string{tcHeaderGrammar.ID(), "NEWLINES", "GRAMMAR-CONTENT"})
-
-		bootCfg.AddRule("GRAMMAR-CONTENT", []string{"GRAMMAR-STATE-BLOCK"})
-		bootCfg.AddRule("GRAMMAR-CONTENT", []string{"GRAMMAR-CONTENT", "GRAMMAR-STATE-BLOCK"})
-
-		bootCfg.AddRule("GRAMMAR-STATE-BLOCK", []string{"GRAMMAR-RULES"})
-
-		bootCfg.AddRule("GRAMMAR-RULES", []string{"GRAMMAR-RULES", "NEWLINES", "GRAMMAR-RULE"})
-		bootCfg.AddRule("GRAMMAR-RULES", []string{"GRAMMAR-RULE"})
-
-		bootCfg.AddRule("GRAMMAR-RULE", []string{tcNonterminal.ID(), tcEq.ID(), "ALTERNATIONS"})
-
-		bootCfg.AddRule("ALTERNATIONS", []string{"ALTERNATIONS", tcAlt.ID(), "PRODUCTION"})
-		bootCfg.AddRule("ALTERNATIONS", []string{"PRODUCTION"})
-
-		bootCfg.AddRule("PRODUCTION", []string{"SYMBOLS"})
-		bootCfg.AddRule("PRODUCTION", []string{tcEpsilon.ID()})
-
-		bootCfg.AddRule("SYMBOLS", []string{"SYMBOLS", "SYMBOL"})
-		bootCfg.AddRule("SYMBOLS", []string{"SYMBOL"})
-
-		bootCfg.AddRule("SYMBOL", []string{tcEq.ID()})
-		bootCfg.AddRule("SYMBOL", []string{tcNonterminal.ID()})
-	*/
 
 	bootCfg.Start = "FISHISPEC"
 	bootCfg.RemoveUnusedTerminals()
