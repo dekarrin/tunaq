@@ -164,7 +164,7 @@ func Test_LazyLex_singleStateLex(t *testing.T) {
 			for i := range tc.patterns {
 				pat := tc.patterns[i]
 				act := tc.lexActions[i]
-				err := lx.AddPattern(pat, act, "")
+				err := lx.AddPattern(pat, act, "", 0)
 				if !assert.NoErrorf(err, "adding pattern %d to lexer failed", i) {
 					return
 				}

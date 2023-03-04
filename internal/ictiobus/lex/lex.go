@@ -72,7 +72,8 @@ func (lx *lexerTemplate) RegisterClass(cl types.TokenClass, forState string) {
 	lx.classes[forState] = stateClasses
 }
 
-func (lx *lexerTemplate) AddPattern(pat string, action Action, forState string) error {
+// Priority can be 0 for "in order added"
+func (lx *lexerTemplate) AddPattern(pat string, action Action, forState string, priority int) error {
 	statePatterns, ok := lx.patterns[forState]
 	if !ok {
 		statePatterns = make([]patAct, 0)

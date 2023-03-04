@@ -10,7 +10,6 @@ import (
 
 	"github.com/dekarrin/tunaq/internal/ictiobus/grammar"
 	"github.com/dekarrin/tunaq/internal/ictiobus/lex"
-	"github.com/dekarrin/tunaq/internal/ictiobus/types"
 	"github.com/gomarkdown/markdown"
 	mkast "github.com/gomarkdown/markdown/ast"
 	mkparser "github.com/gomarkdown/markdown/parser"
@@ -63,13 +62,13 @@ func ProcessFishiMd(mdText []byte) error {
 	fishi := bytes.NewBuffer(fishiSource)
 
 	lx := CreateBootstrapLexer()
-	stream, err := lx.Lex(fishi)
+	/*stream, err := lx.Lex(fishi)
 	if err != nil {
 		return err
 	}
-	fmt.Println("------------------------------------------------------------------")
+	fmt.Println("------------------------------------------------------------------")*/
 
-	g := CreateBootstrapGrammarFromLexerStream(stream)
+	g := CreateBootstrapGrammar()
 	if err := g.Validate(); err != nil {
 		return err
 	}
@@ -80,10 +79,10 @@ func ProcessFishiMd(mdText []byte) error {
 	parser, ambigWarns, err := NewCLRParser(g, true)
 	if err != nil {
 		return err
-	}
-	parser.RegisterTraceListener(func(s string) {
-		fmt.Printf(">> %s\n", strings.ReplaceAll(s, "\n", "\n   "))
-	})
+	} /*
+		parser.RegisterTraceListener(func(s string) {
+			fmt.Printf(">> %s\n", strings.ReplaceAll(s, "\n", "\n   "))
+		})*/
 
 	for i := range ambigWarns {
 		fmt.Printf("warn: ambiguous grammar: %s\n", ambigWarns[i])
@@ -98,24 +97,31 @@ func ProcessFishiMd(mdText []byte) error {
 
 	// now, try to make a parse tree for your own grammar
 	fishiSource = []byte(`%%tokens
+[somefin] %stateshift`) /*`%%tokens
 
-glub
-	
-`) /*%%grammar
-	{RULE} =   {SOMEBULLSHIT}
+	glub  %discard
+
+
+	[some]{FREEFORM}idk[^bullshit]text\*
+	%discard
+
+	[more]b*shi{2,4}   %stateshift
 
 	%%grammar
-	{RULE}=                           {WOAH} | n
-	{RULE}				= =+  {DAMN} cool | okaythen + 2 | {}
-	                 | {SOMEFIN ELSE}
+		{RULE} =   {SOMEBULLSHIT}
 
-	%state someState
+		%%grammar
+		{RULE}=                           {WOAH} | n
+		{RULE}				= =+  {DAMN} cool | okaythen + 2 | {}
+		                 | {SOMEFIN ELSE}
 
-	{RULE}=		{HMM}
-		`)*/
+		%state someState
+
+		{RULE}=		{HMM}
+			`*/
 	fishiSource = Preprocess(fishiSource)
 	fishi = bytes.NewBuffer(fishiSource)
-	stream, err = lx.Lex(fishi)
+	stream, err := lx.Lex(fishi)
 	if err != nil {
 		return err
 	}
@@ -129,7 +135,7 @@ glub
 	return nil
 }
 
-func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar {
+func CreateBootstrapGrammar() grammar.Grammar {
 	bootCfg := grammar.Grammar{}
 
 	bootCfg.AddTerm(tcHeaderTokens.ID(), tcHeaderTokens)
@@ -158,6 +164,7 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 	bootCfg.AddTerm(tcId.ID(), tcId)
 	bootCfg.AddTerm(tcEscseq.ID(), tcEscseq)
 	bootCfg.AddTerm(tcEpsilon.ID(), tcEpsilon)
+	bootCfg.AddTerm(tcDiscard.ID(), tcDiscard)
 
 	bootCfg.AddRule("FISHISPEC", []string{"BLOCKS"})
 
@@ -184,7 +191,18 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 	bootCfg.AddRule("TOKENS-ENTRIES", []string{"TOKENS-ENTRIES", "NEWLINES", "TOKENS-ENTRY"})
 	bootCfg.AddRule("TOKENS-ENTRIES", []string{"TOKENS-ENTRY"})
 
-	bootCfg.AddRule("TOKENS-ENTRY", []string{"TEXT"})
+	bootCfg.AddRule("TOKENS-ENTRY", []string{"PATTERN", "NEWLINES", "TOKEN-OPTS"})
+	bootCfg.AddRule("TOKENS-ENTRY", []string{"PATTERN", "NEWLINES", "TOKEN-OPTS", "NEWLINES"})
+	bootCfg.AddRule("TOKENS-ENTRY", []string{"PATTERN", "TOKEN-OPTS"})
+	bootCfg.AddRule("TOKENS-ENTRY", []string{"PATTERN", "TOKEN-OPTS", "NEWLINES"})
+
+	bootCfg.AddRule("TOKEN-OPTS", []string{"DISCARD"})
+	bootCfg.AddRule("TOKEN-OPTS", []string{"STATESHIFT"})
+
+	bootCfg.AddRule("DISCARD", []string{tcDiscard.ID()})
+	bootCfg.AddRule("STATESHIFT", []string{tcDirShift.ID(), "TEXT"})
+
+	bootCfg.AddRule("PATTERN", []string{"TEXT"})
 
 	bootCfg.AddRule("GRAMMAR-BLOCK", []string{tcHeaderGrammar.ID(), "GRAMMAR-CONTENT"})
 	bootCfg.AddRule("GRAMMAR-BLOCK", []string{tcHeaderGrammar.ID(), "NEWLINES", "GRAMMAR-CONTENT"})
@@ -226,6 +244,7 @@ func CreateBootstrapGrammarFromLexerStream(lx types.TokenStream) grammar.Grammar
 	bootCfg.AddRule("ID-EXPR", []string{"TEXT"})
 
 	// todo: make this be text-elements glued together as well.
+	bootCfg.AddRule("TEXT", []string{"TEXT", "TEXT-ELEMENT"})
 	bootCfg.AddRule("TEXT", []string{"TEXT-ELEMENT"})
 
 	bootCfg.AddRule("TEXT-ELEMENT", []string{tcFreeformText.ID()})
@@ -299,6 +318,7 @@ var (
 	tcId            = lex.NewTokenClass("id", "identifier")
 	tcEscseq        = lex.NewTokenClass("escseq", "escape sequence")
 	tcEpsilon       = lex.NewTokenClass("epsilon", "epsilon production")
+	tcDiscard       = lex.NewTokenClass("discard", "%discard")
 )
 
 func CreateBootstrapLexer() Lexer {
@@ -313,12 +333,12 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.RegisterClass(tcDirState, "")
 
 	// default patterns and defs
-	bootLx.AddPattern(`%!.`, lex.LexAs(tcEscseq.ID()), "")
-	bootLx.AddPattern(`%%[Tt][Oo][Kk][Ee][Nn][Ss]`, lex.LexAndSwapState(tcHeaderTokens.ID(), "tokens"), "")
-	bootLx.AddPattern(`%%[Gg][Rr][Aa][Mm][Mm][Aa][Rr]`, lex.LexAndSwapState(tcHeaderGrammar.ID(), "grammar"), "")
-	bootLx.AddPattern(`%%[Aa][Cc][Tt][Ii][Oo][Nn][Ss]`, lex.LexAndSwapState(tcHeaderActions.ID(), "actions"), "")
+	bootLx.AddPattern(`%!.`, lex.LexAs(tcEscseq.ID()), "", 0)
+	bootLx.AddPattern(`%%[Tt][Oo][Kk][Ee][Nn][Ss]`, lex.LexAndSwapState(tcHeaderTokens.ID(), "tokens"), "", 0)
+	bootLx.AddPattern(`%%[Gg][Rr][Aa][Mm][Mm][Aa][Rr]`, lex.LexAndSwapState(tcHeaderGrammar.ID(), "grammar"), "", 0)
+	bootLx.AddPattern(`%%[Aa][Cc][Tt][Ii][Oo][Nn][Ss]`, lex.LexAndSwapState(tcHeaderActions.ID(), "actions"), "", 0)
 	//bootLx.AddPattern(`%[Ss][Tt][Aa][Rr][Tt]`, lex.LexAs(tcDirStart.ID()), "")
-	bootLx.AddPattern(`%[Ss][Tt][Aa][Tt][Ee]`, lex.LexAs(tcDirState.ID()), "")
+	bootLx.AddPattern(`%[Ss][Tt][Aa][Tt][Ee]`, lex.LexAs(tcDirState.ID()), "", 0)
 
 	// tokens classes
 	bootLx.RegisterClass(tcFreeformText, "tokens")
@@ -327,14 +347,16 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.RegisterClass(tcDirToken, "tokens")
 	//bootLx.RegisterClass(tcDirDefault, "tokens")
 	bootLx.RegisterClass(tcNewline, "tokens")
+	bootLx.RegisterClass(tcDiscard, "tokens")
 
 	// tokens patterns
-	bootLx.AddPattern(`%[Sa][Tt][Aa][Tt][Ee][Ss][Hh][Ii][Ff][Tt]`, lex.LexAs(tcDirShift.ID()), "tokens")
-	bootLx.AddPattern(`%[Hh][Uu][Mm][Aa][Nn]`, lex.LexAs(tcDirHuman.ID()), "tokens")
-	bootLx.AddPattern(`%[Tt][Oo][Kk][Ee][Nn]`, lex.LexAs(tcDirToken.ID()), "tokens")
+	bootLx.AddPattern(`%[Ss][Tt][Aa][Tt][Ee][Ss][Hh][Ii][Ff][Tt]`, lex.LexAs(tcDirShift.ID()), "tokens", 0)
+	bootLx.AddPattern(`%[Hh][Uu][Mm][Aa][Nn]`, lex.LexAs(tcDirHuman.ID()), "tokens", 0)
+	bootLx.AddPattern(`%[Tt][Oo][Kk][Ee][Nn]`, lex.LexAs(tcDirToken.ID()), "tokens", 0)
+	bootLx.AddPattern(`%[Dd][Ii][Ss][Cc][Aa][Rr][Dd]`, lex.LexAs(tcDiscard.ID()), "tokens", 0)
 	//bootLx.AddPattern(`%[Dd][Ee][Ff][Aa][Uu][Ll][Tt]`, lex.LexAs(tcDirDefault.ID()), "tokens")
-	bootLx.AddPattern(`\n`, lex.LexAs(tcNewline.ID()), "tokens")
-	bootLx.AddPattern(`[^%\n]+`, lex.LexAs(tcFreeformText.ID()), "tokens")
+	bootLx.AddPattern(`\n`, lex.LexAs(tcNewline.ID()), "tokens", 0)
+	bootLx.AddPattern(`[^%\n]+`, lex.LexAs(tcFreeformText.ID()), "tokens", 0)
 
 	// grammar classes
 	bootLx.RegisterClass(tcNewline, "grammar")
@@ -345,13 +367,13 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.RegisterClass(tcEpsilon, "grammar")
 
 	// gramamr patterns
-	bootLx.AddPattern(`\n`, lex.LexAs(tcNewline.ID()), "grammar")
-	bootLx.AddPattern(`[^\S\n]+`, lex.Discard(), "grammar")
-	bootLx.AddPattern(`\|`, lex.LexAs(tcAlt.ID()), "grammar")
-	bootLx.AddPattern(`{}`, lex.LexAs(tcEpsilon.ID()), "grammar")
-	bootLx.AddPattern(`{[A-Za-z][^}]*}`, lex.LexAs(tcNonterminal.ID()), "grammar")
-	bootLx.AddPattern(`[^=\s]\S*|\S\S+`, lex.LexAs(tcTerminal.ID()), "grammar")
-	bootLx.AddPattern(`=`, lex.LexAs(tcEq.ID()), "grammar")
+	bootLx.AddPattern(`\n`, lex.LexAs(tcNewline.ID()), "grammar", 0)
+	bootLx.AddPattern(`[^\S\n]+`, lex.Discard(), "grammar", 0)
+	bootLx.AddPattern(`\|`, lex.LexAs(tcAlt.ID()), "grammar", 0)
+	bootLx.AddPattern(`{}`, lex.LexAs(tcEpsilon.ID()), "grammar", 0)
+	bootLx.AddPattern(`{[A-Za-z][^}]*}`, lex.LexAs(tcNonterminal.ID()), "grammar", 0)
+	bootLx.AddPattern(`[^=\s]\S*|\S\S+`, lex.LexAs(tcTerminal.ID()), "grammar", 0)
+	bootLx.AddPattern(`=`, lex.LexAs(tcEq.ID()), "grammar", 0)
 
 	// actions classes
 	bootLx.RegisterClass(tcAttrRef, "actions")
@@ -367,18 +389,18 @@ func CreateBootstrapLexer() Lexer {
 	bootLx.RegisterClass(tcTerminal, "actions")
 
 	// actions patterns
-	bootLx.AddPattern(`\s+`, lex.Discard(), "actions")
-	bootLx.AddPattern(`(?:{[A-Za-z][^}]*}|\S+)(?:\$\d+)?\.[\$A-Za-z][$A-Za-z0-9_-]*`, lex.LexAs(tcAttrRef.ID()), "actions")
-	bootLx.AddPattern(`[0-9]+`, lex.LexAs(tcInt.ID()), "actions")
-	bootLx.AddPattern(`{[A-Za-z][^}]*}`, lex.LexAs(tcNonterminal.ID()), "actions")
-	bootLx.AddPattern(`%[Ss][Yy][Mm][Bb][Oo][Ll]`, lex.LexAs(tcDirSymbol.ID()), "actions")
-	bootLx.AddPattern(`%[Pp][Rr][Oo][Dd]`, lex.LexAs(tcDirProd.ID()), "actions")
-	bootLx.AddPattern(`%[Ww][Ii][Tt][Hh]`, lex.LexAs(tcDirWith.ID()), "actions")
-	bootLx.AddPattern(`%[Hh][Oo][Oo][Kk]`, lex.LexAs(tcDirHook.ID()), "actions")
-	bootLx.AddPattern(`%[Aa][Cc][Tt][Ii][Oo][Nn]`, lex.LexAs(tcDirAction.ID()), "actions")
-	bootLx.AddPattern(`%[Ii][Nn][Dd][Ee][Xx]`, lex.LexAs(tcDirIndex.ID()), "actions")
-	bootLx.AddPattern(`[A-Za-z][A-Za-z0-9_-]*`, lex.LexAs(tcId.ID()), "actions")
-	bootLx.AddPattern(`\S+`, lex.LexAs(tcTerminal.ID()), "actions")
+	bootLx.AddPattern(`\s+`, lex.Discard(), "actions", 0)
+	bootLx.AddPattern(`(?:{[A-Za-z][^}]*}|\S+)(?:\$\d+)?\.[\$A-Za-z][$A-Za-z0-9_-]*`, lex.LexAs(tcAttrRef.ID()), "actions", 0)
+	bootLx.AddPattern(`[0-9]+`, lex.LexAs(tcInt.ID()), "actions", 0)
+	bootLx.AddPattern(`{[A-Za-z][^}]*}`, lex.LexAs(tcNonterminal.ID()), "actions", 0)
+	bootLx.AddPattern(`%[Ss][Yy][Mm][Bb][Oo][Ll]`, lex.LexAs(tcDirSymbol.ID()), "actions", 0)
+	bootLx.AddPattern(`%[Pp][Rr][Oo][Dd]`, lex.LexAs(tcDirProd.ID()), "actions", 0)
+	bootLx.AddPattern(`%[Ww][Ii][Tt][Hh]`, lex.LexAs(tcDirWith.ID()), "actions", 0)
+	bootLx.AddPattern(`%[Hh][Oo][Oo][Kk]`, lex.LexAs(tcDirHook.ID()), "actions", 0)
+	bootLx.AddPattern(`%[Aa][Cc][Tt][Ii][Oo][Nn]`, lex.LexAs(tcDirAction.ID()), "actions", 0)
+	bootLx.AddPattern(`%[Ii][Nn][Dd][Ee][Xx]`, lex.LexAs(tcDirIndex.ID()), "actions", 0)
+	bootLx.AddPattern(`[A-Za-z][A-Za-z0-9_-]*`, lex.LexAs(tcId.ID()), "actions", 0)
+	bootLx.AddPattern(`\S+`, lex.LexAs(tcTerminal.ID()), "actions", 0)
 
 	return bootLx
 }

@@ -38,7 +38,7 @@ type Lexer interface {
 	// occured.
 	Lex(input io.Reader) (types.TokenStream, error)
 	RegisterClass(cl types.TokenClass, forState string)
-	AddPattern(pat string, action lex.Action, forState string) error
+	AddPattern(pat string, action lex.Action, forState string, priority int) error
 
 	SetStartingState(s string)
 	StartingState() string
