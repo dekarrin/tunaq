@@ -20,12 +20,6 @@ const (
 	astTreeLevelPrefixNamePadAmount = 3
 )
 
-// (AST)
-//   |---: (BOOL_VAL "true")
-//	 |---: (NUM_VAL "1")
-//		|
-//
-
 func makeASTTreeLevelPrefix(msg string) string {
 	for len([]rune(msg)) < astTreeLevelPrefixNamePadAmount {
 		msg = string(astTreeLevelPrefixNamePadChar) + msg
