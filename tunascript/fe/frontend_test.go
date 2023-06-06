@@ -76,7 +76,9 @@ func Test_Lex(t *testing.T) {
 			}
 
 			// lex them all:
-			for tokens.HasNext()
+			for tokens.HasNext() {
+
+			}
 
 			assert.Equal(tc.expect, actual)
 		})
