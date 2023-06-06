@@ -9,4 +9,5 @@ ictcc --slr \
     -d tsi \
     --ir int \
     --hooks ./syntax \
-    ./tunascript.md
+    ./tunascript.md "$@"
+

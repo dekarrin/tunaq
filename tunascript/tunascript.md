@@ -64,17 +64,17 @@ and intended to be consumed by the ictcc command of
 
 -=                      %token -=       %human minus-equals sign "-="
 \+=                     %token +=       %human plus-equals sign "+="
-<                       %token <        %human less-than sign "<"
 <=                      %token <=       %human less-than-equals sign "<="
->                       %token >        %human greater-than sign ">"
+<                       %token <        %human less-than sign "<"
 >=                      %token >=       %human greater-than-equals sign ">="
+>                       %token >        %human greater-than sign ">"
 !=                      %token ne       %human not-equals sign "!="
-=                       %token set      %human set operator "="
 ==                      %token eq       %human double-equals sign "=="
--                       %token -        %human minus sign "-"
-\+                      %token +        %human plus sign "+"
+=                       %token set      %human set operator "="
 \+\+                    %token ++       %human increment operator "++"
+\+                      %token +        %human plus sign "+"
 --                      %token --       %human decrement operator "--"
+-                       %token -        %human minus sign "-"
 \*                      %token *        %human multiplication sign "*"
 /                       %token /        %human divide sign "/"
 !                       %token !        %human logical-not operator "!"
@@ -102,7 +102,8 @@ and intended to be consumed by the ictcc command of
 # heck out of human operators. If they want to include whitespace in a value,
 # they can quote it or else make an escape sequence.
 
-(?:\\.|\S)(?:\.*(?:\\.|\S))?            %token str
+(?:\\.|\S)(?:(?:\\.|[^@,+<>!=*/&|()$-])*(?:\\.|[^\s@,+<>!=*/&|()$-]))?
+%token str
 %human text value
 
 

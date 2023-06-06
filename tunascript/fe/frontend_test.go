@@ -24,42 +24,46 @@ func Test_Lex(t *testing.T) {
 	testCases := []struct {
 		name   string
 		input  string
-		expect string
+		expect []string
 	}{
 		{
 			name:   "bool",
 			input:  "true",
-			expect: ``,
+			expect: []string{"bool"},
 		},
 		{
 			name:   "int num",
 			input:  "88",
-			expect: ``,
+			expect: []string{"num"},
 		},
 		{
 			name:   "float num",
 			input:  "88.3",
-			expect: ``,
+			expect: []string{"num"},
 		},
 		{
 			name:   "exponentiated number",
 			input:  "88.3e21",
-			expect: ``,
+			expect: []string{"num"},
 		},
 		{
 			name:   "quoted string",
 			input:  "@ this quoted string has a space@",
-			expect: ``,
+			expect: []string{"@str"},
 		},
 		{
 			name:   "unquoted string",
 			input:  "some input",
-			expect: ``,
+			expect: []string{"str"},
 		},
 		{
-			name:   "long expression",
-			input:  "$FN(text, bool, $FN($FLAG == (num + num) * $FUNC() || bool && -num / num), num, text += @at text@)",
-			expect: ``,
+			name:  "long expression",
+			input: "$FN(text, off, $FN($FLAG == (22.2 + num) * $FUNC() || bool && -2 / num), num, text += @at text@)",
+			expect: []string{
+				"id", "lp", "str", "comma", "bool", "comma", "id", "lp", "id", "eq", "lp", "num", "+", "str", "rp",
+				"*", "id", "lp", "rp", "or", "str", "and", "-", "num", "/", "str", "rp", "comma", "str", "comma",
+				"str", "+=", "@str", "rp",
+			},
 		},
 	}
 
@@ -75,9 +79,13 @@ func Test_Lex(t *testing.T) {
 				return
 			}
 
+			var actual []string
 			// lex them all:
 			for tokens.HasNext() {
-
+				actual = append(actual, tokens.Next().Class().ID())
+			}
+			if len(actual) > 0 {
+				actual = actual[:len(actual)-1]
 			}
 
 			assert.Equal(tc.expect, actual)
@@ -94,7 +102,7 @@ func Test_Parse(t *testing.T) {
 		{
 			name:   "bool",
 			input:  "true",
-			expect: ``,
+			expect: `bool`,
 		},
 		{
 			name:   "int num",
