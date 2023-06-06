@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/dekarrin/ictiobus/lex"
-	"github.com/dekarrin/tunaq/internal/util"
 )
 
 type AST struct {
@@ -81,7 +80,7 @@ func (ast AST) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if !util.EqualSlices(ast.nodes, other.nodes) {
+	if !equalSlices(ast.nodes, other.nodes) {
 		return false
 	}
 
@@ -130,23 +129,23 @@ func (n astNode) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if !util.EqualNilness(n.value, other.value) {
+	if !equalNilness(n.value, other.value) {
 		return false
 	} else if n.value != nil && !n.value.Equal(*other.value) {
 		return false
-	} else if !util.EqualNilness(n.fn, other.fn) {
+	} else if !equalNilness(n.fn, other.fn) {
 		return false
 	} else if n.fn != nil && !n.fn.Equal(*other.fn) {
 		return false
-	} else if !util.EqualNilness(n.flag, other.flag) {
+	} else if !equalNilness(n.flag, other.flag) {
 		return false
 	} else if n.flag != nil && !n.flag.Equal(*other.flag) {
 		return false
-	} else if !util.EqualNilness(n.group, other.group) {
+	} else if !equalNilness(n.group, other.group) {
 		return false
 	} else if n.group != nil && !n.group.Equal(*other.group) {
 		return false
-	} else if !util.EqualNilness(n.opGroup, other.opGroup) {
+	} else if !equalNilness(n.opGroup, other.opGroup) {
 		return false
 	} else if n.opGroup != nil && !n.opGroup.Equal(*other.opGroup) {
 		return false
@@ -223,7 +222,7 @@ func (n fnNode) Equal(o any) bool {
 
 	if n.name != other.name {
 		return false
-	} else if !util.EqualSlices(n.args, other.args) {
+	} else if !equalSlices(n.args, other.args) {
 		return false
 	}
 
@@ -274,19 +273,19 @@ func (n valueNode) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if !util.EqualNilness(n.quotedStringVal, other.quotedStringVal) {
+	if !equalNilness(n.quotedStringVal, other.quotedStringVal) {
 		return false
 	} else if n.quotedStringVal != nil && *n.quotedStringVal != *other.quotedStringVal {
 		return false
-	} else if !util.EqualNilness(n.unquotedStringVal, other.unquotedStringVal) {
+	} else if !equalNilness(n.unquotedStringVal, other.unquotedStringVal) {
 		return false
 	} else if n.unquotedStringVal != nil && *n.unquotedStringVal != *other.unquotedStringVal {
 		return false
-	} else if !util.EqualNilness(n.numVal, other.numVal) {
+	} else if !equalNilness(n.numVal, other.numVal) {
 		return false
 	} else if n.numVal != nil && *n.numVal != *other.numVal {
 		return false
-	} else if !util.EqualNilness(n.boolVal, other.boolVal) {
+	} else if !equalNilness(n.boolVal, other.boolVal) {
 		return false
 	} else if n.boolVal != nil && *n.boolVal != *other.boolVal {
 		return false
@@ -327,7 +326,7 @@ func (n groupNode) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if !util.EqualNilness(n.expr, other.expr) {
+	if !equalNilness(n.expr, other.expr) {
 		return false
 	} else if n.expr != nil && !n.expr.Equal(*other.expr) {
 		return false
@@ -373,11 +372,11 @@ func (n operatorGroupNode) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if !util.EqualNilness(n.unaryOp, other.unaryOp) {
+	if !equalNilness(n.unaryOp, other.unaryOp) {
 		return false
 	} else if n.unaryOp != nil && !n.unaryOp.Equal(*other.unaryOp) {
 		return false
-	} else if !util.EqualNilness(n.infixOp, other.infixOp) {
+	} else if !equalNilness(n.infixOp, other.infixOp) {
 		return false
 	} else if n.infixOp != nil && !n.infixOp.Equal(*other.infixOp) {
 		return false
@@ -417,7 +416,7 @@ func (n unaryOperatorGroupNode) Equal(o any) bool {
 
 	if n.op != other.op {
 		return false
-	} else if !util.EqualNilness(n.operand, other.operand) {
+	} else if !equalNilness(n.operand, other.operand) {
 		return false
 	} else if n.operand != nil && !n.operand.Equal(other.operand) {
 		return false
@@ -468,11 +467,11 @@ func (n binaryOperatorGroupNode) Equal(o any) bool {
 
 	if n.op != other.op {
 		return false
-	} else if !util.EqualNilness(n.left, other.left) {
+	} else if !equalNilness(n.left, other.left) {
 		return false
 	} else if n.left != nil && !n.left.Equal(other.left) {
 		return false
-	} else if !util.EqualNilness(n.right, other.right) {
+	} else if !equalNilness(n.right, other.right) {
 		return false
 	} else if n.right != nil && !n.right.Equal(other.right) {
 		return false

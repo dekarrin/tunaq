@@ -4,7 +4,7 @@
 
 cd "$(dirname "$0")"
 
-ictcc \
+ictcc --slr \
     -l TunaScript -v 1.0 \
     -d tsi \
     --ir int \

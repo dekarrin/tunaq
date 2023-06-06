@@ -22,8 +22,8 @@ and intended to be consumed by the ictcc command of
                     |   {BOOL-OP} and {EQUALITY}
                     |   {EQUALITY}
 
-{EQUALITY}          =   {EQUALITY} == {COMPARISON}
-                    |   {EQUALITY} != {COMPARISON}
+{EQUALITY}          =   {EQUALITY} eq {COMPARISON}
+                    |   {EQUALITY} ne {COMPARISON}
                     |   {COMPARISON}
 
 {COMPARISON}        =   {COMPARISON} < {SUM}
@@ -51,10 +51,10 @@ and intended to be consumed by the ictcc command of
 {ARG-LIST}          =   lp {ARGS} rp
                     |   lp rp
 
-{ARGS}              =   {ARGS} , {EXPR}
+{ARGS}              =   {ARGS} comma {EXPR}
                     |   {EXPR}
 
-{VALUE}             =   id | num | @str | str | bool
+{VALUE}             =   id ++ | id -- | id | num | @str | str | bool
 ```
 
 ## Lexer
@@ -63,12 +63,12 @@ and intended to be consumed by the ictcc command of
 %%tokens
 
 -=                      %token -=       %human minus-equals sign "-="
-+=                      %token +=       %human plus-equals sign "+="
+\+=                     %token +=       %human plus-equals sign "+="
 <                       %token <        %human less-than sign "<"
 <=                      %token <=       %human less-than-equals sign "<="
 >                       %token >        %human greater-than sign ">"
 >=                      %token >=       %human greater-than-equals sign ">="
-!=                      %token !=       %human not-equals sign "!="
+!=                      %token ne       %human not-equals sign "!="
 =                       %token set      %human set operator "="
 ==                      %token eq       %human double-equals sign "=="
 -                       %token -        %human minus sign "-"
@@ -93,7 +93,7 @@ and intended to be consumed by the ictcc command of
 (?:\d+(?:\.\d*)?|\.\d+)(?:[Ee]-?\d+)?   %token num
 %human number value
 
-@(?:\\.[^@\\])*@                        %token @str
+@(?:\\.|[^@\\])*@                       %token @str
 %human @-text value
 
 # Gonna go ahead and make the call that no, we're not doing unquoted values that
