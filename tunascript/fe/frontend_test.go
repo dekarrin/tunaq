@@ -1,9 +1,11 @@
 package fe
 
 import (
+	"log"
 	"strings"
 	"testing"
 
+	"github.com/dekarrin/ictiobus/syntaxerr"
 	"github.com/dekarrin/ictiobus/trans"
 	"github.com/stretchr/testify/assert"
 )
@@ -58,11 +60,11 @@ func Test_Lex(t *testing.T) {
 		},
 		{
 			name:  "long expression",
-			input: "$FN(text, off, $FN($FLAG == (22.2 + num) * $FUNC() || bool && -2 / num), num, text += @at text@)",
+			input: "$FN(text, off, $FN($FLAG == (22.2 + num) * $FUNC() || bool && -2 / num), num, $text += @at text@)",
 			expect: []string{
 				"id", "lp", "str", "comma", "bool", "comma", "id", "lp", "id", "eq", "lp", "num", "+", "str", "rp",
 				"*", "id", "lp", "rp", "or", "str", "and", "-", "num", "/", "str", "rp", "comma", "str", "comma",
-				"str", "+=", "@str", "rp",
+				"id", "+=", "@str", "rp",
 			},
 		},
 	}
@@ -100,39 +102,94 @@ func Test_Parse(t *testing.T) {
 		expect string
 	}{
 		{
-			name:   "bool",
-			input:  "true",
-			expect: `bool`,
+			name:  "bool",
+			input: "true",
+			expect: `( TUNASCRIPT )
+  \---: ( EXPR )
+          \---: ( BOOL-OP )
+                  \---: ( EQUALITY )
+                          \---: ( COMPARISON )
+                                  \---: ( SUM )
+                                          \---: ( PRODUCT )
+                                                  \---: ( NEGATION )
+                                                          \---: ( TERM )
+                                                                  \---: ( VALUE )
+                                                                          \---: (TERM "bool")`,
 		},
 		{
-			name:   "int num",
-			input:  "88",
-			expect: ``,
+			name:  "int num",
+			input: "88",
+			expect: `( TUNASCRIPT )
+  \---: ( EXPR )
+          \---: ( BOOL-OP )
+                  \---: ( EQUALITY )
+                          \---: ( COMPARISON )
+                                  \---: ( SUM )
+                                          \---: ( PRODUCT )
+                                                  \---: ( NEGATION )
+                                                          \---: ( TERM )
+                                                                  \---: ( VALUE )
+                                                                          \---: (TERM "num")`,
 		},
 		{
-			name:   "float num",
-			input:  "88.3",
-			expect: ``,
+			name:  "float num",
+			input: "88.3",
+			expect: `( TUNASCRIPT )
+  \---: ( EXPR )
+          \---: ( BOOL-OP )
+                  \---: ( EQUALITY )
+                          \---: ( COMPARISON )
+                                  \---: ( SUM )
+                                          \---: ( PRODUCT )
+                                                  \---: ( NEGATION )
+                                                          \---: ( TERM )
+                                                                  \---: ( VALUE )
+                                                                          \---: (TERM "num")`,
 		},
 		{
-			name:   "exponentiated number",
-			input:  "88.3e21",
-			expect: ``,
+			name:  "exponentiated number",
+			input: "88.3e21",
+			expect: `( TUNASCRIPT )
+  \---: ( EXPR )
+          \---: ( BOOL-OP )
+                  \---: ( EQUALITY )
+                          \---: ( COMPARISON )
+                                  \---: ( SUM )
+                                          \---: ( PRODUCT )
+                                                  \---: ( NEGATION )
+                                                          \---: ( TERM )
+                                                                  \---: ( VALUE )
+                                                                          \---: (TERM "num")`,
 		},
 		{
-			name:   "quoted string",
-			input:  "@ this quoted string has a space@",
-			expect: ``,
+			name:  "quoted string",
+			input: "@ this quoted string has a space@",
+			expect: `( TUNASCRIPT )
+  \---: ( EXPR )
+          \---: ( BOOL-OP )
+                  \---: ( EQUALITY )
+                          \---: ( COMPARISON )
+                                  \---: ( SUM )
+                                          \---: ( PRODUCT )
+                                                  \---: ( NEGATION )
+                                                          \---: ( TERM )
+                                                                  \---: ( VALUE )
+                                                                          \---: (TERM "@str")`,
 		},
 		{
-			name:   "unquoted string",
-			input:  "some input",
-			expect: ``,
-		},
-		{
-			name:   "long expression",
-			input:  "$FN(text, bool, $FN($FLAG == (num + num) * $FUNC() || bool && -num / num), num, text += @at text@)",
-			expect: ``,
+			name:  "unquoted string",
+			input: "some input",
+			expect: `( TUNASCRIPT )
+  \---: ( EXPR )
+          \---: ( BOOL-OP )
+                  \---: ( EQUALITY )
+                          \---: ( COMPARISON )
+                                  \---: ( SUM )
+                                          \---: ( PRODUCT )
+                                                  \---: ( NEGATION )
+                                                          \---: ( TERM )
+                                                                  \---: ( VALUE )
+                                                                          \---: (TERM "str")`,
 		},
 	}
 
@@ -144,6 +201,9 @@ func Test_Parse(t *testing.T) {
 
 			_, pt, err := front.AnalyzeString(tc.input)
 			if !assert.NoError(err) {
+				if sErr, ok := err.(*syntaxerr.Error); ok {
+					log.Printf("\n%s", sErr.FullMessage())
+				}
 				return
 			}
 

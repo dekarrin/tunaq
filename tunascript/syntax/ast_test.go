@@ -13,12 +13,12 @@ func ref[T any](s T) *T {
 func Test_AST_String(t *testing.T) {
 	testCases := []struct {
 		name   string
-		input  *astNode
+		input  *ASTNode
 		expect string
 	}{
 		{
 			name: "quoted string",
-			input: &astNode{value: &valueNode{
+			input: &ASTNode{value: &valueNode{
 				quotedStringVal: ref("@hello@"),
 			}},
 			expect: "(AST)\n" +
@@ -26,7 +26,7 @@ func Test_AST_String(t *testing.T) {
 		},
 		{
 			name: "unquoted string",
-			input: &astNode{value: &valueNode{
+			input: &ASTNode{value: &valueNode{
 				unquotedStringVal: ref("fishka"),
 			}},
 			expect: "(AST)\n" +
@@ -34,7 +34,7 @@ func Test_AST_String(t *testing.T) {
 		},
 		{
 			name: "bool true",
-			input: &astNode{value: &valueNode{
+			input: &ASTNode{value: &valueNode{
 				boolVal: ref(true),
 			}},
 			expect: "(AST)\n" +
@@ -42,7 +42,7 @@ func Test_AST_String(t *testing.T) {
 		},
 		{
 			name: "bool false",
-			input: &astNode{value: &valueNode{
+			input: &ASTNode{value: &valueNode{
 				boolVal: ref(false),
 			}},
 			expect: "(AST)\n" +
@@ -50,7 +50,7 @@ func Test_AST_String(t *testing.T) {
 		},
 		{
 			name: "num val",
-			input: &astNode{value: &valueNode{
+			input: &ASTNode{value: &valueNode{
 				numVal: ref(28),
 			}},
 			expect: "(AST)\n" +
@@ -58,7 +58,7 @@ func Test_AST_String(t *testing.T) {
 		},
 		{
 			name: "flag",
-			input: &astNode{flag: &flagNode{
+			input: &ASTNode{flag: &flagNode{
 				name: "$GLUB_IS_GOOD",
 			}},
 			expect: "(AST)\n" +
@@ -66,8 +66,8 @@ func Test_AST_String(t *testing.T) {
 		},
 		{
 			name: "group",
-			input: &astNode{group: &groupNode{
-				expr: &astNode{value: &valueNode{
+			input: &ASTNode{group: &groupNode{
+				expr: &ASTNode{value: &valueNode{
 					numVal: ref(413),
 				}},
 			}},
@@ -77,9 +77,9 @@ func Test_AST_String(t *testing.T) {
 		},
 		{
 			name: "fn",
-			input: &astNode{fn: &fnNode{
+			input: &ASTNode{fn: &fnNode{
 				name: "$OUTPUT",
-				args: []*astNode{
+				args: []*ASTNode{
 					{
 						value: &valueNode{
 							unquotedStringVal: ref("Hello, Sburb!"),
@@ -93,12 +93,12 @@ func Test_AST_String(t *testing.T) {
 		},
 		{
 			name: "simple binary operator",
-			input: &astNode{opGroup: &operatorGroupNode{infixOp: &binaryOperatorGroupNode{
+			input: &ASTNode{opGroup: &operatorGroupNode{infixOp: &binaryOperatorGroupNode{
 				op: "+",
-				left: &astNode{value: &valueNode{
+				left: &ASTNode{value: &valueNode{
 					numVal: ref(612),
 				}},
-				right: &astNode{value: &valueNode{
+				right: &ASTNode{value: &valueNode{
 					numVal: ref(413),
 				}},
 			}}},
@@ -109,9 +109,9 @@ func Test_AST_String(t *testing.T) {
 		},
 		{
 			name: "simple unary operator",
-			input: &astNode{opGroup: &operatorGroupNode{unaryOp: &unaryOperatorGroupNode{
+			input: &ASTNode{opGroup: &operatorGroupNode{unaryOp: &unaryOperatorGroupNode{
 				op: "--",
-				operand: &astNode{flag: &flagNode{
+				operand: &ASTNode{flag: &flagNode{
 					name: "$GLUB",
 				}},
 			}}},
@@ -121,39 +121,39 @@ func Test_AST_String(t *testing.T) {
 		},
 		{
 			name: "complex function call",
-			input: &astNode{fn: &fnNode{
+			input: &ASTNode{fn: &fnNode{
 				name: "$S_WAKE",
-				args: []*astNode{
+				args: []*ASTNode{
 					{opGroup: &operatorGroupNode{infixOp: &binaryOperatorGroupNode{
 						op: "+",
-						left: &astNode{flag: &flagNode{
+						left: &ASTNode{flag: &flagNode{
 							name: "$ARADIA_PAIN",
 						}},
-						right: &astNode{value: &valueNode{numVal: ref(8)}},
+						right: &ASTNode{value: &valueNode{numVal: ref(8)}},
 					}}},
 					{opGroup: &operatorGroupNode{unaryOp: &unaryOperatorGroupNode{
 						op:      "!",
-						operand: &astNode{flag: &flagNode{name: "$ANY_HELP"}},
+						operand: &ASTNode{flag: &flagNode{name: "$ANY_HELP"}},
 					}}},
 					{value: &valueNode{quotedStringVal: ref("@F8ck yeah!!!!!!!!@")}},
 					{value: &valueNode{boolVal: ref(false)}},
 					{fn: &fnNode{
 						name: "$PAYBACK",
-						args: []*astNode{
+						args: []*ASTNode{
 							{value: &valueNode{unquotedStringVal: ref("S_MAKE_HER_PAY")}},
 							{value: &valueNode{boolVal: ref(false)}},
 							{opGroup: &operatorGroupNode{infixOp: &binaryOperatorGroupNode{
 								op: "*",
-								left: &astNode{group: &groupNode{
-									expr: &astNode{opGroup: &operatorGroupNode{infixOp: &binaryOperatorGroupNode{
+								left: &ASTNode{group: &groupNode{
+									expr: &ASTNode{opGroup: &operatorGroupNode{infixOp: &binaryOperatorGroupNode{
 										op:    "+",
-										left:  &astNode{flag: &flagNode{name: "$VRISKA_PAIN"}},
-										right: &astNode{value: &valueNode{numVal: ref(16)}},
+										left:  &ASTNode{flag: &flagNode{name: "$VRISKA_PAIN"}},
+										right: &ASTNode{value: &valueNode{numVal: ref(16)}},
 									}}},
 								}},
-								right: &astNode{opGroup: &operatorGroupNode{unaryOp: &unaryOperatorGroupNode{
+								right: &ASTNode{opGroup: &operatorGroupNode{unaryOp: &unaryOperatorGroupNode{
 									op:      "-",
-									operand: &astNode{value: &valueNode{numVal: ref(8)}},
+									operand: &ASTNode{value: &valueNode{numVal: ref(8)}},
 								}}},
 							}}},
 						},
@@ -190,7 +190,7 @@ func Test_AST_String(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			assert := assert.New(t)
 
-			inputAST := AST{nodes: []*astNode{tc.input}}
+			inputAST := AST{Nodes: []*ASTNode{tc.input}}
 
 			actual := inputAST.String()
 

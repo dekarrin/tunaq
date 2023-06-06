@@ -8,7 +8,7 @@ import (
 )
 
 type AST struct {
-	nodes []*astNode
+	Nodes []*ASTNode
 }
 
 const (
@@ -42,19 +42,19 @@ func (ast AST) String() string {
 
 	sb.WriteString("(AST)\n")
 
-	for i := range ast.nodes {
+	for i := range ast.Nodes {
 		var firstPrefix string
 		var contPrefix string
-		if i+1 < len(ast.nodes) {
+		if i+1 < len(ast.Nodes) {
 			firstPrefix = makeASTTreeLevelPrefix("")
 			contPrefix = astTreeLevelOngoing
 		} else {
 			firstPrefix = makeASTTreeLevelPrefixLast("")
 			contPrefix = astTreeLevelEmpty
 		}
-		itemOut := ast.nodes[i].leveledStr(firstPrefix, contPrefix)
+		itemOut := ast.Nodes[i].leveledStr(firstPrefix, contPrefix)
 		sb.WriteString(itemOut)
-		if len(itemOut) > 0 && i+1 < len(ast.nodes) {
+		if len(itemOut) > 0 && i+1 < len(ast.Nodes) {
 			sb.WriteRune('\n')
 		}
 	}
@@ -80,7 +80,7 @@ func (ast AST) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if !equalSlices(ast.nodes, other.nodes) {
+	if !equalSlices(ast.Nodes, other.Nodes) {
 		return false
 	}
 
@@ -90,12 +90,12 @@ func (ast AST) Equal(o any) bool {
 // EqualSource returns whether the two ASTs were created from identical
 // tunascript code.
 func (ast AST) EqualSource(other AST) bool {
-	if len(ast.nodes) != len(other.nodes) {
+	if len(ast.Nodes) != len(other.Nodes) {
 		return false
 	}
 
-	for i := range ast.nodes {
-		if ast.nodes[i].source.Class().ID() != other.nodes[i].source.Class().ID() {
+	for i := range ast.Nodes {
+		if ast.Nodes[i].source.Class().ID() != other.Nodes[i].source.Class().ID() {
 			return false
 		}
 	}
@@ -103,7 +103,315 @@ func (ast AST) EqualSource(other AST) bool {
 	return true
 }
 
-type astNode struct {
+type NodeType int
+
+const (
+	ASTLiteral NodeType = iota
+	ASTFunc
+	ASTFlag
+	ASTGroup
+	ASTBinaryOp
+	ASTUnaryOp
+)
+
+type IASTNode interface {
+	Type() NodeType
+	AsLiteralNode() LiteralNode
+	AsFuncCallNode() FuncNode
+	AsFlagNode() FlagNode
+	AsGroupNode() GroupNode
+	AsBinaryOpNode() BinaryOpNode
+	AsUnaryOpNode() UnaryOpNode
+
+	// Source is the token from source text that had the first token lexed as
+	// part of this literal.
+	Source() lex.Token
+
+	// String returns the leveled string representation of the node.
+	String() string
+
+	// TunascriptString returns a string that would be parsed as an identical
+	// node (with perhaps a slightly different value returned for Source()).
+	TunascriptString() string
+
+	// Equal returns whether a node is equal to another. It will return false
+	// if anything besides an IASTNode is passed in.
+	Equal(o any) bool
+}
+
+// LiteralNode is a node of the AST that represents a typed literal in code.
+type LiteralNode struct {
+	// Quoted can only be true if Value.Type() == String, and indicates whether
+	// the value is wrapped in @-signs.
+	Quoted bool
+
+	// Value is the value of the literal.
+	Value TSValue
+
+	src lex.Token
+}
+
+func (n LiteralNode) Type() NodeType               { return ASTLiteral }
+func (n LiteralNode) AsLiteralNode() LiteralNode   { return n }
+func (n LiteralNode) AsFuncCallNode() FuncNode     { panic("Type() is not ASTFunc") }
+func (n LiteralNode) AsFlagNode() FlagNode         { panic("Type() is not ASTFlag") }
+func (n LiteralNode) AsGroupNode() GroupNode       { panic("Type() is not ASTGroup") }
+func (n LiteralNode) AsBinaryOpNode() BinaryOpNode { panic("Type() is not ASTBinaryOp") }
+func (n LiteralNode) AsUnaryOpNode() UnaryOpNode   { panic("Type() is not ASTUnaryOp") }
+func (n LiteralNode) Source() lex.Token            { return n.src }
+
+func (n LiteralNode) TunascriptString() string {
+	if n.Value.Type() == String {
+		// then quoted applies
+		if n.Quoted {
+			return n.Value.Quoted()
+		}
+		return n.Value.Escaped()
+	}
+	return n.Value.String()
+}
+
+func (n LiteralNode) String() string {
+	var typeName string
+	switch n.Value.Type() {
+	case Int:
+		typeName = "NUMBER/INT"
+	case Float:
+		typeName = "NUMBER/FLOAT"
+	case Bool:
+		typeName = "BINARY/BOOL"
+	case String:
+		if n.Quoted {
+			typeName = "TEXT/@STRING"
+		} else {
+			typeName = "TEXT/STRING"
+		}
+	}
+
+	return fmt.Sprintf("[LITERAL type=%s value=%v]", typeName, n.Value.String())
+}
+
+// Does not consider Source.
+func (n LiteralNode) Equal(o any) bool {
+	other, ok := o.(LiteralNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*LiteralNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if n.Quoted != other.Quoted {
+		return false
+	}
+	if !n.Value.Equal(other.Value) {
+		return false
+	}
+
+	return true
+}
+
+type FuncNode struct {
+	// Name is the name of the function being called, without the leading $.
+	Name string
+
+	// Args is all arguments to the function.
+	Args []IASTNode
+
+	src lex.Token
+}
+
+func (n FuncNode) Type() NodeType               { return ASTFunc }
+func (n FuncNode) AsLiteralNode() LiteralNode   { panic("Type() is not ASTLiteral") }
+func (n FuncNode) AsFuncCallNode() FuncNode     { return n }
+func (n FuncNode) AsFlagNode() FlagNode         { panic("Type() is not ASTFlag") }
+func (n FuncNode) AsGroupNode() GroupNode       { panic("Type() is not ASTGroup") }
+func (n FuncNode) AsBinaryOpNode() BinaryOpNode { panic("Type() is not ASTBinaryOp") }
+func (n FuncNode) AsUnaryOpNode() UnaryOpNode   { panic("Type() is not ASTUnaryOp") }
+func (n FuncNode) Source() lex.Token            { return n.src }
+
+func (n FuncNode) TunascriptString() string {
+	s := "$" + n.Name + "("
+	for i := range n.Args {
+		argStr := n.Args[i].TunascriptString()
+		s += argStr
+		if i+1 < len(n.Args) {
+			s += ", "
+		}
+	}
+	s += ")"
+	return s
+}
+
+func (n FuncNode) String() string {
+	const (
+		argStart = "  arg: "
+	)
+
+	s := "[FUNC name=" + n.Name + " args:"
+
+	if len(n.Args) == 0 {
+		s += " (none)"
+	} else {
+		s += "\n"
+		for i := range n.Args {
+			s += argStart + spaceIndentNewlines(n.Args[i].String(), len(argStart)) + "\n"
+		}
+	}
+	s += "]"
+
+	return s
+}
+
+// Does not consider Source.
+func (n FuncNode) Equal(o any) bool {
+	other, ok := o.(FuncNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*FuncNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if n.Name != other.Name {
+		return false
+	}
+	if len(n.Args) != len(other.Args) {
+		return false
+	}
+	for i := range n.Args {
+		if !n.Args[i].Equal(other.Args[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
+type FlagNode struct {
+	// Name is the name of the flag, without the leading $.
+	Name string
+
+	src lex.Token
+}
+
+func (n FlagNode) Type() NodeType               { return ASTFlag }
+func (n FlagNode) AsLiteralNode() LiteralNode   { panic("Type() is not ASTLiteral") }
+func (n FlagNode) AsFuncCallNode() FuncNode     { panic("Type() is not ASTFunc") }
+func (n FlagNode) AsFlagNode() FlagNode         { return n }
+func (n FlagNode) AsGroupNode() GroupNode       { panic("Type() is not ASTGroup") }
+func (n FlagNode) AsBinaryOpNode() BinaryOpNode { panic("Type() is not ASTBinaryOp") }
+func (n FlagNode) AsUnaryOpNode() UnaryOpNode   { panic("Type() is not ASTUnaryOp") }
+
+func (n FlagNode) Source() lex.Token { return n.src }
+
+func (n FlagNode) TunascriptString() string {
+	return "$" + n.Name
+}
+
+func (n FlagNode) String() string {
+	return fmt.Sprintf("[FLAG name=%s]", n.Name)
+}
+
+// Does not consider Source.
+func (n FlagNode) Equal(o any) bool {
+	other, ok := o.(FlagNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*FlagNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if n.Name != other.Name {
+		return false
+	}
+
+	return true
+}
+
+type GroupNode struct {
+	Expr IASTNode
+
+	src lex.Token
+}
+
+func (n GroupNode) Type() NodeType               { return ASTGroup }
+func (n GroupNode) AsLiteralNode() LiteralNode   { panic("Type() is not ASTLiteral") }
+func (n GroupNode) AsFuncCallNode() FuncNode     { panic("Type() is not ASTFunc") }
+func (n GroupNode) AsFlagNode() FlagNode         { panic("Type() is not ASTFlag") }
+func (n GroupNode) AsGroupNode() GroupNode       { return n }
+func (n GroupNode) AsBinaryOpNode() BinaryOpNode { panic("Type() is not ASTBinaryOp") }
+func (n GroupNode) AsUnaryOpNode() UnaryOpNode   { panic("Type() is not ASTUnaryOp") }
+
+func (n GroupNode) Source() lex.Token { return n.src }
+
+func (n GroupNode) TunascriptString() string {
+	return "(" + n.Expr.TunascriptString() + ")"
+}
+
+func (n FlagNode) String() string {
+	return fmt.Sprintf("[FLAG name=%s]", n.Name)
+}
+
+// Does not consider Source.
+func (n FlagNode) Equal(o any) bool {
+	other, ok := o.(FlagNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*FlagNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if n.Name != other.Name {
+		return false
+	}
+
+	return true
+}
+
+type BinaryOpNode struct {
+	Source lex.Token
+}
+
+func (bon BinaryOpNode) Type() NodeType               { return ASTBinaryOp }
+func (bon BinaryOpNode) AsLiteralNode() LiteralNode   { panic("Type() is not ASTLiteral") }
+func (bon BinaryOpNode) AsFuncCallNode() FuncNode     { panic("Type() is not ASTFunc") }
+func (bon BinaryOpNode) AsFlagNode() FlagNode         { panic("Type() is not ASTFlag") }
+func (bon BinaryOpNode) AsGroupNode() GroupNode       { panic("Type() is not ASTGroup") }
+func (bon BinaryOpNode) AsBinaryOpNode() BinaryOpNode { return bon }
+func (bon BinaryOpNode) AsUnaryOpNode() UnaryOpNode   { panic("Type() is not ASTUnaryOp") }
+
+type UnaryOpNode struct {
+	Source lex.Token
+}
+
+func (uon UnaryOpNode) Type() NodeType               { return ASTUnaryOp }
+func (uon UnaryOpNode) AsLiteralNode() LiteralNode   { panic("Type() is not ASTLiteral") }
+func (uon UnaryOpNode) AsFuncCallNode() FuncNode     { panic("Type() is not ASTFunc") }
+func (uon UnaryOpNode) AsFlagNode() FlagNode         { panic("Type() is not ASTFlag") }
+func (uon UnaryOpNode) AsGroupNode() GroupNode       { panic("Type() is not ASTGroup") }
+func (uon UnaryOpNode) AsBinaryOpNode() BinaryOpNode { panic("Type() is not ASTBinaryOp") }
+func (uon UnaryOpNode) AsUnaryOpNode() UnaryOpNode   { return uon }
+
+type ASTNode struct {
 	value   *valueNode
 	fn      *fnNode
 	flag    *flagNode
@@ -116,11 +424,11 @@ type astNode struct {
 // is not an astNode, it will not be equal. The source of an ASTNode is
 // considered supplementary information and is not considered in the equality
 // check.
-func (n astNode) Equal(o any) bool {
-	other, ok := o.(astNode)
+func (n ASTNode) Equal(o any) bool {
+	other, ok := o.(ASTNode)
 	if !ok {
 		// also okay if its the pointer value, as long as its non-nil
-		otherPtr, ok := o.(*astNode)
+		otherPtr, ok := o.(*ASTNode)
 		if !ok {
 			return false
 		} else if otherPtr == nil {
@@ -157,7 +465,7 @@ func (n astNode) Equal(o any) bool {
 	return true
 }
 
-func (n astNode) leveledStr(firstPrefix, contPrefix string) string {
+func (n ASTNode) leveledStr(firstPrefix, contPrefix string) string {
 	if n.value != nil {
 		return n.value.leveledStr(firstPrefix)
 	} else if n.flag != nil {
@@ -204,7 +512,7 @@ func (n flagNode) leveledStr(prefix string) string {
 
 type fnNode struct {
 	name string
-	args []*astNode
+	args []*ASTNode
 }
 
 func (n fnNode) Equal(o any) bool {
@@ -310,7 +618,7 @@ func (n valueNode) leveledStr(prefix string) string {
 }
 
 type groupNode struct {
-	expr *astNode
+	expr *ASTNode
 }
 
 func (n groupNode) Equal(o any) bool {
@@ -397,7 +705,7 @@ func (n operatorGroupNode) leveledStr(firstPrefix, contPrefix string) string {
 
 type unaryOperatorGroupNode struct {
 	op      string
-	operand *astNode
+	operand *ASTNode
 	prefix  bool
 }
 
@@ -448,8 +756,8 @@ func (n unaryOperatorGroupNode) leveledStr(firstPrefix, contPrefix string) strin
 
 type binaryOperatorGroupNode struct {
 	op    string
-	left  *astNode
-	right *astNode
+	left  *ASTNode
+	right *ASTNode
 }
 
 func (n binaryOperatorGroupNode) Equal(o any) bool {
@@ -567,10 +875,10 @@ type expCondNode struct {
 func (ast AST) Tunascript() string {
 	var sb strings.Builder
 
-	for i := range ast.nodes {
-		sb.WriteString(ast.nodes[i].Tunascript())
+	for i := range ast.Nodes {
+		sb.WriteString(ast.Nodes[i].Tunascript())
 
-		if i+1 < len(ast.nodes) {
+		if i+1 < len(ast.Nodes) {
 			sb.WriteRune(' ')
 		}
 	}
@@ -583,7 +891,7 @@ func (ast AST) Tunascript() string {
 // this node as non-semantic elements are not included (such as extra whitespace
 // not a part of an unquoted string), and any branches in it will be grouped if
 // it is determined it is needed to preserve evaluation order of the statements.
-func (n astNode) Tunascript() string {
+func (n ASTNode) Tunascript() string {
 	if n.value != nil {
 		return n.value.Tunascript()
 	} else if n.fn != nil {
@@ -704,4 +1012,16 @@ func (n unaryOperatorGroupNode) Tunascript() string {
 // not a part of an unquoted string).
 func (n binaryOperatorGroupNode) Tunascript() string {
 	return fmt.Sprintf("%s %s %s", n.left.Tunascript(), n.op, n.right.Tunascript())
+}
+
+func spaceIndentNewlines(str string, amount int) string {
+	if strings.Contains(str, "\n") {
+		// need to pad every newline
+		pad := " "
+		for len(pad) < amount {
+			pad += " "
+		}
+		str = strings.ReplaceAll(str, "\n", "\n"+pad)
+	}
+	return str
 }
