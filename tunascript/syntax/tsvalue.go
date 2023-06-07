@@ -113,9 +113,9 @@ func (v TSValue) String() string {
 		return v.s
 	case Bool:
 		if v.b {
-			return "on"
+			return "ON"
 		}
-		return "off"
+		return "OFF"
 	default:
 		panic("unrecognized TSValue type")
 	}

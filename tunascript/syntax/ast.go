@@ -32,13 +32,14 @@ func (ast AST) Tunascript() string {
 
 // String returns a prettified representation of the entire AST suitable for use
 // in line-by-line comparisons of tree structure. Two ASTs are considered
-// semantcally identical if they produce identical String() output.
+// semantcally identical if they produce identical String() output. Each
+// statement is shown on a new line.
 func (ast AST) String() string {
 	var sb strings.Builder
 
-	sb.WriteString("(AST)\n")
+	sb.WriteString("AST\n")
 
-	const stmtStart = "  stmt: "
+	const stmtStart = " S: "
 	for i := range ast.Nodes {
 		stmtStr := spaceIndentNewlines(ast.Nodes[i].String(), len(stmtStart))
 
@@ -201,7 +202,12 @@ func (n LiteralNode) String() string {
 		}
 	}
 
-	return fmt.Sprintf("[LITERAL type=%s value=%v]", typeName, n.Value.String())
+	if n.Value.Type() == String {
+		// add quotes to value if it's a string literal
+		return fmt.Sprintf("[LITERAL %s \"%v\"]", typeName, n.Value.String())
+	} else {
+		return fmt.Sprintf("[LITERAL %s %v]", typeName, n.Value.String())
+	}
 }
 
 // Does not consider Source.
@@ -229,8 +235,8 @@ func (n LiteralNode) Equal(o any) bool {
 }
 
 type FuncNode struct {
-	// Name is the name of the function being called, without the leading $.
-	Name string
+	// Func is the name of the function being called, without the leading $.
+	Func string
 
 	// Args is all arguments to the function.
 	Args []ASTNode
@@ -249,7 +255,7 @@ func (n FuncNode) AsAssignmentNode() AssignmentNode { panic("Type() is not ASTAs
 func (n FuncNode) Source() lex.Token                { return n.src }
 
 func (n FuncNode) Tunascript() string {
-	s := "$" + n.Name + "("
+	s := "$" + n.Func + "("
 	for i := range n.Args {
 		argStr := n.Args[i].Tunascript()
 		s += argStr
@@ -263,18 +269,19 @@ func (n FuncNode) Tunascript() string {
 
 func (n FuncNode) String() string {
 	const (
-		argStart = "  arg: "
+		argStart = " A: "
 	)
 
-	s := "[FUNC name=" + n.Name + " args:"
+	s := "[FUNC $" + n.Func
 
 	if len(n.Args) == 0 {
-		s += " (none)"
-	} else {
-		s += "\n"
-		for i := range n.Args {
-			s += argStart + spaceIndentNewlines(n.Args[i].String(), len(argStart)) + "\n"
-		}
+		s += "]"
+		return s
+	}
+
+	s += "\n"
+	for i := range n.Args {
+		s += argStart + spaceIndentNewlines(n.Args[i].String(), len(argStart)) + "\n"
 	}
 	s += "]"
 
@@ -295,7 +302,7 @@ func (n FuncNode) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if n.Name != other.Name {
+	if n.Func != other.Func {
 		return false
 	}
 	if len(n.Args) != len(other.Args) {
@@ -311,8 +318,8 @@ func (n FuncNode) Equal(o any) bool {
 }
 
 type FlagNode struct {
-	// Name is the name of the flag, without the leading $.
-	Name string
+	// Flag is the name of the flag, without the leading $.
+	Flag string
 
 	src lex.Token
 }
@@ -329,11 +336,11 @@ func (n FlagNode) AsAssignmentNode() AssignmentNode { panic("Type() is not ASTAs
 func (n FlagNode) Source() lex.Token { return n.src }
 
 func (n FlagNode) Tunascript() string {
-	return "$" + n.Name
+	return "$" + n.Flag
 }
 
 func (n FlagNode) String() string {
-	return fmt.Sprintf("[FLAG name=%s]", n.Name)
+	return fmt.Sprintf("[FLAG $%s]", n.Flag)
 }
 
 // Does not consider Source.
@@ -350,7 +357,7 @@ func (n FlagNode) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if n.Name != other.Name {
+	if n.Flag != other.Flag {
 		return false
 	}
 
@@ -380,10 +387,10 @@ func (n GroupNode) Tunascript() string {
 
 func (n GroupNode) String() string {
 	const (
-		exprStart = "  expr: "
+		exprStart = " E: "
 	)
 
-	s := "[GROUP \n"
+	s := "[GROUP\n"
 	s += exprStart + spaceIndentNewlines(n.Expr.String(), len(exprStart)) + "\n"
 	s += "]"
 
@@ -436,14 +443,14 @@ func (n BinaryOpNode) Tunascript() string {
 
 func (n BinaryOpNode) String() string {
 	const (
-		leftStart  = "  left:  "
-		rightStart = "  right: "
+		leftStart  = " L: "
+		rightStart = " R: "
 	)
 
 	leftStr := spaceIndentNewlines(n.Left.String(), len(leftStart))
 	rightStr := spaceIndentNewlines(n.Right.String(), len(rightStart))
 
-	fmtStr := "[BINARY_OPERATION op=%s\n%s%s\n%s%s\n]"
+	fmtStr := "[BINARY_OP %s\n%s%s\n%s%s\n]"
 	return fmt.Sprintf(fmtStr, n.Op.String(), leftStart, leftStr, rightStart, rightStr)
 }
 
@@ -475,7 +482,7 @@ func (n BinaryOpNode) Equal(o any) bool {
 }
 
 type UnaryOpNode struct {
-	Expr    ASTNode
+	Operand ASTNode
 	Op      UnaryOperation
 	PostFix bool
 
@@ -499,18 +506,18 @@ func (n UnaryOpNode) Tunascript() string {
 		fmtStr = "%[2]s%[1]s"
 	}
 
-	return fmt.Sprintf(fmtStr, n.Op.Symbol(), n.Expr.Tunascript())
+	return fmt.Sprintf(fmtStr, n.Op.Symbol(), n.Operand.Tunascript())
 }
 
 func (n UnaryOpNode) String() string {
 	const (
-		exprStart = "  expr:  "
+		operandStart = " O: "
 	)
 
-	exprStr := spaceIndentNewlines(n.Expr.String(), len(exprStart))
+	operandStr := spaceIndentNewlines(n.Operand.String(), len(operandStart))
 
-	fmtStr := "[UNARY_OPERATION op=%s\n%s%s\n]"
-	return fmt.Sprintf(fmtStr, n.Op.String(), exprStart, exprStr)
+	fmtStr := "[UNARY_OP %s\n%s%s\n]"
+	return fmt.Sprintf(fmtStr, n.Op.String(), operandStart, operandStr)
 }
 
 // Does not consider Source.
@@ -527,7 +534,7 @@ func (n UnaryOpNode) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if !n.Expr.Equal(other.Expr) {
+	if !n.Operand.Equal(other.Operand) {
 		return false
 	}
 	if n.Op != other.Op {
@@ -546,13 +553,13 @@ func (n UnaryOpNode) Equal(o any) bool {
 // analysis.
 type AssignmentNode struct {
 
-	// Name is the name of the flag being assigned to, without the leading $.
-	Name string
+	// Flag is the name of the flag being assigned to, without the leading $.
+	Flag string
 
-	// Expr will be nil if Op is an operation which does not take an argument
+	// Value will be nil if Op is an operation which does not take an argument
 	// (such as Increment or Decrement, which always have an implied argument of
 	// 1).
-	Expr ASTNode
+	Value ASTNode
 
 	// Op is the operation performed
 	Op AssignmentOperation
@@ -576,7 +583,7 @@ func (n AssignmentNode) AsAssignmentNode() AssignmentNode { return n }
 func (n AssignmentNode) Source() lex.Token { return n.src }
 
 func (n AssignmentNode) Tunascript() string {
-	if n.Expr == nil {
+	if n.Value == nil {
 		// then there is no argument and we are in "unary assignment" mode
 
 		fmtStr := "%[1]s%[2]s"
@@ -584,29 +591,29 @@ func (n AssignmentNode) Tunascript() string {
 			fmtStr = "%[2]s%[1]s"
 		}
 
-		return fmt.Sprintf(fmtStr, n.Op.Symbol(), n.Expr.Tunascript())
+		return fmt.Sprintf(fmtStr, n.Op.Symbol(), n.Value.Tunascript())
 	}
 
 	// there is an argument; we are in "binary assignment" mode
 
-	return fmt.Sprintf("$%s %s %s", n.Name, n.Op.Symbol(), n.Expr.Tunascript())
+	return fmt.Sprintf("$%s %s %s", n.Flag, n.Op.Symbol(), n.Value.Tunascript())
 }
 
 func (n AssignmentNode) String() string {
 	const (
-		exprStart = "  expr:  "
+		valueStart = " V: "
 	)
 
-	s := fmt.Sprintf("[ASSIGNMENT op=%s flag=%s", n.Op.String(), n.Name)
+	s := fmt.Sprintf("[ASSIGNMENT %s $%s", n.Op.String(), n.Flag)
 
-	if n.Expr == nil {
+	if n.Value == nil {
 		s += "]"
 		return s
 	}
 
 	s += "\n"
-	exprStr := spaceIndentNewlines(n.Expr.String(), len(exprStart))
-	s += exprStr + "\n]"
+	valueStr := spaceIndentNewlines(n.Value.String(), len(valueStart))
+	s += valueStart + valueStr + "\n]"
 	return s
 }
 
@@ -624,10 +631,10 @@ func (n AssignmentNode) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if (n.Expr == nil && other.Expr != nil) || (n.Expr != nil && other.Expr == nil) {
+	if (n.Value == nil && other.Value != nil) || (n.Value != nil && other.Value == nil) {
 		return false
 	}
-	if n.Expr != nil && !n.Expr.Equal(other.Expr) {
+	if n.Value != nil && !n.Value.Equal(other.Value) {
 		return false
 	}
 	if n.Op != other.Op {
@@ -636,7 +643,7 @@ func (n AssignmentNode) Equal(o any) bool {
 	if n.PostFix != other.PostFix {
 		return false
 	}
-	if n.Name != other.Name {
+	if n.Flag != other.Flag {
 		return false
 	}
 

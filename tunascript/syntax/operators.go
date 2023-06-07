@@ -5,46 +5,46 @@ import "fmt"
 type BinaryOperation int
 
 const (
-	Equal BinaryOperation = iota
-	NotEqual
-	LessThan
-	LessThanEqual
-	GreaterThan
-	GreaterThanEqual
-	Add
-	Subtract
-	Divide
-	Multiply
-	LogicalAnd
-	LogicalOr
+	OpBinaryEqual BinaryOperation = iota
+	OpBinaryNotEqual
+	OpBinaryLessThan
+	OpBinaryLessThanEqual
+	OpBinaryGreaterThan
+	OpBinaryGreaterThanEqual
+	OpBinaryAdd
+	OpBinarySubtract
+	OpBinaryDivide
+	OpBinaryMultiply
+	OpBinaryLogicalAnd
+	OpBinaryLogicalOr
 )
 
 // Symbol returns the Tunascript operator that corresponds to the operation.
 func (op BinaryOperation) Symbol() string {
 	switch op {
-	case Equal:
+	case OpBinaryEqual:
 		return "="
-	case NotEqual:
+	case OpBinaryNotEqual:
 		return "!="
-	case LessThan:
+	case OpBinaryLessThan:
 		return "<"
-	case LessThanEqual:
+	case OpBinaryLessThanEqual:
 		return "<="
-	case GreaterThan:
+	case OpBinaryGreaterThan:
 		return ">"
-	case GreaterThanEqual:
+	case OpBinaryGreaterThanEqual:
 		return ">="
-	case Add:
+	case OpBinaryAdd:
 		return "+"
-	case Subtract:
+	case OpBinarySubtract:
 		return "-"
-	case Divide:
+	case OpBinaryDivide:
 		return "/"
-	case Multiply:
+	case OpBinaryMultiply:
 		return "*"
-	case LogicalAnd:
+	case OpBinaryLogicalAnd:
 		return "&&"
-	case LogicalOr:
+	case OpBinaryLogicalOr:
 		return "||"
 	default:
 		panic(fmt.Sprintf("unknown binary operation: %d", op))
@@ -53,29 +53,29 @@ func (op BinaryOperation) Symbol() string {
 
 func (op BinaryOperation) String() string {
 	switch op {
-	case Equal:
+	case OpBinaryEqual:
 		return "EQUALITY"
-	case NotEqual:
+	case OpBinaryNotEqual:
 		return "NON_EQUALITY"
-	case LessThan:
+	case OpBinaryLessThan:
 		return "LESS_THAN"
-	case LessThanEqual:
+	case OpBinaryLessThanEqual:
 		return "LESS_THAN_EQUALITY"
-	case GreaterThan:
+	case OpBinaryGreaterThan:
 		return "GREATER_THAN"
-	case GreaterThanEqual:
+	case OpBinaryGreaterThanEqual:
 		return "GREATER_THAN_EQUALITY"
-	case Add:
+	case OpBinaryAdd:
 		return "ADDITION"
-	case Subtract:
+	case OpBinarySubtract:
 		return "SUBTRACTION"
-	case Divide:
+	case OpBinaryDivide:
 		return "DIVISION"
-	case Multiply:
+	case OpBinaryMultiply:
 		return "MULTIPLICATION"
-	case LogicalAnd:
+	case OpBinaryLogicalAnd:
 		return "AND"
-	case LogicalOr:
+	case OpBinaryLogicalOr:
 		return "OR"
 	default:
 		panic(fmt.Sprintf("unknown binary operation: %d", op))
@@ -85,16 +85,16 @@ func (op BinaryOperation) String() string {
 type UnaryOperation int
 
 const (
-	Negate UnaryOperation = iota
-	LogicalNot
+	OpUnaryNegate UnaryOperation = iota
+	OpUnaryLogicalNot
 )
 
 // Symbol returns the Tunascript operator that corresponds to the operation.
 func (op UnaryOperation) Symbol() string {
 	switch op {
-	case Negate:
+	case OpUnaryNegate:
 		return "-"
-	case LogicalNot:
+	case OpUnaryLogicalNot:
 		return "!"
 	default:
 		panic(fmt.Sprintf("unknown unary operation: %d", op))
@@ -104,9 +104,9 @@ func (op UnaryOperation) Symbol() string {
 // String returns the Tunascript operator that corresponds to the operation.
 func (op UnaryOperation) String() string {
 	switch op {
-	case Negate:
+	case OpUnaryNegate:
 		return "NEGATION"
-	case LogicalNot:
+	case OpUnaryLogicalNot:
 		return "NOT"
 	default:
 		panic(fmt.Sprintf("unknown unary operation: %d", op))
@@ -116,25 +116,25 @@ func (op UnaryOperation) String() string {
 type AssignmentOperation int
 
 const (
-	Set AssignmentOperation = iota
-	Increment
-	Decrement
-	IncrementBy
-	DecrementBy
+	OpAssignSet AssignmentOperation = iota
+	OpAssignIncrement
+	OpAssignDecrement
+	OpAssignIncrementBy
+	OpAssignDecrementBy
 )
 
 // Symbol returns the Tunascript operator that corresponds to the operation.
 func (op AssignmentOperation) Symbol() string {
 	switch op {
-	case Set:
+	case OpAssignSet:
 		return "="
-	case Increment:
+	case OpAssignIncrement:
 		return "++"
-	case Decrement:
+	case OpAssignDecrement:
 		return "--"
-	case IncrementBy:
+	case OpAssignIncrementBy:
 		return "+="
-	case DecrementBy:
+	case OpAssignDecrementBy:
 		return "-="
 	default:
 		panic(fmt.Sprintf("unknown assignment operation: %d", op))
@@ -143,15 +143,15 @@ func (op AssignmentOperation) Symbol() string {
 
 func (op AssignmentOperation) String() string {
 	switch op {
-	case Set:
+	case OpAssignSet:
 		return "SET"
-	case Increment:
+	case OpAssignIncrement:
 		return "INCREMENT_ONE"
-	case Decrement:
+	case OpAssignDecrement:
 		return "DECREMENT_ONE"
-	case IncrementBy:
+	case OpAssignIncrementBy:
 		return "INCREMENT_AMOUNT"
-	case DecrementBy:
+	case OpAssignDecrementBy:
 		return "DECREMENT_AMOUNT"
 	default:
 		panic(fmt.Sprintf("unknown assignment operation: %d", op))
