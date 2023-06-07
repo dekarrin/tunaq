@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/dekarrin/ictiobus/lex"
+	"github.com/dekarrin/rosed"
 )
 
 type AST struct {
@@ -650,48 +651,288 @@ func (n AssignmentNode) Equal(o any) bool {
 	return true
 }
 
-// ExpansionAnalysis is a lexed (and somewhat parsed) block of text containing
-// both tunascript expansion-legal expressions and regular text. The zero-value
-// of a ParsedExpansion is not suitable for use and they should only be created
-// by calls to AnalyzeExpansion.
+// ExpansionAST is a block of text containing both tunascript
+// expansion-legal expressions and regular text. The zero-value of an
+// ExpansionAST is not suitable for use and they should only be created by calls
+// to AnalyzeExpansion.
 type ExpansionAST struct {
-	nodes []expASTNode
+	Nodes []ExpNode
 }
 
-type expASTNode struct {
-	// can be a text node or a conditional node. Conditional nodes hold a series
-	// of ifs
-	text   *expTextNode   // if not nil its a text node
-	branch *expBranchNode // if not nil its a branch node
-	flag   *expFlagNode   // if not nil its a flag node
-	source expSource
+func (ast ExpansionAST) String() string {
+	return ""
 }
 
-type expSource struct {
-	text     string
-	fullLine string
-	line     int
-	pos      int
+func (n ExpansionAST) Equal(o any) bool {
+	other, ok := o.(ExpansionAST)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*ExpansionAST)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if len(n.Nodes) != len(other.Nodes) {
+		return false
+	}
+	for i := range n.Nodes {
+		if !n.Nodes[i].Equal(other.Nodes[i]) {
+			return false
+		}
+	}
+
+	return true
 }
 
-type expFlagNode struct {
-	name string
+type ExpNodeType int
+
+const (
+	ExpText ExpNodeType = iota
+	ExpFlag
+	ExpBranch
+	ExpCond
+)
+
+// ExpNode is a node in an ExpansionAST.
+type ExpNode interface {
+
+	// Type returns the type of the ExpansionAST. This determines which of the As*()
+	// functions may be called.
+	Type() ExpNodeType
+
+	// Returns this node as an ExpTextNode. Panics if Type() does not return
+	// ExpText.
+	AsTextNode() ExpTextNode
+
+	// Returns this node as an ExpFlagNode. Panics if Type() does not return
+	// ExpFlag.
+	AsFlagNode() ExpFlagNode
+
+	// Returns this node as an ExpBranchNode. Panics if Type() does not return
+	// ExpBranch.
+	AsBranchNode() ExpBranchNode
+
+	// Returns this node as an ExpCondNode. Panics if Type() does not return
+	// ExpCond.
+	AsCondNode() ExpCondNode
+
+	// String returns a prettified representation of the node suitable for use
+	// in line-by-line comparisons of tree structure. Two nodes are considered
+	// semantcally identical if they produce identical String() output.
+	String() string
+
+	// Equal returns whether a node is equal to another. It will return false
+	// if anything besides an ASTNode is passed in. ASTNodes do not consider
+	// the result of Source() in their equality; ergo, this returns whether two
+	// nodes have the same structure regardless of the exact source that
+	// produced them.
+	Equal(o any) bool
 }
 
-type expTextNode struct {
-	t                string
-	minusSpacePrefix *string
-	minusSpaceSuffix *string
+type ExpTextNode struct {
+	Text            string
+	TrimSpacePrefix bool
+	TrimSpaceSuffix bool
 }
 
-type expBranchNode struct {
-	ifNode expCondNode
-	/*elseIfNodes []expCondNode
-	elseNode    *ExpansionAST*/
+func (n ExpTextNode) Type() ExpNodeType           { return ExpText }
+func (n ExpTextNode) AsTextNode() ExpTextNode     { return n }
+func (n ExpTextNode) AsFlagNode() ExpFlagNode     { panic("Type() is not ExpFlag") }
+func (n ExpTextNode) AsBranchNode() ExpBranchNode { panic("Type() is not ExpBranch") }
+func (n ExpTextNode) AsCondNode() ExpCondNode     { panic("Type() is not ExpCond") }
+
+func (n ExpTextNode) String() string {
+	s := fmt.Sprintf("[EXP_TEXT ltrim=%t rtrim=%t\n", n.TrimSpacePrefix, n.TrimSpaceSuffix)
+	wrappedText := rosed.Edit(n.Text).Wrap(60).String()
+
+	titleStart := "    "
+	s += titleStart + spaceIndentNewlines(wrappedText, len(titleStart))
+	s += "\n]"
+
+	return s
 }
-type expCondNode struct {
-	cond    *AST
-	content *ExpansionAST
+
+// Does not consider Source.
+func (n ExpTextNode) Equal(o any) bool {
+	other, ok := o.(ExpTextNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*ExpTextNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if n.TrimSpacePrefix != other.TrimSpacePrefix {
+		return false
+	}
+	if n.TrimSpaceSuffix != other.TrimSpaceSuffix {
+		return false
+	}
+	if n.Text != other.Text {
+		return false
+	}
+
+	return true
+}
+
+type ExpFlagNode struct {
+	Flag string
+}
+
+func (n ExpFlagNode) Type() ExpNodeType           { return ExpFlag }
+func (n ExpFlagNode) AsTextNode() ExpTextNode     { panic("Type() is not ExpText") }
+func (n ExpFlagNode) AsFlagNode() ExpFlagNode     { return n }
+func (n ExpFlagNode) AsBranchNode() ExpBranchNode { panic("Type() is not ExpBranch") }
+func (n ExpFlagNode) AsCondNode() ExpCondNode     { panic("Type() is not ExpCond") }
+
+func (n ExpFlagNode) String() string {
+	s := fmt.Sprintf("[EXP_FLAG $%s]", n.Flag)
+	return s
+}
+
+// Does not consider Source.
+func (n ExpFlagNode) Equal(o any) bool {
+	other, ok := o.(ExpFlagNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*ExpFlagNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if n.Flag != other.Flag {
+		return false
+	}
+
+	return true
+}
+
+type ExpBranchNode struct {
+	If ExpCondNode
+
+	// ElseIf will be empty if there are no else-if blocks.
+	ElseIf []ExpCondNode
+
+	// Else will be nil if there are no else blocks.
+	Else *ExpansionAST
+}
+
+func (n ExpBranchNode) Type() ExpNodeType           { return ExpFlag }
+func (n ExpBranchNode) AsTextNode() ExpTextNode     { panic("Type() is not ExpText") }
+func (n ExpBranchNode) AsFlagNode() ExpFlagNode     { panic("Type() is not ExpFlag") }
+func (n ExpBranchNode) AsBranchNode() ExpBranchNode { return n }
+func (n ExpBranchNode) AsCondNode() ExpCondNode     { panic("Type() is not ExpCond") }
+
+func (n ExpBranchNode) String() string {
+	ifStart := " I: "
+	elifStart := " EI:"
+	elseStart := " E: "
+
+	s := "[EXP_BRANCH\n"
+
+	s += fmt.Sprintf("%s%s\n", ifStart, spaceIndentNewlines(n.If.String(), len(ifStart)))
+
+	for i := range n.ElseIf {
+		s += fmt.Sprintf("%s%s\n", elifStart, spaceIndentNewlines(n.ElseIf[i].String(), len(elifStart)))
+	}
+
+	if n.Else != nil {
+		s += fmt.Sprintf("%s%s\n", elseStart, spaceIndentNewlines(n.Else.String(), len(elseStart)))
+	}
+	s += "]"
+	return s
+}
+
+// Does not consider Source.
+func (n ExpBranchNode) Equal(o any) bool {
+	other, ok := o.(ExpBranchNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*ExpBranchNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if !n.If.Equal(other.If) {
+		return false
+	}
+	if len(n.ElseIf) != len(other.ElseIf) {
+		return false
+	}
+	for i := range n.ElseIf {
+		if !n.ElseIf[i].Equal(other.ElseIf[i]) {
+			return false
+		}
+	}
+	if (n.Else == nil && other.Else != nil) || (n.Else != nil && other.Else == nil) {
+		return false
+	}
+	if n.Else != nil && !n.Else.Equal(other.Else) {
+		return false
+	}
+
+	return true
+}
+
+type ExpCondNode struct {
+	Cond    AST
+	Content ExpansionAST
+}
+
+func (n ExpCondNode) Type() ExpNodeType           { return ExpFlag }
+func (n ExpCondNode) AsTextNode() ExpTextNode     { panic("Type() is not ExpText") }
+func (n ExpCondNode) AsFlagNode() ExpFlagNode     { panic("Type() is not ExpFlag") }
+func (n ExpCondNode) AsBranchNode() ExpBranchNode { panic("Type() is not ExpBranch") }
+func (n ExpCondNode) AsCondNode() ExpCondNode     { return n }
+
+func (n ExpCondNode) String() string {
+	condStart := " IF:"
+	contentStart := " C: "
+
+	condStr := spaceIndentNewlines(n.Cond.String(), len(condStart))
+	contentStr := spaceIndentNewlines(n.Content.String(), len(contentStart))
+
+	return fmt.Sprintf("[EXP_COND\n%s%s\n%s%s\n]", condStart, condStr, contentStart, contentStr)
+}
+
+// Does not consider Source.
+func (n ExpCondNode) Equal(o any) bool {
+	other, ok := o.(ExpCondNode)
+	if !ok {
+		// also okay if its the pointer value, as long as its non-nil
+		otherPtr, ok := o.(*ExpCondNode)
+		if !ok {
+			return false
+		} else if otherPtr == nil {
+			return false
+		}
+		other = *otherPtr
+	}
+
+	if !n.Cond.Equal(other.Cond) {
+		return false
+	}
+	if !n.Content.Equal(other.Content) {
+		return false
+	}
+
+	return true
 }
 
 func spaceIndentNewlines(str string, amount int) string {
