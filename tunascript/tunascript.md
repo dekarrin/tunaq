@@ -119,5 +119,16 @@ Minimal SDTS for the moment while we get the rest of things in order.
 %%actions
 
 %symbol {TUNASCRIPT}
-->:                     {^}.value = test_const()
+-> {EXPR}:              {^}.value = identity({0}.node)
+
+%symbol {EXPR}
+-> id set {EXPR}:       {^}.node = assign_set_node( id.$text, {EXPR}.node)
+-> id += {EXPR}:        {^}.node = assign_incset_node( id.$text, {EXPR}.node)
+-> id -= {EXPR}:        {^}.node = assign_decset_node( id.$text, {EXPR}.node)
+-> {BOOL-OP}:           {^}.node = identity({0}.node)
+
+%symbol {BOOL-OP}
+-> {BOOL-OP} or {EQUALITY}: {^}.
+                    |   {BOOL-OP} and {EQUALITY}
+                    |   {EQUALITY}
 ```
