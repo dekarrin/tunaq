@@ -85,7 +85,7 @@ func (v TSValue) Equal(o any) bool {
 	}
 
 	// finally, they must both be ints. do int comparison
-	return v.Int() == v.Int()
+	return v.Int() == other.Int()
 }
 
 func (v TSValue) IsNumber() bool {

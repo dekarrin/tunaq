@@ -13,54 +13,55 @@ func ref[T any](s T) *T {
 func Test_AST_String(t *testing.T) {
 	testCases := []struct {
 		name   string
-		input  *ASTNode
+		input  ASTNode
 		expect string
 	}{
 		{
 			name: "quoted string",
-			input: &ASTNode{value: &valueNode{
-				quotedStringVal: ref("@hello@"),
-			}},
+			input: LiteralNode{
+				Quoted: true,
+				Value:  TSValueOf("@hello@"),
+			},
 			expect: "(AST)\n" +
 				`  \---: (QSTR_VALUE "@hello@")`,
 		},
 		{
 			name: "unquoted string",
-			input: &ASTNode{value: &valueNode{
-				unquotedStringVal: ref("fishka"),
-			}},
+			input: LiteralNode{
+				Value: TSValueOf("fishka"),
+			},
 			expect: "(AST)\n" +
 				`  \---: (STR_VALUE "fishka")`,
 		},
 		{
 			name: "bool true",
-			input: &ASTNode{value: &valueNode{
-				boolVal: ref(true),
-			}},
+			input: LiteralNode{
+				Value: TSValueOf(true),
+			},
 			expect: "(AST)\n" +
 				`  \---: (BOOL_VALUE "true")`,
 		},
 		{
 			name: "bool false",
-			input: &ASTNode{value: &valueNode{
-				boolVal: ref(false),
-			}},
+			input: LiteralNode{
+				Value: TSValueOf(false),
+			},
 			expect: "(AST)\n" +
 				`  \---: (BOOL_VALUE "false")`,
 		},
 		{
 			name: "num val",
-			input: &ASTNode{value: &valueNode{
-				numVal: ref(28),
-			}},
+			input: LiteralNode{
+				Value: TSValueOf(28),
+			},
 			expect: "(AST)\n" +
 				`  \---: (NUM_VALUE "28")`,
 		},
 		{
 			name: "flag",
-			input: &ASTNode{flag: &flagNode{
-				name: "$GLUB_IS_GOOD",
-			}},
+			input: FlagNode{
+				Name: "GLUB_IS_GOOD",
+			},
 			expect: "(AST)\n" +
 				`  \---: (FLAG "$GLUB_IS_GOOD")`,
 		},
