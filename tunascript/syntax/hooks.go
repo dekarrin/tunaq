@@ -134,7 +134,7 @@ func hookLitNum(info trans.SetterInfo, args []interface{}) (interface{}, error) 
 
 		iVal, err := strconv.Atoi(expSplit[1])
 		if err != nil {
-			return fmt.Errorf("not a valid number: %v", lexedText)
+			return nil, fmt.Errorf("not a valid number: %v", lexedText)
 		}
 
 		if exponent != 0 {
@@ -153,4 +153,25 @@ func hookLitNum(info trans.SetterInfo, args []interface{}) (interface{}, error) 
 
 		node.Value = TSValueOf(iVal)
 	}
+	return node, nil
+}
+
+func InterpretEscapes(s string) string {
+	var sb strings.Builder
+
+	var inEscape bool
+	for _, ch := range s {
+		if inEscape {
+			inEscape = false
+			sb.WriteRune(ch)
+		} else {
+			if ch == '\\' {
+				inEscape = true
+			} else {
+				sb.WriteRune(ch)
+			}
+		}
+	}
+
+	return sb.String()
 }
