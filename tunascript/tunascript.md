@@ -122,13 +122,62 @@ Minimal SDTS for the moment while we get the rest of things in order.
 -> {EXPR}:              {^}.value = identity({0}.node)
 
 %symbol {EXPR}
--> id set {EXPR}:       {^}.node = assign_set_node( id.$text, {EXPR}.node)
--> id += {EXPR}:        {^}.node = assign_incset_node( id.$text, {EXPR}.node)
--> id -= {EXPR}:        {^}.node = assign_decset_node( id.$text, {EXPR}.node)
+-> id set {EXPR}:       {^}.node = assign_set( id.$text, {EXPR}.node)
+-> id += {EXPR}:        {^}.node = assign_incset( id.$text, {EXPR}.node)
+-> id -= {EXPR}:        {^}.node = assign_decset( id.$text, {EXPR}.node)
 -> {BOOL-OP}:           {^}.node = identity({0}.node)
 
 %symbol {BOOL-OP}
--> {BOOL-OP} or {EQUALITY}: {^}.
-                    |   {BOOL-OP} and {EQUALITY}
-                    |   {EQUALITY}
+-> {BOOL-OP} or {EQUALITY}:     {^}.node = bin_or({BOOL-OP}.node, {EQUALITY}.node)
+-> {BOOL-OP} and {EQUALITY}:    {^}.node = bin_and({BOOL-OP}.node, {EQUALITY}.node)
+-> {EQUALITY}:                  {^}.node = identity({0}.node)
+
+%symbol {EQUALITY}
+-> {EQUALITY} eq {COMPARISON}:  {^}.node = bin_eq({EQUALITY}.node, {COMPARISON}.node)
+-> {EQUALITY} ne {COMPARISON}:  {^}.node = bin_ne({EQUALITY}.node, {COMPARISON}.node)
+-> {COMPARISON}:                {^}.node = identity({0}.node)
+
+%symbol {COMPARISON}
+-> {COMPARISON} < {SUM}:    {^}.node = bin_lt({COMPARISON}.node, {SUM}.node)
+-> {COMPARISON} > {SUM}:    {^}.node = bin_gt({COMPARISON}.node, {SUM}.node)
+-> {COMPARISON} <= {SUM}:   {^}.node = bin_le({COMPARISON}.node, {SUM}.node)
+-> {COMPARISON} >= {SUM}:   {^}.node = bin_ge({COMPARISON}.node, {SUM}.node)
+-> {SUM}:                   {^}.node = identity({0}.node)
+
+%symbol {SUM}
+-> {SUM} + {PRODUCT}:       {^}.node = bin_add({SUM}.node, {PRODUCT}.node)
+-> {SUM} - {PRODUCT}:       {^}.node = bin_sub({SUM}.node, {PRODUCT}.node)
+-> {PRODUCT}:               {^}.node = identity({0}.node)
+
+%symbol {PRODUCT}
+-> {PRODUCT} * {NEGATION}:  {^}.node = bin_mult({SUM}.node, {PRODUCT}.node)
+-> {PRODUCT} / {NEGATION}:  {^}.node = bin_div({SUM}.node, {PRODUCT}.node)
+-> {NEGATION}:              {^}.node = identity({0}.node)
+
+%symbol {NEGATION}
+-> ! {NEGATION}:            {^}.node = unary_not({NEGATION}.node)
+-> - {NEGATION}:            {^}.node = unary_neg({NEGATION}.node)
+-> {TERM}:                  {^}.node = identity({0}.node)
+
+%symbol {TERM}
+-> lp {EXPR} rp:            {^}.node = group({EXPR}.node)
+-> id {ARG-LIST}:           {^}.node = func( id.$text, {ARG-LIST}.args)
+-> {VALUE}:                 {^}.node = identity({0}.node)
+
+%symbol {ARG-LIST}
+-> lp {ARGS} rp:            {^}.args = identity({ARGS}.args)
+-> lp rp:                   {^}.args = args_list()
+
+%symbol {ARGS}
+-> {ARGS} comma {EXPR}:     {^}.args = args_list({EXPR}.node, {ARGS}.args)
+-> {EXPR}:                  {^}.args = args_list({EXPR}.node)
+
+%symbol {VALUE}
+-> id ++:                   {^}.node = assign_inc( id.$text)
+-> id --:                   {^}.node = assign_dec( id.$text)
+-> id:                      {^}.node = flag( id.$text)
+-> num:                     {^}.node = lit_num( num.$text)
+-> @str:                    {^}.node = lit_text( @str.$text)
+-> str:                     {^}.node = lit_text( str.$text)
+-> bool:                    {^}.node = lit_binary( bool.$text)
 ```
