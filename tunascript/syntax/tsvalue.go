@@ -154,6 +154,34 @@ func (v Value) Negate() Value {
 	return ValueOf(-v.Int())
 }
 
+// CastToBool returns this value cast to Bool type. If this value is already
+// Bool, it is returned unchanged, otherwise it is converted to Bool type.
+func (v Value) CastToBool() Value {
+	if v.Type() == Bool {
+		return v
+	}
+	return ValueOf(v.Bool())
+}
+
+// CastToString returns this value cast to String type. If this value is already
+// String, it is returned unchanged, otherwise it is converted to String type.
+func (v Value) CastToString() Value {
+	if v.Type() == String {
+		return v
+	}
+	return ValueOf(v.String())
+}
+
+// CastToNumber returns this value cast to a numeric type. If this value is
+// already an Int or a Float, it is returned unchanged, otherwise it is
+// converted to Int type.
+func (v Value) CastToNumber() Value {
+	if v.Type() == Float || v.Type() == Int {
+		return v
+	}
+	return ValueOf(v.Int())
+}
+
 // Not returns the logical negation of this value. The Value is coerced to a
 // bool and the negation is returned.
 func (v Value) Not() Value {

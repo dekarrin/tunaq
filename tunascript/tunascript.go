@@ -46,6 +46,7 @@ type Interpreter struct {
 	// is used in error reporting and is optional to set.
 	File string
 
+	fn map[string]funcInfo
 	fe ictiobus.Frontend[syntax.AST]
 }
 
@@ -63,6 +64,33 @@ func (interp *Interpreter) Init() {
 	}
 }
 
+// Eval parses the given string as FISHIMath code and applies it immediately.
+// Returns a non-nil error if there is a syntax error in the text. The value of
+// the last valid statement will be in interp.LastResult after Eval returns.
+func (interp *Interpreter) Eval(code string) error {
+	ast, err := interp.Parse(code)
+	if err != nil {
+		return err
+	}
+
+	interp.Exec(ast)
+	return nil
+}
+
+// EvalReader parses the contents of a Reader as FISHIMath code and applies it
+// immediately. Returns a non-nil error if there is a syntax error in the text
+// or if there is an error reading bytes from the Reader. The value of the last
+// valid statement will be in interp.LastResult after EvalReader returns.
+func (interp *Interpreter) EvalReader(r io.Reader) error {
+	ast, err := interp.ParseReader(r)
+	if err != nil {
+		return err
+	}
+
+	interp.Exec(ast)
+	return nil
+}
+
 // Exec executes all statements contained in the AST and returns the result of
 // the last statement. Additionally, interp.LastResult is set to that result. If
 // no statements are in the AST, the returned TSValue will be the zero value and
@@ -77,6 +105,10 @@ func (interp *Interpreter) Exec(ast syntax.AST) syntax.Value {
 
 	if interp.Flags == nil {
 		interp.Flags = map[string]syntax.Value{}
+	}
+
+	if interp.fn == nil {
+		interp.initFuncs()
 	}
 
 	if len(ast.Nodes) < 1 {
@@ -131,7 +163,8 @@ func (interp *Interpreter) ParseReader(r io.Reader) (ast syntax.AST, err error) 
 
 // execNode executes the mathematical expression contained in the AST node and
 // returns the result of the final one. This will also set interp.LastResult to
-// that value.
+// that value. Make sure initFuncs is called at least once before calling
+// execNode.
 func (interp *Interpreter) execNode(n syntax.ASTNode) (result syntax.Value) {
 	defer func() {
 		interp.LastResult = result
@@ -159,8 +192,100 @@ func (interp *Interpreter) execNode(n syntax.ASTNode) (result syntax.Value) {
 	return result
 }
 
-func (interp *Interpreter) execFlagNode(n syntax.FlagNode) syntax.Value {
+func (interp *Interpreter) execFuncNode(n syntax.FuncNode) syntax.Value {
+	// existence and arity should already be validated by the translation layer
+	// of the frontend, so no need to check here.
 
+	var args []syntax.Value
+
+	for i := range n.Args {
+		argVal := interp.execNode(n.Args[i])
+		args = append(args, argVal)
+	}
+
+	result := interp.fn[n.Func].call(args)
+
+	return result
+}
+
+func (interp *Interpreter) execGroupNode(n syntax.GroupNode) syntax.Value {
+	return interp.execNode(n.Expr)
+}
+
+func (interp *Interpreter) execAssignmentNode(n syntax.AssignmentNode) syntax.Value {
+	var newVal syntax.Value
+	oldVal := interp.Flags[n.Flag]
+
+	switch n.Op {
+	case syntax.OpAssignDecrement:
+		newVal = oldVal.Subtract(syntax.ValueOf(1))
+	case syntax.OpAssignDecrementBy:
+		amt := interp.execNode(n.Value)
+		newVal = oldVal.Subtract(amt)
+	case syntax.OpAssignIncrement:
+		newVal = oldVal.Add(syntax.ValueOf(1))
+	case syntax.OpAssignIncrementBy:
+		amt := interp.execNode(n.Value)
+		newVal = oldVal.Add(amt)
+	case syntax.OpAssignSet:
+		newVal = interp.execNode(n.Value)
+	default:
+		panic(fmt.Sprintf("unrecognized AssignmentOperation: %v", n.Op))
+	}
+
+	interp.Flags[n.Flag] = newVal
+	return newVal
+}
+
+func (interp *Interpreter) execBinaryOpNode(n syntax.BinaryOpNode) syntax.Value {
+	left := interp.execNode(n.Left)
+	right := interp.execNode(n.Right)
+
+	switch n.Op {
+	case syntax.OpBinaryAdd:
+		return left.Add(right)
+	case syntax.OpBinaryDivide:
+		return left.Divide(right)
+	case syntax.OpBinaryEqual:
+		return left.EqualTo(right)
+	case syntax.OpBinaryGreaterThan:
+		return left.GreaterThan(right)
+	case syntax.OpBinaryGreaterThanEqual:
+		return left.GreaterThanEqualTo(right)
+	case syntax.OpBinaryLessThan:
+		return left.LessThan(right)
+	case syntax.OpBinaryLessThanEqual:
+		return left.LessThanEqualTo(right)
+	case syntax.OpBinaryLogicalAnd:
+		return left.And(right)
+	case syntax.OpBinaryLogicalOr:
+		return left.Or(right)
+	case syntax.OpBinaryMultiply:
+		return left.Multiply(right)
+	case syntax.OpBinaryNotEqual:
+		return left.EqualTo(right).Not()
+	case syntax.OpBinarySubtract:
+		return left.Subtract(right)
+	default:
+		panic(fmt.Sprintf("unrecognized BinaryOperation: %v", n.Op))
+	}
+}
+
+func (interp *Interpreter) execUnaryOpNode(n syntax.UnaryOpNode) syntax.Value {
+	operand := interp.execNode(n.Operand)
+
+	switch n.Op {
+	case syntax.OpUnaryLogicalNot:
+		return operand.Not()
+	case syntax.OpUnaryNegate:
+		return operand.Negate()
+	default:
+		panic(fmt.Sprintf("unrecognized UnaryOperation: %v", n.Op))
+	}
+}
+
+func (interp *Interpreter) execFlagNode(n syntax.FlagNode) syntax.Value {
+	return interp.Flags[n.Flag]
 }
 
 func (interp *Interpreter) execLiteralNode(n syntax.LiteralNode) syntax.Value {

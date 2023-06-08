@@ -124,8 +124,34 @@ func hookGroup(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 }
 
 func hookFunc(info trans.SetterInfo, args []interface{}) (interface{}, error) {
-	fname := args[0].(string)
+	lexedName := args[0].(string)
 	fargs := args[1].([]ASTNode)
+
+	fname := strings.ToUpper(lexedName)
+
+	// check that the function is defined and check its arity
+	def, ok := BuiltInFunctions[fname]
+	if !ok {
+		return nil, fmt.Errorf("$%s() is not a function that exists in TunaScript", lexedName)
+	}
+	min := def.RequiredArgs
+	max := def.RequiredArgs + def.OptionalArgs
+
+	if len(fargs) < min || len(fargs) > max {
+		if def.OptionalArgs == 0 {
+			var argPlural string
+			if def.RequiredArgs != 1 {
+				argPlural = "s"
+			}
+			return nil, fmt.Errorf("$%s() requires exactly %d argument%s, but was given %d", lexedName, def.RequiredArgs, argPlural, len(fargs))
+		} else {
+			var maxPlural string
+			if max != 1 {
+				maxPlural = "s"
+			}
+			return nil, fmt.Errorf("$%s() requires between %d and %d argument%s, but was given %d", lexedName, min, max, maxPlural, len(fargs))
+		}
+	}
 
 	node := FuncNode{
 		Func: fname,
@@ -159,8 +185,10 @@ func hookArgsList(info trans.SetterInfo, args []interface{}) (interface{}, error
 func hookFlag(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedIdent := args[0].(string)
 
+	fname := strings.ToUpper(lexedIdent)
+
 	node := FlagNode{
-		Flag: lexedIdent,
+		Flag: fname,
 		src:  info.FirstToken,
 	}
 
