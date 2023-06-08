@@ -3,7 +3,6 @@ package syntax
 import (
 	"fmt"
 	"math"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -11,23 +10,72 @@ import (
 )
 
 var (
-	escapeSequenceRegex = regexp.MustCompile(`\\(.)`)
-)
-var (
 	HooksTable = trans.HookMap{
 		"test_const": func(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 			return 1, nil
 		},
-		"args_list":  hookArgsList,
-		"assign_dec": makeHookAssignUnary(OpAssignDecrement),
-		"assign_inc": makeHookAssignUnary(OpAssignIncrement),
-		"flag":       hookFlag,
-		"lit_binary": hookLitBinary,
-		"lit_text":   hookLitText,
-		"lit_num":    hookLitNum,
-		"identity":   func(info trans.SetterInfo, args []interface{}) (interface{}, error) { return args[0], nil },
+		"ast":           hookAST,
+		"bin_or":        makeHookBinaryOp(OpBinaryLogicalOr),
+		"bin_and":       makeHookBinaryOp(OpBinaryLogicalAnd),
+		"bin_eq":        makeHookBinaryOp(OpBinaryEqual),
+		"bin_ne":        makeHookBinaryOp(OpBinaryNotEqual),
+		"bin_lt":        makeHookBinaryOp(OpBinaryLessThan),
+		"bin_le":        makeHookBinaryOp(OpBinaryLessThanEqual),
+		"bin_gt":        makeHookBinaryOp(OpBinaryGreaterThan),
+		"bin_ge":        makeHookBinaryOp(OpBinaryGreaterThanEqual),
+		"bin_sub":       makeHookBinaryOp(OpBinarySubtract),
+		"bin_add":       makeHookBinaryOp(OpBinaryAdd),
+		"bin_mult":      makeHookBinaryOp(OpBinaryMultiply),
+		"bin_div":       makeHookBinaryOp(OpBinaryDivide),
+		"unary_not":     makeHookUnaryOp(OpUnaryLogicalNot),
+		"unary_neg":     makeHookUnaryOp(OpUnaryNegate),
+		"group":         hookGroup,
+		"func":          hookFunc,
+		"args_list":     hookArgsList,
+		"assign_set":    makeHookAssignBinary(OpAssignSet),
+		"assign_incset": makeHookAssignBinary(OpAssignIncrementBy),
+		"assign_decset": makeHookAssignBinary(OpAssignDecrementBy),
+		"assign_dec":    makeHookAssignUnary(OpAssignDecrement),
+		"assign_inc":    makeHookAssignUnary(OpAssignIncrement),
+		"flag":          hookFlag,
+		"lit_binary":    hookLitBinary,
+		"lit_text":      hookLitText,
+		"lit_num":       hookLitNum,
+		"identity":      func(info trans.SetterInfo, args []interface{}) (interface{}, error) { return args[0], nil },
 	}
 )
+
+func makeHookBinaryOp(op BinaryOperation) trans.Hook {
+	return func(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+		left := args[0].(ASTNode)
+		right := args[1].(ASTNode)
+
+		node := BinaryOpNode{
+			Left:  left,
+			Right: right,
+			Op:    op,
+			src:   info.FirstToken,
+		}
+
+		return node, nil
+	}
+}
+
+func makeHookAssignBinary(op AssignmentOperation) trans.Hook {
+	return func(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+		lexedIdent := args[0].(string)
+		value := args[1].(ASTNode)
+
+		node := AssignmentNode{
+			Flag:  lexedIdent,
+			Value: value,
+			Op:    op,
+			src:   info.FirstToken,
+		}
+
+		return node, nil
+	}
+}
 
 func makeHookAssignUnary(op AssignmentOperation) trans.Hook {
 	return func(info trans.SetterInfo, args []interface{}) (interface{}, error) {
@@ -41,6 +89,54 @@ func makeHookAssignUnary(op AssignmentOperation) trans.Hook {
 
 		return node, nil
 	}
+}
+
+func makeHookUnaryOp(op UnaryOperation) trans.Hook {
+	return func(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+		operand := args[0].(ASTNode)
+
+		node := UnaryOpNode{
+			Operand: operand,
+			Op:      op,
+			src:     info.FirstToken,
+		}
+
+		return node, nil
+	}
+}
+
+func hookAST(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+	stmt := args[0].(ASTNode)
+
+	ast := AST{
+		Nodes: []ASTNode{stmt},
+	}
+
+	return ast, nil
+}
+
+func hookGroup(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+	expr := args[0].(ASTNode)
+
+	node := GroupNode{
+		Expr: expr,
+		src:  info.FirstToken,
+	}
+
+	return node, nil
+}
+
+func hookFunc(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+	fname := args[0].(string)
+	fargs := args[1].([]ASTNode)
+
+	node := FuncNode{
+		Func: fname,
+		Args: fargs,
+		src:  info.FirstToken,
+	}
+
+	return node, nil
 }
 
 func hookArgsList(info trans.SetterInfo, args []interface{}) (interface{}, error) {

@@ -119,7 +119,7 @@ Minimal SDTS for the moment while we get the rest of things in order.
 %%actions
 
 %symbol {TUNASCRIPT}
--> {EXPR}:              {^}.value = identity({0}.node)
+-> {EXPR}:              {^}.ast = ast({EXPR}.node)
 
 %symbol {EXPR}
 -> id set {EXPR}:       {^}.node = assign_set( id.$text, {EXPR}.node)
