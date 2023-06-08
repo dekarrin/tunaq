@@ -160,7 +160,7 @@ type LiteralNode struct {
 	Quoted bool
 
 	// Value is the value of the literal.
-	Value TSValue
+	Value Value
 
 	src lex.Token
 }

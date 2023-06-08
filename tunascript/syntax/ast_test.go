@@ -16,7 +16,7 @@ func Test_AST_String(t *testing.T) {
 			name: "quoted string",
 			input: LiteralNode{
 				Quoted: true,
-				Value:  TSValueOf("hello"),
+				Value:  ValueOf("hello"),
 			},
 			expect: "AST\n" +
 				` S: [LITERAL TEXT/@STRING "hello"]`,
@@ -24,7 +24,7 @@ func Test_AST_String(t *testing.T) {
 		{
 			name: "unquoted string",
 			input: LiteralNode{
-				Value: TSValueOf("fishka"),
+				Value: ValueOf("fishka"),
 			},
 			expect: "AST\n" +
 				` S: [LITERAL TEXT/STRING "fishka"]`,
@@ -32,7 +32,7 @@ func Test_AST_String(t *testing.T) {
 		{
 			name: "bool true",
 			input: LiteralNode{
-				Value: TSValueOf(true),
+				Value: ValueOf(true),
 			},
 			expect: "AST\n" +
 				` S: [LITERAL BINARY/BOOL ON]`,
@@ -40,7 +40,7 @@ func Test_AST_String(t *testing.T) {
 		{
 			name: "bool false",
 			input: LiteralNode{
-				Value: TSValueOf(false),
+				Value: ValueOf(false),
 			},
 			expect: "AST\n" +
 				` S: [LITERAL BINARY/BOOL OFF]`,
@@ -48,7 +48,7 @@ func Test_AST_String(t *testing.T) {
 		{
 			name: "num val (int)",
 			input: LiteralNode{
-				Value: TSValueOf(28),
+				Value: ValueOf(28),
 			},
 			expect: "AST\n" +
 				` S: [LITERAL NUMBER/INT 28]`,
@@ -56,7 +56,7 @@ func Test_AST_String(t *testing.T) {
 		{
 			name: "num val (float)",
 			input: LiteralNode{
-				Value: TSValueOf(28.7),
+				Value: ValueOf(28.7),
 			},
 			expect: "AST\n" +
 				` S: [LITERAL NUMBER/FLOAT 28.7]`,
@@ -85,7 +85,7 @@ func Test_AST_String(t *testing.T) {
 				Op:   OpAssignSet,
 				Flag: "GLUB",
 				Value: LiteralNode{
-					Value: TSValueOf(true),
+					Value: ValueOf(true),
 				},
 			},
 			expect: "AST\n" +
@@ -97,7 +97,7 @@ func Test_AST_String(t *testing.T) {
 			name: "group",
 			input: GroupNode{
 				Expr: LiteralNode{
-					Value: TSValueOf(413),
+					Value: ValueOf(413),
 				},
 			},
 			expect: "AST\n" +
@@ -119,7 +119,7 @@ func Test_AST_String(t *testing.T) {
 				Func: "OUTPUT",
 				Args: []ASTNode{
 					LiteralNode{
-						Value: TSValueOf("Hello, Sburb!"),
+						Value: ValueOf("Hello, Sburb!"),
 					},
 				},
 			},
@@ -134,10 +134,10 @@ func Test_AST_String(t *testing.T) {
 				Func: "MULT_ARGS",
 				Args: []ASTNode{
 					LiteralNode{
-						Value: TSValueOf("Hello, Sburb!"),
+						Value: ValueOf("Hello, Sburb!"),
 					},
 					LiteralNode{
-						Value: TSValueOf(41.3),
+						Value: ValueOf(41.3),
 					},
 				},
 			},
@@ -152,10 +152,10 @@ func Test_AST_String(t *testing.T) {
 			input: BinaryOpNode{
 				Op: OpBinaryAdd,
 				Left: LiteralNode{
-					Value: TSValueOf(612),
+					Value: ValueOf(612),
 				},
 				Right: LiteralNode{
-					Value: TSValueOf(413),
+					Value: ValueOf(413),
 				},
 			},
 			expect: "AST\n" +
@@ -184,29 +184,29 @@ func Test_AST_String(t *testing.T) {
 				Args: []ASTNode{
 					BinaryOpNode{Op: OpBinaryAdd,
 						Left:  FlagNode{Flag: "ARADIA_PAIN"},
-						Right: LiteralNode{Value: TSValueOf(8)},
+						Right: LiteralNode{Value: ValueOf(8)},
 					},
 					UnaryOpNode{Op: OpUnaryNegate,
 						Operand: FlagNode{Flag: "ANY_HELP"},
 					},
-					LiteralNode{Quoted: true, Value: TSValueOf("F8ck yeah!!!!!!!!")},
-					LiteralNode{Value: TSValueOf(true)},
+					LiteralNode{Quoted: true, Value: ValueOf("F8ck yeah!!!!!!!!")},
+					LiteralNode{Value: ValueOf(true)},
 					FuncNode{Func: "PAYBACK",
 						Args: []ASTNode{
-							LiteralNode{Value: TSValueOf("S_MAKE_HER_PAY")},
-							LiteralNode{Value: TSValueOf(false)},
+							LiteralNode{Value: ValueOf("S_MAKE_HER_PAY")},
+							LiteralNode{Value: ValueOf(false)},
 							BinaryOpNode{Op: OpBinaryMultiply,
 								Left: GroupNode{Expr: BinaryOpNode{Op: OpBinaryAdd,
 									Left:  FlagNode{Flag: "VRISKA_PAIN"},
-									Right: LiteralNode{Value: TSValueOf(16)},
+									Right: LiteralNode{Value: ValueOf(16)},
 								}},
 								Right: UnaryOpNode{Op: OpUnaryNegate,
-									Operand: LiteralNode{Value: TSValueOf(8.8)},
+									Operand: LiteralNode{Value: ValueOf(8.8)},
 								},
 							},
 						},
 					},
-					LiteralNode{Value: TSValueOf(413)},
+					LiteralNode{Value: ValueOf(413)},
 				},
 			},
 			expect: `AST

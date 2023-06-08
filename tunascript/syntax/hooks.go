@@ -173,10 +173,10 @@ func hookLitBinary(info trans.SetterInfo, args []interface{}) (interface{}, erro
 	boolText := strings.ToUpper(lexedText)
 
 	if boolText == "ON" || boolText == "YES" || boolText == "TRUE" {
-		node.Value = TSValueOf(true)
+		node.Value = ValueOf(true)
 		return node, nil
 	} else if boolText == "OFF" || boolText == "NO" || boolText == "FALSE" {
-		node.Value = TSValueOf(false)
+		node.Value = ValueOf(false)
 		return node, nil
 	}
 	return nil, fmt.Errorf("not a valid binary value: %v", lexedText)
@@ -197,7 +197,7 @@ func hookLitText(info trans.SetterInfo, args []interface{}) (interface{}, error)
 	// unescape things
 	str = InterpretEscapes(str)
 
-	node.Value = TSValueOf(str)
+	node.Value = ValueOf(str)
 	return node, nil
 }
 
@@ -211,7 +211,7 @@ func hookLitNum(info trans.SetterInfo, args []interface{}) (interface{}, error) 
 		if err != nil {
 			return nil, fmt.Errorf("not a valid number: %v", lexedText)
 		}
-		node.Value = TSValueOf(fVal)
+		node.Value = ValueOf(fVal)
 	} else {
 		// it's an int, make sure we chop off any exponent part.
 		sVal := strings.ToLower(lexedText)
@@ -244,7 +244,7 @@ func hookLitNum(info trans.SetterInfo, args []interface{}) (interface{}, error) 
 			iVal *= factor
 		}
 
-		node.Value = TSValueOf(iVal)
+		node.Value = ValueOf(iVal)
 	}
 	return node, nil
 }
