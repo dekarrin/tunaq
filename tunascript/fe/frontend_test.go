@@ -5,10 +5,34 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dekarrin/ictiobus"
 	"github.com/dekarrin/ictiobus/syntaxerr"
 	"github.com/dekarrin/ictiobus/trans"
 	"github.com/stretchr/testify/assert"
 )
+
+// Note: This frontend test file actually does not test the SDTS due to not
+// having access to the final implementations located in the syntax package.
+//
+// It tests only against a modified Frontend with an entirely mocked SDTS.
+
+func withMockedSDTS[E any](front ictiobus.Frontend[E]) ictiobus.Frontend[int] {
+	newFront := ictiobus.Frontend[int]{
+		Lexer:       front.Lexer,
+		Parser:      front.Parser,
+		IRAttribute: "value",
+		Language:    front.Language,
+		Version:     front.Version,
+	}
+
+	sdts := ictiobus.NewSDTS()
+	sdts.Bind("TUNASCRIPT", []string{"EXPR"}, "value", "test_const", nil)
+	sdts.SetHooks(fakeHooks)
+
+	newFront.SDTS = sdts
+
+	return newFront
+}
 
 func fakeHook(retVal interface{}) trans.Hook {
 	return func(info trans.SetterInfo, args []interface{}) (interface{}, error) {
@@ -69,7 +93,7 @@ func Test_Lex(t *testing.T) {
 		},
 	}
 
-	front := Frontend(fakeHooks, nil)
+	front := withMockedSDTS(Frontend(fakeHooks, nil))
 	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {
@@ -193,7 +217,7 @@ func Test_Parse(t *testing.T) {
 		},
 	}
 
-	front := Frontend(fakeHooks, nil)
+	front := withMockedSDTS(Frontend(fakeHooks, nil))
 	for _, tc := range testCases {
 
 		t.Run(tc.name, func(t *testing.T) {

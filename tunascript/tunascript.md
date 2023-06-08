@@ -150,8 +150,8 @@ Minimal SDTS for the moment while we get the rest of things in order.
 -> {PRODUCT}:               {^}.node = identity({0}.node)
 
 %symbol {PRODUCT}
--> {PRODUCT} * {NEGATION}:  {^}.node = bin_mult({SUM}.node, {PRODUCT}.node)
--> {PRODUCT} / {NEGATION}:  {^}.node = bin_div({SUM}.node, {PRODUCT}.node)
+-> {PRODUCT} * {NEGATION}:  {^}.node = bin_mult({PRODUCT}.node, {NEGATION}.node)
+-> {PRODUCT} / {NEGATION}:  {^}.node = bin_div({PRODUCT}.node, {NEGATION}.node)
 -> {NEGATION}:              {^}.node = identity({0}.node)
 
 %symbol {NEGATION}
@@ -173,11 +173,11 @@ Minimal SDTS for the moment while we get the rest of things in order.
 -> {EXPR}:                  {^}.args = args_list({EXPR}.node)
 
 %symbol {VALUE}
--> id ++:                   {^}.node = assign_inc( id.$text)
--> id --:                   {^}.node = assign_dec( id.$text)
--> id:                      {^}.node = flag( id.$text)
--> num:                     {^}.node = lit_num( num.$text)
--> @str:                    {^}.node = lit_text( @str.$text)
--> str:                     {^}.node = lit_text( str.$text)
--> bool:                    {^}.node = lit_binary( bool.$text)
+-> id ++ :                  {^}.node = assign_inc( id.$text)
+-> id -- :                  {^}.node = assign_dec( id.$text)
+-> id    :                  {^}.node = flag( id.$text)
+-> num   :                  {^}.node = lit_num( num.$text)
+-> @str  :                  {^}.node = lit_text( @str.$text)
+-> str   :                  {^}.node = lit_text( str.$text)
+-> bool  :                  {^}.node = lit_binary( bool.$text)
 ```

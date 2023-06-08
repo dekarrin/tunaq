@@ -11,9 +11,6 @@ import (
 
 var (
 	HooksTable = trans.HookMap{
-		"test_const": func(info trans.SetterInfo, args []interface{}) (interface{}, error) {
-			return 1, nil
-		},
 		"ast":           hookAST,
 		"bin_or":        makeHookBinaryOp(OpBinaryLogicalOr),
 		"bin_and":       makeHookBinaryOp(OpBinaryLogicalAnd),
@@ -228,7 +225,7 @@ func hookLitNum(info trans.SetterInfo, args []interface{}) (interface{}, error) 
 			}
 		}
 
-		iVal, err := strconv.Atoi(expSplit[1])
+		iVal, err := strconv.Atoi(expSplit[0])
 		if err != nil {
 			return nil, fmt.Errorf("not a valid number: %v", lexedText)
 		}
