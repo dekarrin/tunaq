@@ -52,6 +52,10 @@ func ValueOf(v any) Value {
 	}
 }
 
+// Equal returns whether this value struct is exactly the same as another Go
+// value. No type coercion is performed; any must be a Value or a *Value with
+// all members identical to v for Equal to return true. For TunaScript equality
+// semantics, use EqualTo.
 func (v Value) Equal(o any) bool {
 	other, ok := o.(Value)
 	if !ok {
@@ -65,28 +69,107 @@ func (v Value) Equal(o any) bool {
 		other = *otherPtr
 	}
 
+	if v.vType != other.vType {
+		return false
+	}
+	if v.b != other.b {
+		return false
+	}
+	if v.f != other.f {
+		return false
+	}
+	if v.i != other.i {
+		return false
+	}
+	if v.s != other.s {
+		return false
+	}
+
+	return true
+}
+
+// EqualTo returns whether v is equal to v2 using TunaScript semantics. The
+// value held within v2 is converted to v's type and the results are compared.
+// This does *not* do a strict struct member comparison; for that, use Equal.
+//
+// The result will always be of type Bool.
+func (v Value) EqualTo(v2 Value) Value {
+
 	// if left operand is a string, do string comparison
 	if v.Type() == String {
-		return v.String() == other.String()
+		return ValueOf(v.String() == v2.String())
 	}
 
 	// if left operand is a bool, they will be compared as bools
 	if v.Type() == Bool {
-		return v.Bool() == other.Bool()
+		return ValueOf(v.Bool() == v2.Bool())
 	}
 
 	// if left operand is a float, they will be compared as floats
 	if v.Type() == Float {
-		return v.Float() == other.Float()
+		return ValueOf(v.Float() == v2.Float())
 	}
 
 	// finally, they must both be ints. do int comparison
-	return v.Int() == other.Int()
+	return ValueOf(v.Int() == v2.Int())
+}
+
+// LessThan returns whether v is less than v2. Both are interpreted as numeric.
+// The result will always be type Bool.
+func (v Value) LessThan(v2 Value) Value {
+	// if one is a float, we *must* do float comparison
+	if v.Type() == Float || v2.Type() == Float {
+		return ValueOf(v.Float() < v2.Float())
+	}
+
+	// otherwise do normal int comparison
+	return ValueOf(v.Int() < v2.Int())
+}
+
+// LessThanEqualTo returns whether v is less than or equal to v2. Both are
+// interpreted as numeric. The result will always be type Bool.
+func (v Value) LessThanEqualTo(v2 Value) Value {
+	return ValueOf(v.LessThan(v2).Bool() || v.EqualTo(v2).Bool())
 }
 
 // GreaterThan returns whether v is greater than v2. Both are interpreted as
 // numeric. The result will always be type Bool.
 func (v Value) GreaterThan(v2 Value) Value {
+	return ValueOf(!v.LessThanEqualTo(v2).Bool())
+}
+
+// GreaterThanEqualTo returns whether v is greater than  or equal to v2. Both
+// are interpreted as numeric. The result will always be type Bool.
+func (v Value) GreaterThanEqualTo(v2 Value) Value {
+	return ValueOf(!v.LessThan(v2).Bool())
+}
+
+// Negate returns the numeric negation of this value. The Value is coerced to a
+// numberic type and a Value holding the negative result is returned.
+func (v Value) Negate() Value {
+	if v.Type() == Float {
+		return ValueOf(-v.Float())
+	}
+
+	return ValueOf(-v.Int())
+}
+
+// Not returns the logical negation of this value. The Value is coerced to a
+// bool and the negation is returned.
+func (v Value) Not() Value {
+	return ValueOf(!v.Bool())
+}
+
+// And returns the result of performing a logical AND on v and v2. Both are
+// coerced to bool and the result of AND-ing them is returned.
+func (v Value) And(v2 Value) Value {
+	return ValueOf(v.Bool() && v2.Bool())
+}
+
+// Or returns the result of performing a logical OR on v and v2. Both are
+// coerced to bool and the result of OR-ing them is returned.
+func (v Value) Or(v2 Value) Value {
+	return ValueOf(v.Bool() || v2.Bool())
 }
 
 // Add returns the result of adding v2 to v.
