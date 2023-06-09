@@ -113,7 +113,8 @@ and intended to be consumed by the ictcc command of
 
 ## SDTS
 
-Minimal SDTS for the moment while we get the rest of things in order.
+Syntax-directed translation scheme for the translation phase. IR is the AST of
+the TunaScript.
 
 ```fishi
 %%actions

@@ -734,9 +734,10 @@ type ExpNode interface {
 }
 
 type ExpTextNode struct {
-	Text            string
-	TrimSpacePrefix bool
-	TrimSpaceSuffix bool
+	Text              string
+	LeftSpaceTrimmed  string
+	RightSpaceTrimmed string
+	Source            lex.Token
 }
 
 func (n ExpTextNode) Type() ExpNodeType           { return ExpText }
@@ -746,7 +747,7 @@ func (n ExpTextNode) AsBranchNode() ExpBranchNode { panic("Type() is not ExpBran
 func (n ExpTextNode) AsCondNode() ExpCondNode     { panic("Type() is not ExpCond") }
 
 func (n ExpTextNode) String() string {
-	s := fmt.Sprintf("[EXP_TEXT ltrim=%t rtrim=%t\n", n.TrimSpacePrefix, n.TrimSpaceSuffix)
+	s := fmt.Sprintf("[EXP_TEXT ltrim=%t rtrim=%t\n", n.HasLeftTrimmed(), n.HasRightTrimmed())
 	wrappedText := rosed.Edit(n.Text).Wrap(60).String()
 
 	titleStart := "    "
@@ -754,6 +755,20 @@ func (n ExpTextNode) String() string {
 	s += "\n]"
 
 	return s
+}
+
+func (n ExpTextNode) HasLeftTrimmed() bool {
+	if n.Text == "" {
+		return false
+	}
+	return n.LeftSpaceTrimmed != ""
+}
+
+func (n ExpTextNode) HasRightTrimmed() bool {
+	if n.Text == "" {
+		return false
+	}
+	return n.RightSpaceTrimmed != ""
 }
 
 // Does not consider Source.
@@ -770,10 +785,10 @@ func (n ExpTextNode) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if n.TrimSpacePrefix != other.TrimSpacePrefix {
+	if n.LeftSpaceTrimmed != other.LeftSpaceTrimmed {
 		return false
 	}
-	if n.TrimSpaceSuffix != other.TrimSpaceSuffix {
+	if n.RightSpaceTrimmed != other.RightSpaceTrimmed {
 		return false
 	}
 	if n.Text != other.Text {
@@ -784,7 +799,8 @@ func (n ExpTextNode) Equal(o any) bool {
 }
 
 type ExpFlagNode struct {
-	Flag string
+	Flag   string
+	Source lex.Token
 }
 
 func (n ExpFlagNode) Type() ExpNodeType           { return ExpFlag }
@@ -827,6 +843,8 @@ type ExpBranchNode struct {
 
 	// Else will be nil if there are no else blocks.
 	Else *ExpansionAST
+
+	Source lex.Token
 }
 
 func (n ExpBranchNode) Type() ExpNodeType           { return ExpFlag }
@@ -893,6 +911,8 @@ func (n ExpBranchNode) Equal(o any) bool {
 type ExpCondNode struct {
 	Cond    AST
 	Content ExpansionAST
+
+	Source lex.Token
 }
 
 func (n ExpCondNode) Type() ExpNodeType           { return ExpFlag }

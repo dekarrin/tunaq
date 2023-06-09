@@ -181,6 +181,8 @@ func (inter Interpreter) ExpandTree(ast *ExpansionAST) (string, error) {
 
 // ParseExpansion applies expansion analysis to the given text.
 //
+// {{ if  }}
+//
 //   - any flag reference with the $ will be expanded to its full value.
 //   - any $IF() ... $ENDIF() block will be evaluated and included in the output
 //     text only if the tunaquest expression inside the $IF evaluates to true.
