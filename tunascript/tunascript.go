@@ -5,8 +5,10 @@ package tunascript
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/dekarrin/ictiobus"
+	"github.com/dekarrin/ictiobus/lex"
 	"github.com/dekarrin/ictiobus/syntaxerr"
 	"github.com/dekarrin/tunaq/tunascript/expfe"
 	"github.com/dekarrin/tunaq/tunascript/fe"
@@ -66,6 +68,33 @@ func (interp *Interpreter) Init() {
 	}
 }
 
+// Expand parses the given string as a TunaQuest template and expands it into
+// the full contents immediately. Returns a non-nil error if there is a syntax
+// error in the template, in TunaScript within template flow-control statements,
+// or if a non-pure function from TunaScript is within the template.
+func (interp *Interpreter) Expand(tmpl string) (string, error) {
+	ast, err := interp.TemplateParse(tmpl)
+	if err != nil {
+		return "", err
+	}
+
+	return interp.TemplateExec(ast), nil
+}
+
+// Expand parses the given contents of a Reader as a TunaQuest template and
+// expands it into the full contents immediately. Returns a non-nil error if
+// there is a syntax error in the template, in TunaScript within template
+// flow-control statements, or if a non-pure function from TunaScript is within
+// the template.
+func (interp *Interpreter) ExpandReader(r io.Reader) (string, error) {
+	ast, err := interp.TemplateParseReader(r)
+	if err != nil {
+		return "", err
+	}
+
+	return interp.TemplateExec(ast), nil
+}
+
 // Eval parses the given string as TunaScript code and applies it immediately.
 // Returns a non-nil error if there is a syntax error in the text. The value of
 // the last valid statement will be in interp.LastResult after Eval returns.
@@ -91,6 +120,33 @@ func (interp *Interpreter) EvalReader(r io.Reader) error {
 
 	interp.Exec(ast)
 	return nil
+}
+
+// TemplateExec executes the template represented by the given ExpansionAST and
+// returns the result of expanding it. Additionally, interp.LastResult is set to
+// the last pure TunaScript result executed within the template.
+//
+// This function does not require Target to have been set on the interpreter.
+func (interp *Interpreter) TemplateExec(ast syntax.ExpansionAST) string {
+	if interp.Flags == nil {
+		interp.Flags = map[string]syntax.Value{}
+	}
+
+	if interp.fn == nil {
+		interp.initFuncs()
+	}
+
+	if len(ast.Nodes) < 1 {
+		return ""
+	}
+
+	var sb strings.Builder
+	for i := range ast.Nodes {
+		s := interp.templateExecNode(ast.Nodes[i])
+		sb.WriteString(s)
+	}
+
+	return sb.String()
 }
 
 // Exec executes all statements contained in the AST and returns the result of
@@ -133,6 +189,10 @@ func (interp *Interpreter) Exec(ast syntax.AST) syntax.Value {
 func (interp *Interpreter) TemplateParse(code string) (ast syntax.ExpansionAST, err error) {
 	interp.initFrontend()
 
+	if interp.fn == nil {
+		interp.initFuncs()
+	}
+
 	ast, _, err = interp.exp.AnalyzeString(code)
 	if err != nil {
 
@@ -146,21 +206,49 @@ func (interp *Interpreter) TemplateParse(code string) (ast syntax.ExpansionAST, 
 	// okay, we got the expansion parse tree, now go through and recursively
 	// translate the RawCond of ExpCondNodes to TunaScript ASTs.
 	for i := range ast.Nodes {
-
+		newNode, err := interp.translateTemplateTunascript(ast.Nodes[i])
+		if err != nil {
+			return ast, err
+		}
+		ast.Nodes[i] = newNode
 	}
+
+	return ast, nil
 }
 
-func (interp *Interpreter) translateTemplateTunascript(n syntax.ExpNode) syntax.ExpNode {
-	switch n.Type() {
-	case syntax.ExpFlag:
-		return n
-	case syntax.ExpText:
-		return n
-	case syntax.ExpBranch:
-		nb := n.AsBranchNode()
-		br := syntax.ExpBranchNode{}
+// TemplateParseReader parses (but does not execute) a block of expandable
+// TunaScript templated text from the given reader. Any TunaScript within
+// template flow control blocks is also parsed and checked for proper call
+// semantics (i.e. they are checked to make sure only query functions are used,
+// and not ones with side effects).
+func (interp *Interpreter) TemplateParseReader(r io.Reader) (ast syntax.ExpansionAST, err error) {
+	interp.initFrontend()
 
+	if interp.fn == nil {
+		interp.initFuncs()
 	}
+
+	ast, _, err = interp.exp.Analyze(r)
+	if err != nil {
+
+		// wrap syntax errors so user of the Interpreter doesn't have to check
+		// for a special syntax error just to get the detailed syntax err info
+		if synErr, ok := err.(*syntaxerr.Error); ok {
+			return ast, fmt.Errorf("%s", synErr.MessageForFile(interp.File))
+		}
+	}
+
+	// okay, we got the expansion parse tree, now go through and recursively
+	// translate the RawCond of ExpCondNodes to TunaScript ASTs.
+	for i := range ast.Nodes {
+		newNode, err := interp.translateTemplateTunascript(ast.Nodes[i])
+		if err != nil {
+			return ast, err
+		}
+		ast.Nodes[i] = newNode
+	}
+
+	return ast, nil
 }
 
 // Parse parses (but does not execute) TunaScript code. The code is converted
@@ -198,6 +286,69 @@ func (interp *Interpreter) ParseReader(r io.Reader) (ast syntax.AST, err error) 
 	}
 
 	return ast, err
+}
+
+// templateExecNode executes a single template node and converts it to the
+// completed text.
+func (interp *Interpreter) templateExecNode(n syntax.ExpNode) string {
+	switch n.Type() {
+	case syntax.ExpText:
+		return n.AsTextNode().Text
+	case syntax.ExpFlag:
+		fl, ok := interp.Flags[n.AsFlagNode().Flag]
+		// in this case, we *do* care about it being defined, and cannot simply
+		// use the value. if it's not defined, we explicitly want to return an
+		// empty string. The zero value for syntax.Value will not do this; it
+		// would be the default type (Int) converted to string ("0").
+		if !ok {
+			return ""
+		}
+		return fl.String()
+	case syntax.ExpBranch:
+		nb := n.AsBranchNode()
+
+		ifResult := interp.Exec(nb.If.Cond)
+		if ifResult.Bool() {
+			var sb strings.Builder
+			for i := range nb.If.Content {
+				contentStr := interp.templateExecNode(nb.If.Content[i])
+				sb.WriteString(contentStr)
+			}
+			return sb.String()
+		}
+
+		// are there any else-ifs? if so, check them now
+		for _, elif := range nb.ElseIf {
+			elifResult := interp.Exec(elif.Cond)
+			if elifResult.Bool() {
+				var sb strings.Builder
+				for i := range elif.Content {
+					contentStr := interp.templateExecNode(elif.Content[i])
+					sb.WriteString(contentStr)
+				}
+				return sb.String()
+			}
+		}
+
+		// finally, is there an else?
+		if len(nb.Else) > 0 {
+			var sb strings.Builder
+			for i := range nb.Else {
+				contentStr := interp.templateExecNode(nb.Else[i])
+				sb.WriteString(contentStr)
+			}
+			return sb.String()
+		}
+
+		// we hit none of the branch conditions and there return none of its
+		// content. return an empty string
+		return ""
+	case syntax.ExpCond:
+		// should never happen
+		panic("ExpCondNode passed to Interpreter.templateExecNode")
+	default:
+		panic(fmt.Sprintf("unknown ExpNode type: %v", n.Type()))
+	}
 }
 
 // execNode executes the mathematical expression contained in the AST node and
@@ -342,5 +493,134 @@ func (interp *Interpreter) initFrontend() {
 	}
 	if interp.exp.IRAttribute == "" {
 		interp.exp = expfe.Frontend(syntax.ExpHooksTable, nil)
+	}
+}
+
+func (interp *Interpreter) translateTemplateTunascript(n syntax.ExpNode) (syntax.ExpNode, error) {
+	switch n.Type() {
+	case syntax.ExpFlag:
+		return n, nil
+	case syntax.ExpText:
+		return n, nil
+	case syntax.ExpBranch:
+		nb := n.AsBranchNode()
+		newIf, err := interp.translateTemplateTunascript(nb.If)
+		if err != nil {
+			return n, err
+		}
+
+		newBranch := syntax.ExpBranchNode{
+			If:     newIf.AsCondNode(),
+			ElseIf: make([]syntax.ExpCondNode, len(nb.ElseIf)),
+			Else:   nb.Else,
+		}
+		for i := range nb.ElseIf {
+			newElseIf, err := interp.translateTemplateTunascript(nb.ElseIf[i])
+			if err != nil {
+				return n, err
+			}
+			newBranch.ElseIf[i] = newElseIf.AsCondNode()
+		}
+		return newBranch, nil
+	case syntax.ExpCond:
+		nc := n.AsCondNode()
+
+		// feed the text into the tunascript frontend and validate only query
+		// funcs were called.
+		ast, err := interp.Parse(nc.RawCond)
+		if err != nil {
+			// provide some context
+			synErr, ok := err.(*syntaxerr.Error)
+			if !ok {
+				return n, err
+			}
+
+			curErr := lex.NewSyntaxErrorFromToken("syntax error encountered while parsing TunaScript in template", nc.Source)
+			contextualizedErr := fmt.Errorf("%s:\n%s", curErr.MessageForFile(interp.File), synErr.FullMessage())
+
+			return n, contextualizedErr
+		}
+
+		// no errors! great, double-check that all the TS is legal
+		queryOnly, badNode := interp.validateQueryOnly(ast)
+		if !queryOnly {
+			// Goodness It Appears The User Is Attempting To Perform Mutations In A Template. This Is Disallowed.
+			// 4ND TH1S S1N SH4LL B3 D34LT W1TH SW1FTLY BY 1SSU1NG TH3 WORST OF PUN1SHM3NTS >:]
+			// No. But It Will Be Dealt With By Returning An Error.
+			// CLOS3 3NOUGH.
+
+			tsSynErr := lex.NewSyntaxErrorFromToken(fmt.Sprintf("$%s() changes things, so it can't be used in TQ templates", badNode.Func), badNode.Source())
+			curErr := lex.NewSyntaxErrorFromToken("syntax error encountered while parsing TunaScript in template", nc.Source)
+
+			contextualizedErr := fmt.Errorf("%s:\n%w", curErr.MessageForFile(interp.File), tsSynErr.FullMessage())
+
+			return n, contextualizedErr
+		}
+
+		// otherwise, build the new node and it's good to go
+		newCondNode := syntax.ExpCondNode{
+			RawCond: nc.RawCond,
+			Cond:    ast,
+			Content: nc.Content,
+			Source:  nc.Source,
+		}
+		return newCondNode, nil
+	default:
+		panic("unknown ExpNode type")
+	}
+}
+
+func (interp *Interpreter) validateQueryOnly(ast syntax.AST) (queryOnly bool, badNode syntax.FuncNode) {
+	for i := range ast.Nodes {
+		bn := interp.findFirstWithSideEffects(ast.Nodes[i])
+		if bn != nil {
+			return false, *bn
+		}
+	}
+	return true, syntax.FuncNode{}
+}
+
+// Will only return non-nil if it finds a FuncNode with a non-compliant func
+// node in a left-first, depth-first visit through all nodes.
+func (interp *Interpreter) findFirstWithSideEffects(n syntax.ASTNode) *syntax.FuncNode {
+	switch n.Type() {
+	case syntax.ASTAssignment:
+		return interp.findFirstWithSideEffects(n.AsAssignmentNode().Value)
+	case syntax.ASTBinaryOp:
+		leftBad := interp.findFirstWithSideEffects(n.AsBinaryOpNode().Left)
+		if leftBad != nil {
+			return leftBad
+		}
+		rightBad := interp.findFirstWithSideEffects(n.AsBinaryOpNode().Right)
+		if rightBad != nil {
+			return rightBad
+		}
+		return nil
+	case syntax.ASTFlag:
+		return nil
+	case syntax.ASTGroup:
+		return interp.findFirstWithSideEffects(n.AsGroupNode().Expr)
+	case syntax.ASTLiteral:
+		return nil
+	case syntax.ASTUnaryOp:
+		return interp.findFirstWithSideEffects(n.AsUnaryOpNode().Operand)
+	case syntax.ASTFunc:
+		// now this is the good stuff, the actual validation
+		fnode := n.AsFuncNode()
+		info := interp.fn[fnode.Func]
+		if info.def.SideEffects {
+			return &fnode
+		}
+
+		// ...but if it didnt have side effects, be shore to check its args 38O
+		for i := range fnode.Args {
+			badArg := interp.findFirstWithSideEffects(fnode.Args[i])
+			if badArg != nil {
+				return badArg
+			}
+		}
+		return nil
+	default:
+		panic(fmt.Sprintf("unknown AST node type: %v", n.Type()))
 	}
 }
