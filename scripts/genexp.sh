@@ -31,5 +31,5 @@ ictcc --slr \
     --ir github.com/dekarrin/tunaq/tunascript/syntax.ExpansionAST \
     --hooks ./tunascript/syntax \
     --dest ./tunascript/fe \
-    tunascript/tunascript.md "$@"
+    tunascript/expansion.md "$@"
 
