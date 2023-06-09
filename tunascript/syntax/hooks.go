@@ -127,7 +127,7 @@ func hookFunc(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedName := args[0].(string)
 	fargs := args[1].([]ASTNode)
 
-	fname := strings.ToUpper(lexedName)
+	fname := strings.TrimPrefix(strings.ToUpper(lexedName), "$")
 
 	// check that the function is defined and check its arity
 	def, ok := BuiltInFunctions[fname]

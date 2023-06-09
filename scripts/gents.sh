@@ -2,6 +2,14 @@
 
 # generates tunascript by invoking ictcc.
 
+# "is not a function that exists in TunaScript" DURING VALIDATION:
+#
+# Until Ictiobus v1.1.0, it's impossible to tell when a hook is running under
+# validation. Validation simulation will produce semantically invalid function
+# calls. For now, disable the arity and existence check when doing simulation.
+
+# CONNECT: NETWORK IS UNREACHABLE:
+#
 # This script often blows up with errors that end with "connect: network is
 # unreachable" during the simulation binary and diagnostics binary generation
 # phase (specifically when running go tidy on the updated go.mod). This is
@@ -27,5 +35,5 @@ ictcc --slr \
     --ir github.com/dekarrin/tunaq/tunascript/syntax.AST \
     --hooks ./tunascript/syntax \
     --dest ./tunascript/fe \
-    ./tunascript.md "$@"
+    tunascript/tunascript.md "$@"
 

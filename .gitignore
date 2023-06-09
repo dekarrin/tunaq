@@ -27,6 +27,7 @@
 *.gen
 tunascript/tsi
 tunascript/tsi.exe
-
+/tsi
+/tsi.exe
 
 
