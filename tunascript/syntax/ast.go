@@ -909,7 +909,12 @@ func (n ExpBranchNode) Equal(o any) bool {
 }
 
 type ExpCondNode struct {
-	Cond    AST
+	Cond AST
+
+	// On initial parsing of expansion trees, only this will be set. The
+	// contents of this string can be parsed by passing it to the TS frontend.
+	RawCond string
+
 	Content ExpansionAST
 
 	Source lex.Token
@@ -925,7 +930,12 @@ func (n ExpCondNode) String() string {
 	condStart := " IF:"
 	contentStart := " C: "
 
-	condStr := spaceIndentNewlines(n.Cond.String(), len(condStart))
+	var condStr string
+	if n.Cond.Nodes != nil {
+		condStr = spaceIndentNewlines(n.Cond.String(), len(condStart))
+	} else {
+		condStr = spaceIndentNewlines(n.RawCond, len(condStart))
+	}
 	contentStr := spaceIndentNewlines(n.Content.String(), len(contentStart))
 
 	return fmt.Sprintf("[EXP_COND\n%s%s\n%s%s\n]", condStart, condStr, contentStart, contentStr)
@@ -949,6 +959,9 @@ func (n ExpCondNode) Equal(o any) bool {
 		return false
 	}
 	if !n.Content.Equal(other.Content) {
+		return false
+	}
+	if n.RawCond != other.RawCond {
 		return false
 	}
 

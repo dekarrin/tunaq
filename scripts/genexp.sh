@@ -1,14 +1,8 @@
 #!/bin/bash
 
-# Generates TunaScript frontend by invoking ictcc.
+# Generates the TQ text expansion parser frontend by invoking ictcc.
 
 # --------------------------------------------------
-
-# "is not a function that exists in TunaScript" DURING VALIDATION:
-#
-# Until Ictiobus v1.1.0, it's impossible to tell when a hook is running under
-# validation. Validation simulation will produce semantically invalid function
-# calls. For now, disable the arity and existence check when doing simulation.
 
 # CONNECT: NETWORK IS UNREACHABLE:
 #
@@ -32,9 +26,9 @@
 cd "$(dirname "$0")"/..
 
 ictcc --slr \
-    -l TunaScript -v 1.0 \
-    -d tsi \
-    --ir github.com/dekarrin/tunaq/tunascript/syntax.AST \
+    -l TQTextExpansion -v 1.0 \
+    -d tte \
+    --ir github.com/dekarrin/tunaq/tunascript/syntax.ExpansionAST \
     --hooks ./tunascript/syntax \
     --dest ./tunascript/fe \
     tunascript/tunascript.md "$@"
