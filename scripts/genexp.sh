@@ -29,7 +29,7 @@ ictcc --slr \
     -l TQTextExpansion -v 1.0 \
     -d tte \
     --ir github.com/dekarrin/tunaq/tunascript/syntax.ExpansionAST \
-    --hooks ./tunascript/syntax \
-    --dest ./tunascript/fe \
+    --hooks ./tunascript/syntax --hooks-table ExpHooksTable \
+    --dest ./tunascript/expfe \
     tunascript/expansion.md "$@"
 
