@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/dekarrin/rosed"
-	"github.com/dekarrin/tunaq/internal/tunascript"
+	"github.com/dekarrin/tunaq/tunascript"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )

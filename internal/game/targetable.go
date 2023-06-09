@@ -1,6 +1,6 @@
 package game
 
-import "github.com/dekarrin/tunaq/internal/tunascript"
+import "github.com/dekarrin/tunaq/tunascript"
 
 // Targetable is something that can be targeted by a player command. All can be
 // looked at.

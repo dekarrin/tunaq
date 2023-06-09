@@ -7,8 +7,8 @@ import (
 	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/command"
 	"github.com/dekarrin/tunaq/internal/tqerrors"
-	"github.com/dekarrin/tunaq/internal/tunascript"
 	"github.com/dekarrin/tunaq/internal/util"
+	"github.com/dekarrin/tunaq/tunascript"
 )
 
 var commandHelp = [][2]string{

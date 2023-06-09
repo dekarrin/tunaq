@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dekarrin/tunaq/internal/tunascript"
+	"github.com/dekarrin/tunaq/tunascript"
 )
 
 // Detail is an additional piece of detail in a room that the user is allowed to

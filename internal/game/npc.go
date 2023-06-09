@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 
-	"github.com/dekarrin/tunaq/internal/tunascript"
+	"github.com/dekarrin/tunaq/tunascript"
 )
 
 // This file contains structs and routines related to NPCs.

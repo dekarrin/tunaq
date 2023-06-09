@@ -8,7 +8,7 @@ import (
 
 	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/tqerrors"
-	"github.com/dekarrin/tunaq/internal/tunascript"
+	"github.com/dekarrin/tunaq/tunascript"
 )
 
 // This file contains functions for handling the debug commands of game.State.

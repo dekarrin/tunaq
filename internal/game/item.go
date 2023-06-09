@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dekarrin/tunaq/internal/tunascript"
+	"github.com/dekarrin/tunaq/tunascript"
 )
 
 // File item.go holds symbols related to items and inventory
