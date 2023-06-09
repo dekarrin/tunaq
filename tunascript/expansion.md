@@ -47,6 +47,7 @@ frontend.
 %token endif
 
 \$\[\[\s*[Ee][Ll][Ss][Ee]\s*\]\]
+%token else
 ```
 
 ## SDTS
