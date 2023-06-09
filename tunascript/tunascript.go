@@ -552,7 +552,7 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.ExpNode) (syntax
 			tsSynErr := lex.NewSyntaxErrorFromToken(fmt.Sprintf("$%s() changes things, so it can't be used in TQ templates", badNode.Func), badNode.Source())
 			curErr := lex.NewSyntaxErrorFromToken("syntax error encountered while parsing TunaScript in template", nc.Source)
 
-			contextualizedErr := fmt.Errorf("%s:\n%w", curErr.MessageForFile(interp.File), tsSynErr.FullMessage())
+			contextualizedErr := fmt.Errorf("%s:\n%s", curErr.MessageForFile(interp.File), tsSynErr.FullMessage())
 
 			return n, contextualizedErr
 		}
