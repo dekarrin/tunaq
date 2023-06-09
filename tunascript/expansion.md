@@ -78,10 +78,10 @@ Minimal SDTS for the moment while we get the rest of things in order.
 {^}.node = branch( if.$text, {BLOCKS}.nodes, {ELSEIFS}.conds)
 
 -> if {BLOCKS} else {BLOCKS} endif           :
-{^}.node = branch_with_else( if.$text, {BLOCKS$0}.nodes, {BLOCKS$1}.nodes)
+{^}.node = branch_with_else( if.$text, {&0}.nodes, {&1}.nodes)
 
 -> if {BLOCKS} {ELSEIFS} else {BLOCKS} endif :
-{^}.node = branch_with_else( if.$text, {BLOCKS$0}.nodes, {BLOCKS$1}.nodes, {ELSEIFS}.conds)
+{^}.node = branch_with_else( if.$text, {&0}.nodes, {&2}.nodes, {ELSEIFS}.conds)
 
 
 %symbol {ELSEIFS}

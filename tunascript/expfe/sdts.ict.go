@@ -21,6 +21,10 @@ func SDTS() trans.SDTS {
 	sdts := ictiobus.NewSDTS()
 
 	sdtsBindTCExpansion(sdts)
+	sdtsBindTCBlocks(sdts)
+	sdtsBindTCBlock(sdts)
+	sdtsBindTCBranch(sdts)
+	sdtsBindTCElseifs(sdts)
 
 	return sdts
 }
@@ -30,11 +34,180 @@ func sdtsBindTCExpansion(sdts trans.SDTS) {
 	err = sdts.Bind(
 		"EXPANSION", []string{"BLOCKS"},
 		"ast",
-		"test_const",
-		nil,
+		"ast",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "nodes"},
+		},
 	)
 	if err != nil {
 		prodStr := strings.Join([]string{"BLOCKS"}, " ")
 		panic(fmt.Sprintf("binding %s -> [%s]: %s", "EXPANSION", prodStr, err.Error()))
+	}
+}
+
+func sdtsBindTCBlocks(sdts trans.SDTS) {
+	var err error
+	err = sdts.Bind(
+		"BLOCKS", []string{"BLOCKS", "BLOCK"},
+		"nodes",
+		"node_list",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 1}, Name: "node"},
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "nodes"},
+		},
+	)
+	if err != nil {
+		prodStr := strings.Join([]string{"BLOCKS", "BLOCK"}, " ")
+		panic(fmt.Sprintf("binding %s -> [%s]: %s", "BLOCKS", prodStr, err.Error()))
+	}
+
+	err = sdts.Bind(
+		"BLOCKS", []string{"BLOCK"},
+		"nodes",
+		"node_list",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "node"},
+		},
+	)
+	if err != nil {
+		prodStr := strings.Join([]string{"BLOCK"}, " ")
+		panic(fmt.Sprintf("binding %s -> [%s]: %s", "BLOCKS", prodStr, err.Error()))
+	}
+}
+
+func sdtsBindTCBlock(sdts trans.SDTS) {
+	var err error
+	err = sdts.Bind(
+		"BLOCK", []string{"text"},
+		"node",
+		"text",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "$text"},
+		},
+	)
+	if err != nil {
+		prodStr := strings.Join([]string{"text"}, " ")
+		panic(fmt.Sprintf("binding %s -> [%s]: %s", "BLOCK", prodStr, err.Error()))
+	}
+
+	err = sdts.Bind(
+		"BLOCK", []string{"flag"},
+		"node",
+		"flag",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "$text"},
+		},
+	)
+	if err != nil {
+		prodStr := strings.Join([]string{"flag"}, " ")
+		panic(fmt.Sprintf("binding %s -> [%s]: %s", "BLOCK", prodStr, err.Error()))
+	}
+
+	err = sdts.Bind(
+		"BLOCK", []string{"BRANCH"},
+		"node",
+		"identity",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "node"},
+		},
+	)
+	if err != nil {
+		prodStr := strings.Join([]string{"BRANCH"}, " ")
+		panic(fmt.Sprintf("binding %s -> [%s]: %s", "BLOCK", prodStr, err.Error()))
+	}
+}
+
+func sdtsBindTCBranch(sdts trans.SDTS) {
+	var err error
+	err = sdts.Bind(
+		"BRANCH", []string{"if", "BLOCKS", "endif"},
+		"node",
+		"branch",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "$text"},
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 1}, Name: "nodes"},
+		},
+	)
+	if err != nil {
+		prodStr := strings.Join([]string{"if", "BLOCKS", "endif"}, " ")
+		panic(fmt.Sprintf("binding %s -> [%s]: %s", "BRANCH", prodStr, err.Error()))
+	}
+
+	err = sdts.Bind(
+		"BRANCH", []string{"if", "BLOCKS", "ELSEIFS", "endif"},
+		"node",
+		"branch",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "$text"},
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 1}, Name: "nodes"},
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 2}, Name: "conds"},
+		},
+	)
+	if err != nil {
+		prodStr := strings.Join([]string{"if", "BLOCKS", "ELSEIFS", "endif"}, " ")
+		panic(fmt.Sprintf("binding %s -> [%s]: %s", "BRANCH", prodStr, err.Error()))
+	}
+
+	err = sdts.Bind(
+		"BRANCH", []string{"if", "BLOCKS", "else", "BLOCKS", "endif"},
+		"node",
+		"branch_with_else",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "$text"},
+			{Rel: trans.NodeRelation{Type: trans.RelNonTerminal, Index: 0}, Name: "nodes"},
+			{Rel: trans.NodeRelation{Type: trans.RelNonTerminal, Index: 1}, Name: "nodes"},
+		},
+	)
+	if err != nil {
+		prodStr := strings.Join([]string{"if", "BLOCKS", "else", "BLOCKS", "endif"}, " ")
+		panic(fmt.Sprintf("binding %s -> [%s]: %s", "BRANCH", prodStr, err.Error()))
+	}
+
+	err = sdts.Bind(
+		"BRANCH", []string{"if", "BLOCKS", "ELSEIFS", "else", "BLOCKS", "endif"},
+		"node",
+		"branch_with_else",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "$text"},
+			{Rel: trans.NodeRelation{Type: trans.RelNonTerminal, Index: 0}, Name: "nodes"},
+			{Rel: trans.NodeRelation{Type: trans.RelNonTerminal, Index: 2}, Name: "nodes"},
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 2}, Name: "conds"},
+		},
+	)
+	if err != nil {
+		prodStr := strings.Join([]string{"if", "BLOCKS", "ELSEIFS", "else", "BLOCKS", "endif"}, " ")
+		panic(fmt.Sprintf("binding %s -> [%s]: %s", "BRANCH", prodStr, err.Error()))
+	}
+}
+
+func sdtsBindTCElseifs(sdts trans.SDTS) {
+	var err error
+	err = sdts.Bind(
+		"ELSEIFS", []string{"ELSEIFS", "elseif", "BLOCKS"},
+		"conds",
+		"cond_list",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 1}, Name: "$text"},
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 2}, Name: "nodes"},
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "conds"},
+		},
+	)
+	if err != nil {
+		prodStr := strings.Join([]string{"ELSEIFS", "elseif", "BLOCKS"}, " ")
+		panic(fmt.Sprintf("binding %s -> [%s]: %s", "ELSEIFS", prodStr, err.Error()))
+	}
+
+	err = sdts.Bind(
+		"ELSEIFS", []string{"elseif", "BLOCKS"},
+		"conds",
+		"cond_list",
+		[]trans.AttrRef{
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 0}, Name: "$text"},
+			{Rel: trans.NodeRelation{Type: trans.RelSymbol, Index: 1}, Name: "nodes"},
+		},
+	)
+	if err != nil {
+		prodStr := strings.Join([]string{"elseif", "BLOCKS"}, " ")
+		panic(fmt.Sprintf("binding %s -> [%s]: %s", "ELSEIFS", prodStr, err.Error()))
 	}
 }
