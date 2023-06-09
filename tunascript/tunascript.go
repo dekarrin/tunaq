@@ -8,6 +8,7 @@ import (
 
 	"github.com/dekarrin/ictiobus"
 	"github.com/dekarrin/ictiobus/syntaxerr"
+	"github.com/dekarrin/tunaq/tunascript/expfe"
 	"github.com/dekarrin/tunaq/tunascript/fe"
 	"github.com/dekarrin/tunaq/tunascript/syntax"
 )
@@ -65,7 +66,7 @@ func (interp *Interpreter) Init() {
 	}
 }
 
-// Eval parses the given string as FISHIMath code and applies it immediately.
+// Eval parses the given string as TunaScript code and applies it immediately.
 // Returns a non-nil error if there is a syntax error in the text. The value of
 // the last valid statement will be in interp.LastResult after Eval returns.
 func (interp *Interpreter) Eval(code string) error {
@@ -78,7 +79,7 @@ func (interp *Interpreter) Eval(code string) error {
 	return nil
 }
 
-// EvalReader parses the contents of a Reader as FISHIMath code and applies it
+// EvalReader parses the contents of a Reader as TunaScript code and applies it
 // immediately. Returns a non-nil error if there is a syntax error in the text
 // or if there is an error reading bytes from the Reader. The value of the last
 // valid statement will be in interp.LastResult after EvalReader returns.
@@ -123,6 +124,43 @@ func (interp *Interpreter) Exec(ast syntax.AST) syntax.Value {
 	}
 
 	return lastResult
+}
+
+// TemplateParse parses (but does not execute) a block of expandable TunaScript
+// templated text. Any TunaScript within template flow control blocks is also
+// parsed and checked for proper call semantics (i.e. they are checked to make
+// sure only query functions are used, and not ones with side effects).
+func (interp *Interpreter) TemplateParse(code string) (ast syntax.ExpansionAST, err error) {
+	interp.initFrontend()
+
+	ast, _, err = interp.exp.AnalyzeString(code)
+	if err != nil {
+
+		// wrap syntax errors so user of the Interpreter doesn't have to check
+		// for a special syntax error just to get the detailed syntax err info
+		if synErr, ok := err.(*syntaxerr.Error); ok {
+			return ast, fmt.Errorf("%s", synErr.MessageForFile(interp.File))
+		}
+	}
+
+	// okay, we got the expansion parse tree, now go through and recursively
+	// translate the RawCond of ExpCondNodes to TunaScript ASTs.
+	for i := range ast.Nodes {
+
+	}
+}
+
+func (interp *Interpreter) translateTemplateTunascript(n syntax.ExpNode) syntax.ExpNode {
+	switch n.Type() {
+	case syntax.ExpFlag:
+		return n
+	case syntax.ExpText:
+		return n
+	case syntax.ExpBranch:
+		nb := n.AsBranchNode()
+		br := syntax.ExpBranchNode{}
+
+	}
 }
 
 // Parse parses (but does not execute) TunaScript code. The code is converted
@@ -303,6 +341,6 @@ func (interp *Interpreter) initFrontend() {
 		interp.fe = fe.Frontend(syntax.HooksTable, nil)
 	}
 	if interp.exp.IRAttribute == "" {
-		interp.exp = expfe
+		interp.exp = expfe.Frontend(syntax.ExpHooksTable, nil)
 	}
 }
