@@ -2,6 +2,7 @@ package syntax
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dekarrin/ictiobus/lex"
 	"github.com/dekarrin/rosed"
@@ -16,7 +17,25 @@ type ExpansionAST struct {
 }
 
 func (ast ExpansionAST) String() string {
-	return ""
+	var sb strings.Builder
+
+	sb.WriteString("ExpansionAST")
+	if len(ast.Nodes) < 1 {
+		sb.WriteString("(empty)")
+		return sb.String()
+	}
+
+	const stmtStart = " B: "
+	for i := range ast.Nodes {
+		sb.WriteRune('\n')
+
+		stmtStr := spaceIndentNewlines(ast.Nodes[i].String(), len(stmtStart))
+
+		sb.WriteString(stmtStart)
+		sb.WriteString(stmtStr)
+	}
+
+	return sb.String()
 }
 
 func (n ExpansionAST) Equal(o any) bool {
