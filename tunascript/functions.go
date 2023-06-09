@@ -99,7 +99,7 @@ func (interp *Interpreter) output(msg syntax.Value) syntax.Value {
 func (interp *Interpreter) set(name syntax.Value, value syntax.Value) syntax.Value {
 	flagName := strings.ToUpper(name.String())
 
-	interp.Flags[flagName] = value
+	interp.flags[flagName] = value
 	return value
 }
 
@@ -107,7 +107,7 @@ func (interp *Interpreter) enable(v syntax.Value) syntax.Value {
 	flagName := strings.ToUpper(v.String())
 	newVal := syntax.ValueOf(true)
 
-	interp.Flags[flagName] = newVal
+	interp.flags[flagName] = newVal
 	return newVal
 }
 
@@ -115,35 +115,35 @@ func (interp *Interpreter) disable(v syntax.Value) syntax.Value {
 	flagName := strings.ToUpper(v.String())
 	newVal := syntax.ValueOf(false)
 
-	interp.Flags[flagName] = newVal
+	interp.flags[flagName] = newVal
 	return newVal
 }
 
 func (interp *Interpreter) toggle(v syntax.Value) syntax.Value {
 	flagName := strings.ToUpper(v.String())
-	curVal := interp.Flags[flagName]
+	curVal := interp.flags[flagName]
 	newVal := curVal.CastToBool().Not()
 
-	interp.Flags[flagName] = newVal
+	interp.flags[flagName] = newVal
 	return newVal
 }
 
 func (interp *Interpreter) inc(name syntax.Value, amount syntax.Value) syntax.Value {
 	flagName := strings.ToUpper(name.String())
 
-	curVal := interp.Flags[flagName]
+	curVal := interp.flags[flagName]
 	newVal := curVal.Add(amount)
 
-	interp.Flags[flagName] = newVal
+	interp.flags[flagName] = newVal
 	return newVal
 }
 
 func (interp *Interpreter) dec(name syntax.Value, amount syntax.Value) syntax.Value {
 	flagName := strings.ToUpper(name.String())
 
-	curVal := interp.Flags[flagName]
+	curVal := interp.flags[flagName]
 	newVal := curVal.Subtract(amount)
 
-	interp.Flags[flagName] = newVal
+	interp.flags[flagName] = newVal
 	return newVal
 }

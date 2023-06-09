@@ -216,9 +216,15 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	}
 
 	// start scripting engine
-	gs.scripts = tunascript.NewInterpreter(scriptInterface)
+	gs.scripts = tunascript.Interpreter{
+		Target: scriptInterface,
+	}
+
 	for fl := range flags {
-		gs.scripts.AddFlag(fl, flags[fl])
+		err := gs.scripts.AddFlag(fl, flags[fl])
+		if err != nil {
+			return gs, err
+		}
 	}
 
 	// run pre-computations on all expandable text
@@ -231,18 +237,12 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 }
 
 func (gs *State) preComputeExp(toExpand string) (*tunascript.ExpansionAST, error) {
-	preComp, err := gs.scripts.ParseExpansion(toExpand)
+	preComp, err := gs.scripts.ParseTemplate(toExpand)
 	if err != nil {
 		return nil, err
 	}
 
-	// check syntax of the expansion
-	err = gs.scripts.SyntaxCheckTree(preComp, true)
-	if err != nil {
-		return nil, err
-	}
-
-	return preComp, nil
+	return &preComp, nil
 }
 
 func (gs *State) preComputeAllTunascriptExpansions() error {
@@ -386,12 +386,7 @@ func (gs *State) Expand(s *tunascript.ExpansionAST, what string) string {
 		what = "TEXT"
 	}
 
-	expanded, err := gs.scripts.ExpandTree(s)
-	if err != nil {
-		msg := "TUNAQUEST SYSTEM WARNING: DIPFISH AND DARNATION!\n"
-		msg += fmt.Sprintf("TUNASCRIPT ERROR EXPANDING %s:\n\n%v\n\n", what, err)
-		msg += "TELL THE AUTHOR OF THE GAME ABOUT THIS SO THEY CAN FIX IT"
-	}
+	expanded := gs.scripts.ExecTemplate(*s)
 
 	return expanded
 }

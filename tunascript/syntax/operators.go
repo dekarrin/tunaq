@@ -51,6 +51,39 @@ func (op BinaryOperation) Symbol() string {
 	}
 }
 
+// BuiltInFunc returns the name of the built-in function that provides the same
+// functionality as the operator.
+func (op BinaryOperation) BuiltInFunc() string {
+	switch op {
+	case OpBinaryEqual:
+		return "FLAG_IS"
+	case OpBinaryAdd:
+		return "ADD"
+	case OpBinaryDivide:
+		return "DIV"
+	case OpBinaryGreaterThan:
+		return "FLAG_GREATER_THAN"
+	case OpBinaryGreaterThanEqual:
+		return "FLAG_GREATER_THAN_EQUAL"
+	case OpBinaryLessThan:
+		return "FLAG_LESS_THAN"
+	case OpBinaryLessThanEqual:
+		return "FLAG_LESS_THAN_EQUAL"
+	case OpBinaryLogicalAnd:
+		return "AND"
+	case OpBinaryLogicalOr:
+		return "OR"
+	case OpBinaryMultiply:
+		return "MULT"
+	case OpBinaryNotEqual:
+		return "NOT_EQUAL"
+	case OpBinarySubtract:
+		return "SUB"
+	default:
+		panic(fmt.Sprintf("unknown binary operation: %d", op))
+	}
+}
+
 func (op BinaryOperation) String() string {
 	switch op {
 	case OpBinaryEqual:
@@ -101,6 +134,19 @@ func (op UnaryOperation) Symbol() string {
 	}
 }
 
+// BuiltInFunc returns the name of the built-in function that provides the same
+// functionality as the operator.
+func (op UnaryOperation) BuiltInFunc() string {
+	switch op {
+	case OpUnaryLogicalNot:
+		return "NOT"
+	case OpUnaryNegate:
+		return "NEG"
+	default:
+		panic(fmt.Sprintf("unknown unary operation: %d", op))
+	}
+}
+
 // String returns the Tunascript operator that corresponds to the operation.
 func (op UnaryOperation) String() string {
 	switch op {
@@ -136,6 +182,25 @@ func (op AssignmentOperation) Symbol() string {
 		return "+="
 	case OpAssignDecrementBy:
 		return "-="
+	default:
+		panic(fmt.Sprintf("unknown assignment operation: %d", op))
+	}
+}
+
+// BuiltInFunc returns the name of the built-in function that provides the same
+// functionality as the operator.
+func (op AssignmentOperation) BuiltInFunc() string {
+	switch op {
+	case OpAssignDecrement:
+		return "DEC"
+	case OpAssignDecrementBy:
+		return "DEC"
+	case OpAssignIncrement:
+		return "INC"
+	case OpAssignIncrementBy:
+		return "INC"
+	case OpAssignSet:
+		return "SET"
 	default:
 		panic(fmt.Sprintf("unknown assignment operation: %d", op))
 	}
