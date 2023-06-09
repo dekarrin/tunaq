@@ -1,6 +1,11 @@
 package syntax
 
-import "github.com/dekarrin/ictiobus/trans"
+import (
+	"strings"
+	"unicode"
+
+	"github.com/dekarrin/ictiobus/trans"
+)
 
 func makeConstHook(v interface{}) trans.Hook {
 	return func(info trans.SetterInfo, args []interface{}) (interface{}, error) {
@@ -10,6 +15,166 @@ func makeConstHook(v interface{}) trans.Hook {
 
 var (
 	ExpHooksTable = trans.HookMap{
-		"test_const": makeConstHook(ExpansionAST{}),
+		"identity":         func(info trans.SetterInfo, args []interface{}) (interface{}, error) { return args[0], nil },
+		"ast":              expHookAST,
+		"text":             expHookText,
+		"flag":             expHookFlag,
+		"branch":           expHookBranch,
+		"branch_with_else": expHookBranchWithElse,
+		"cond_list":        expHookCondList,
+		"node_list":        expHookNodeList,
+		"test_const":       makeConstHook(ExpansionAST{}),
 	}
 )
+
+func expHookCondList(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+	lexedElifText := args[0].(string)
+	elifBlocks := args[1].([]ExpNode)
+	var list []ExpCondNode
+	if len(args) >= 3 {
+		list = args[2].([]ExpCondNode)
+	}
+
+	// extract the tunascript from the elif token. Fairly complicated due to
+	// accepting "elseif", "else if", and "elif".
+	elifExpr := strings.TrimPrefix(lexedElifText, "$[[")
+	elifExpr = strings.TrimLeftFunc(elifExpr, unicode.IsSpace)
+	elifExpr = strings.TrimLeft(elifExpr, "Ee")
+	elifExpr = strings.TrimLeft(elifExpr, "Ll")
+	elifExpr = strings.TrimLeft(elifExpr, "Ss")
+	elifExpr = strings.TrimLeft(elifExpr, "Ee")
+	elifExpr = strings.TrimLeftFunc(elifExpr, unicode.IsSpace)
+	elifExpr = strings.TrimLeft(elifExpr, "Ii")
+	elifExpr = strings.TrimLeft(elifExpr, "Ff")
+	elifExpr = strings.TrimSuffix(elifExpr, "]]")
+
+	elifCond := ExpCondNode{
+		RawCond: elifExpr,
+		Content: elifBlocks,
+		Source:  info.FirstToken,
+	}
+
+	list = append(list, elifCond)
+
+	return list, nil
+}
+
+func expHookBranch(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+	lexedIfText := args[0].(string)
+	ifBlocks := args[1].([]ExpNode)
+	var elseIfConds []ExpCondNode
+	if len(args) >= 3 {
+		elseIfConds = args[2].([]ExpCondNode)
+	}
+
+	// extract the tunascript from the if token
+	ifExpr := strings.TrimPrefix(lexedIfText, "$[[")
+	ifExpr = strings.TrimLeftFunc(ifExpr, unicode.IsSpace)
+	ifExpr = strings.TrimLeft(ifExpr, "Ii")
+	ifExpr = strings.TrimLeft(ifExpr, "Ff")
+	ifExpr = strings.TrimSuffix(ifExpr, "]]")
+
+	ifCond := ExpCondNode{
+		RawCond: ifExpr,
+		Content: ifBlocks,
+		Source:  info.FirstToken,
+	}
+
+	return ExpBranchNode{
+		If:     ifCond,
+		ElseIf: elseIfConds,
+	}, nil
+}
+
+func expHookBranchWithElse(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+	lexedIfText := args[0].(string)
+	ifBlocks := args[1].([]ExpNode)
+	elseBlocks := args[2].([]ExpNode)
+	var elseIfConds []ExpCondNode
+	if len(args) >= 4 {
+		elseIfConds = args[3].([]ExpCondNode)
+	}
+
+	// extract the tunascript from the if token
+	ifExpr := strings.TrimPrefix(lexedIfText, "$[[")
+	ifExpr = strings.TrimLeftFunc(ifExpr, unicode.IsSpace)
+	ifExpr = strings.TrimLeft(ifExpr, "Ii")
+	ifExpr = strings.TrimLeft(ifExpr, "Ff")
+	ifExpr = strings.TrimSuffix(ifExpr, "]]")
+
+	ifCond := ExpCondNode{
+		RawCond: ifExpr,
+		Content: ifBlocks,
+		Source:  info.FirstToken,
+	}
+
+	return ExpBranchNode{
+		If:     ifCond,
+		ElseIf: elseIfConds,
+		Else:   elseBlocks,
+	}, nil
+}
+
+func expHookFlag(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+	lexedIdent := args[0].(string)
+
+	fname := strings.TrimPrefix(strings.ToUpper(lexedIdent), "$")
+
+	return ExpFlagNode{
+		Flag:   fname,
+		Source: info.FirstToken,
+	}, nil
+}
+
+func expHookText(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+	lexedText := args[0].(string)
+
+	var ltrimmed, rtrimmed string
+
+	ltrimmed = strings.TrimLeftFunc(lexedText, unicode.IsSpace)
+	rtrimmed = strings.TrimRightFunc(lexedText, unicode.IsSpace)
+
+	if ltrimmed == lexedText {
+		ltrimmed = ""
+	}
+	if rtrimmed == lexedText {
+		rtrimmed = ""
+	}
+
+	return ExpTextNode{
+		Text:              lexedText,
+		LeftSpaceTrimmed:  ltrimmed,
+		RightSpaceTrimmed: rtrimmed,
+		Source:            info.FirstToken,
+	}, nil
+}
+
+func expHookAST(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+	nodes := args[0].([]ExpNode)
+
+	ast := ExpansionAST{
+		Nodes: nodes,
+	}
+
+	return ast, nil
+}
+
+func expHookNodeList(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+	var list []ExpNode
+
+	var appendNode ExpNode
+
+	if len(args) >= 1 {
+		// add item to list
+		appendNode = args[0].(ExpNode)
+		if len(args) >= 2 {
+			list = args[1].([]ExpNode)
+		}
+	}
+
+	if appendNode != nil {
+		list = append(list, appendNode)
+	}
+
+	return list, nil
+}

@@ -185,7 +185,7 @@ func hookArgsList(info trans.SetterInfo, args []interface{}) (interface{}, error
 func hookFlag(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedIdent := args[0].(string)
 
-	fname := strings.ToUpper(lexedIdent)
+	fname := strings.TrimPrefix(strings.ToUpper(lexedIdent), "$")
 
 	node := FlagNode{
 		Flag: fname,

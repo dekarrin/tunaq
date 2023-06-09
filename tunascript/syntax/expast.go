@@ -217,7 +217,7 @@ type ExpBranchNode struct {
 	ElseIf []ExpCondNode
 
 	// Else will be nil if there are no else blocks.
-	Else *ExpansionAST
+	Else []ExpNode
 
 	Source lex.Token
 }
@@ -242,7 +242,9 @@ func (n ExpBranchNode) String() string {
 	}
 
 	if n.Else != nil {
-		s += fmt.Sprintf("%s%s\n", elseStart, spaceIndentNewlines(n.Else.String(), len(elseStart)))
+		for i := range n.Else {
+			s += fmt.Sprintf("%s%s\n", elseStart, spaceIndentNewlines(n.Else[i].String(), len(elseStart)))
+		}
 	}
 	s += "]"
 	return s
@@ -273,11 +275,13 @@ func (n ExpBranchNode) Equal(o any) bool {
 			return false
 		}
 	}
-	if (n.Else == nil && other.Else != nil) || (n.Else != nil && other.Else == nil) {
+	if len(n.Else) != len(other.Else) {
 		return false
 	}
-	if n.Else != nil && !n.Else.Equal(other.Else) {
-		return false
+	for i := range n.Else {
+		if !n.Else[i].Equal(other.Else[i]) {
+			return false
+		}
 	}
 
 	return true
@@ -290,7 +294,7 @@ type ExpCondNode struct {
 	// contents of this string can be parsed by passing it to the TS frontend.
 	RawCond string
 
-	Content ExpansionAST
+	Content []ExpNode
 
 	Source lex.Token
 }
@@ -311,9 +315,17 @@ func (n ExpCondNode) String() string {
 	} else {
 		condStr = spaceIndentNewlines(n.RawCond, len(condStart))
 	}
-	contentStr := spaceIndentNewlines(n.Content.String(), len(contentStart))
 
-	return fmt.Sprintf("[EXP_COND\n%s%s\n%s%s\n]", condStart, condStr, contentStart, contentStr)
+	s := fmt.Sprintf("[EXP_COND\n%s%s", condStart, condStr)
+
+	for i := range n.Content {
+		contentStr := spaceIndentNewlines(n.Content[i].String(), len(contentStart))
+		s += fmt.Sprintf("\n%s%s", contentStart, contentStr)
+	}
+
+	s += "]"
+
+	return s
 }
 
 // Does not consider Source.
@@ -333,11 +345,16 @@ func (n ExpCondNode) Equal(o any) bool {
 	if !n.Cond.Equal(other.Cond) {
 		return false
 	}
-	if !n.Content.Equal(other.Content) {
-		return false
-	}
 	if n.RawCond != other.RawCond {
 		return false
+	}
+	if len(n.Content) != len(other.Content) {
+		return false
+	}
+	for i := range n.Content {
+		if !n.Content[i].Equal(other.Content[i]) {
+			return false
+		}
 	}
 
 	return true

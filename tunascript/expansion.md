@@ -58,6 +58,34 @@ Minimal SDTS for the moment while we get the rest of things in order.
 %%actions
 
 %symbol {EXPANSION}
--> {BLOCKS}:              {^}.ast = test_const()
+-> {BLOCKS}:              {^}.ast = ast({BLOCKS}.nodes)
+
+%symbol {BLOCKS}
+-> {BLOCKS} {BLOCK}:    {^}.nodes = node_list({BLOCK}.node, {BLOCKS}.nodes)
+-> {BLOCK}:             {^}.nodes = node_list({BLOCK}.node)
+
+%symbol {BLOCK}
+-> text     :   {^}.node = text( text.$text)
+-> flag     :   {^}.node = flag( flag.$text)
+-> {BRANCH} :   {^}.node = identity({BRANCH}.node)
+
+
+%symbol {BRANCH}
+-> if {BLOCKS} endif                         :
+{^}.node = branch( if.$text, {BLOCKS}.nodes)
+
+-> if {BLOCKS} {ELSEIFS} endif               :
+{^}.node = branch( if.$text, {BLOCKS}.nodes, {ELSEIFS}.conds)
+
+-> if {BLOCKS} else {BLOCKS} endif           :
+{^}.node = branch_with_else( if.$text, {BLOCKS$0}.nodes, {BLOCKS$1}.nodes)
+
+-> if {BLOCKS} {ELSEIFS} else {BLOCKS} endif :
+{^}.node = branch_with_else( if.$text, {BLOCKS$0}.nodes, {BLOCKS$1}.nodes, {ELSEIFS}.conds)
+
+
+%symbol {ELSEIFS}
+-> {ELSEIFS} elseif {BLOCKS}:   {^}.conds = cond_list( elseif.$text, {BLOCKS}.nodes, {ELSEIFS}.conds)
+-> elseif {BLOCKS}:             {^}.conds = cond_list( elseif.$text, {BLOCKS}.nodes)
 
 ```
