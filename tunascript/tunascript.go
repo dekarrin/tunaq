@@ -46,8 +46,9 @@ type Interpreter struct {
 	// is used in error reporting and is optional to set.
 	File string
 
-	fn map[string]funcInfo
-	fe ictiobus.Frontend[syntax.AST]
+	fn  map[string]funcInfo
+	fe  ictiobus.Frontend[syntax.AST]
+	exp ictiobus.Frontend[syntax.ExpansionAST]
 }
 
 // Init initializes the interpreter environment. All defined symbols
@@ -292,13 +293,16 @@ func (interp *Interpreter) execLiteralNode(n syntax.LiteralNode) syntax.Value {
 	return n.Value
 }
 
-// initializes the frontend in member fe so that it can be used. If frontend is
-// already initialized, this function does nothing. interp.fe can be safely used
-// after calling this function.
+// initializes the frontends in members fe and expfe so that they can be used.
+// If frontends are already initialized, this function does nothing. interp.fe
+// and interp.exp can be safely used after calling this function.
 func (interp *Interpreter) initFrontend() {
 	// if IR attribute is blank, fe is by-extension not yet set, because
 	// Ictiobus-generated frontends will never have an empty IRAttribute.
 	if interp.fe.IRAttribute == "" {
 		interp.fe = fe.Frontend(syntax.HooksTable, nil)
+	}
+	if interp.exp.IRAttribute == "" {
+		interp.exp = expfe
 	}
 }

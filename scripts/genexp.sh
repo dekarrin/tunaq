@@ -35,5 +35,5 @@ ictcc --slr \
     --sim-off \
     --ir github.com/dekarrin/tunaq/tunascript/syntax.ExpansionAST \
     --hooks ./tunascript/syntax --hooks-table ExpHooksTable \
-    --dest ./tunascript/expfe \
+    --dest ./tunascript/expfe --pkg expfe \
     tunascript/expansion.md "$@"
