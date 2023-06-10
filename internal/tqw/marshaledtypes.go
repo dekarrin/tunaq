@@ -52,7 +52,7 @@ func (tn npc) toGameNPC() game.NPC {
 		Description: tn.Description,
 		Start:       strings.ToUpper(tn.Start),
 		Movement:    tn.Movement.toGameRoute(),
-		Dialog:      make([]game.DialogStep, len(tn.Dialogs)),
+		Dialog:      make([]*game.DialogStep, len(tn.Dialogs)),
 		Aliases:     make([]string, len(tn.Aliases)),
 	}
 
@@ -108,7 +108,7 @@ type dialogStep struct {
 	Continue string     `toml:"continue"`
 }
 
-func (tds dialogStep) toGameDialogStep() game.DialogStep {
+func (tds dialogStep) toGameDialogStep() *game.DialogStep {
 	act, ok := game.DialogActionsByString[strings.ToUpper(tds.Action)]
 	if !ok {
 		act = game.DialogLine
@@ -134,7 +134,7 @@ func (tds dialogStep) toGameDialogStep() game.DialogStep {
 		ds.Choices[i] = [2]string{choice, dest}
 	}
 
-	return ds
+	return &ds
 }
 
 type pronounSet struct {

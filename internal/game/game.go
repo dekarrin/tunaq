@@ -2,7 +2,6 @@ package game
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 
@@ -20,7 +19,6 @@ var commandHelp = [][2]string{
 	{"DEBUG ROOM", "print info on the current room, or teleport to room with label LABEL if 'DEBUG ROOM LABEL' is typed."},
 	{"DEBUG EXEC [code]", "print what the tunascript code evaluates to"},
 	{"DEBUG EXPAND [text]", "print the given text with tunascript $IFs and flags expanded"},
-	{"DEBUG OPS [text]", "REMINDER TO REMOVE THIS COMMAND WHEN DONE TESTING"},
 	{"DEBUG FLAGS", "print all flags and their values"},
 	{"EXITS", "show the names of all exits from the room"},
 	{"GO/MOVE", "go to another room via one of the exits"},
@@ -241,110 +239,6 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	return gs, nil
 }
 
-func (gs *State) preParseAllTunascriptTemplates() error {
-	roomKeys := util.OrderedKeys(gs.World)
-
-	for _, rKey := range roomKeys {
-		r := gs.World[rKey]
-
-		// compute room desc
-		preComp, err := gs.preParseTemplate(r.Description)
-		if err != nil {
-			// show bad text separately
-			return fmt.Errorf("room %q: description: %w", r.Label, err)
-		}
-		r.tmplDescription = preComp
-
-		// compute room exit descs and messages
-		for i := range r.Exits {
-			eg := r.Exits[i]
-
-			egDescComp, err := gs.preParseTemplate(eg.Description)
-			if err != nil {
-				return fmt.Errorf("room %q: exit %d: description: %w", r.Label, i, err)
-			}
-			egMsgComp, err := gs.preParseTemplate(eg.TravelMessage)
-			if err != nil {
-				return fmt.Errorf("room %q: exit %d: message: %w", r.Label, i, err)
-			}
-
-			eg.tmplDescription = egDescComp
-			eg.tmplTravelMessage = egMsgComp
-
-			r.Exits[i] = eg
-		}
-
-		// compute room detail descs
-		for i := range r.Details {
-			det := r.Details[i]
-
-			detComp, err := gs.preParseTemplate(det.Description)
-			if err != nil {
-				return fmt.Errorf("room %q: detail %d: description: %w", r.Label, i, err)
-			}
-			det.tmplDescription = detComp
-
-			r.Details[i] = det
-		}
-
-		// compute item descs
-		for i := range r.Items {
-			it := r.Items[i]
-
-			itemComp, err := gs.preParseTemplate(it.Description)
-			if err != nil {
-				return fmt.Errorf("item %q: description: %w", it.Label, err)
-			}
-			it.tmplDescription = itemComp
-
-			r.Items[i] = it
-		}
-
-		// compute NPC descs
-		npcKeys := util.OrderedKeys(r.NPCs)
-		for _, npcLabel := range npcKeys {
-			npc := r.NPCs[npcLabel]
-
-			npcComp, err := gs.preParseTemplate(npc.Description)
-			if err != nil {
-				return fmt.Errorf("npc %q: description: %w", npc.Label, err)
-			}
-			npc.tmplDescription = npcComp
-
-			// no need to re-assign to map bc npc is a ptr-to so mutations are
-			// reflected in map
-
-			// now set each dialog step's precomputed texts
-			for i := range npc.Dialog {
-				dia := npc.Dialog[i]
-
-				diaResponseComp, err := gs.preParseTemplate(dia.Response)
-				if err != nil {
-					return fmt.Errorf("npc %q: line %d: response: %w", npc.Label, i, err)
-				}
-				diaContentComp, err := gs.preParseTemplate(dia.Content)
-				if err != nil {
-					return fmt.Errorf("npc %q: line %d: content: %w", npc.Label, i, err)
-				}
-				diaChoiceComps := make([]*tunascript.Template, len(dia.Choices))
-				for j := range dia.Choices {
-					chComp, err := gs.preParseTemplate(dia.Choices[j][0])
-					if err != nil {
-						return fmt.Errorf("npc %q: line %d: choice %d: %w", npc.Label, i, j, err)
-					}
-					diaChoiceComps[j] = chComp
-				}
-
-				dia.tmplResponse = diaResponseComp
-				dia.tmplContent = diaContentComp
-				dia.tmplChoices = diaChoiceComps
-			}
-		}
-	}
-
-	return nil
-}
-
 // MoveNPCs applies all movements on NPCs that are in the world.
 func (gs *State) MoveNPCs() {
 	newLocs := map[string]string{}
@@ -371,21 +265,8 @@ func (gs *State) MoveNPCs() {
 // Expand executes the given template text and turns it into the resulting text.
 // Any tunascript queries required to evaluate template flow-control statements
 // are executed at this time.
-//
-// The parameter what is the thing that is being described. It is only used in
-// error output. If what is blank and there is an error, a generic string will
-// be used.
-//
-// If there is an error with the expanded text, the returned string will contain
-// the error followed by the unexpanded text.
-func (gs *State) Expand(s *tunascript.Template, what string) string {
-	if what == "" {
-		what = "TEXT"
-	}
-
-	log.Printf("EXPANDING WITH: %v", gs.scripts)
+func (gs *State) Expand(s *tunascript.Template) string {
 	expanded := gs.scripts.ExecTemplate(*s)
-
 	return expanded
 }
 
@@ -402,9 +283,9 @@ func (gs *State) Look(alias string) (string, error) {
 			return "", tqerrors.Interpreterf("I don't see any %q here", alias)
 		}
 
-		desc = gs.Expand(lookTarget.GetDescription(), fmt.Sprintf("DESCRIPTION FOR %q", alias))
+		desc = gs.Expand(lookTarget.GetDescription())
 	} else {
-		desc = gs.Expand(gs.CurrentRoom.tmplDescription, fmt.Sprintf("DESCRIPTION OF ROOM %q", gs.CurrentRoom.Label))
+		desc = gs.Expand(gs.CurrentRoom.tmplDescription)
 
 		if len(gs.CurrentRoom.Items) > 0 {
 			var itemNames []string
@@ -513,7 +394,7 @@ func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
 		return "", err
 	}
 
-	expanded := gs.Expand(egress.tmplTravelMessage, fmt.Sprintf("Exit travel message for %q", cmd.Recipient))
+	expanded := gs.Expand(egress.tmplTravelMessage)
 
 	output := rosed.Edit(expanded).WithOptions(textFormatOptions).
 		Wrap(gs.io.Width).
@@ -539,7 +420,7 @@ func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
 			CharsFrom(rosed.End)
 
 		for _, eg := range gs.CurrentRoom.Exits {
-			expanded := gs.Expand(eg.tmplDescription, fmt.Sprintf("DESCRIPTION FOR %q", eg.Aliases[0]))
+			expanded := gs.Expand(eg.tmplDescription)
 			ed = ed.Insert(rosed.End, "XX* "+eg.Aliases[0]+": "+expanded+"\n")
 		}
 
@@ -688,8 +569,6 @@ func (gs *State) ExecuteCommandDebug(cmd command.Command) (string, error) {
 		return gs.executeDebugExpand(cmd.Instrument)
 	} else if cmd.Recipient == "FLAGS" {
 		return gs.executeDebugFlags()
-	} else if cmd.Recipient == "OPS" {
-		return gs.executeDebugOps(cmd.Instrument)
 	} else {
 		return "", tqerrors.Interpreterf("I don't know how to debug %q", cmd.Recipient)
 	}
@@ -706,6 +585,110 @@ func (gs *State) ExecuteCommandHelp(cmd command.Command) (string, error) {
 		InsertDefinitionsTable(rosed.End, commandHelp, gs.io.Width).String()
 
 	return output, nil
+}
+
+func (gs *State) preParseAllTunascriptTemplates() error {
+	roomKeys := util.OrderedKeys(gs.World)
+
+	for _, rKey := range roomKeys {
+		r := gs.World[rKey]
+
+		// compute room desc
+		preComp, err := gs.preParseTemplate(r.Description)
+		if err != nil {
+			// show bad text separately
+			return fmt.Errorf("room %q: description: %w", r.Label, err)
+		}
+		r.tmplDescription = preComp
+
+		// compute room exit descs and messages
+		for i := range r.Exits {
+			eg := r.Exits[i]
+
+			egDescComp, err := gs.preParseTemplate(eg.Description)
+			if err != nil {
+				return fmt.Errorf("room %q: exit %d: description: %w", r.Label, i, err)
+			}
+			egMsgComp, err := gs.preParseTemplate(eg.TravelMessage)
+			if err != nil {
+				return fmt.Errorf("room %q: exit %d: message: %w", r.Label, i, err)
+			}
+
+			eg.tmplDescription = egDescComp
+			eg.tmplTravelMessage = egMsgComp
+
+			r.Exits[i] = eg
+		}
+
+		// compute room detail descs
+		for i := range r.Details {
+			det := r.Details[i]
+
+			detComp, err := gs.preParseTemplate(det.Description)
+			if err != nil {
+				return fmt.Errorf("room %q: detail %d: description: %w", r.Label, i, err)
+			}
+			det.tmplDescription = detComp
+
+			r.Details[i] = det
+		}
+
+		// compute item descs
+		for i := range r.Items {
+			it := r.Items[i]
+
+			itemComp, err := gs.preParseTemplate(it.Description)
+			if err != nil {
+				return fmt.Errorf("item %q: description: %w", it.Label, err)
+			}
+			it.tmplDescription = itemComp
+
+			r.Items[i] = it
+		}
+
+		// compute NPC descs
+		npcKeys := util.OrderedKeys(r.NPCs)
+		for _, npcLabel := range npcKeys {
+			npc := r.NPCs[npcLabel]
+
+			npcComp, err := gs.preParseTemplate(npc.Description)
+			if err != nil {
+				return fmt.Errorf("npc %q: description: %w", npc.Label, err)
+			}
+			npc.tmplDescription = npcComp
+
+			// no need to re-assign to map bc npc is a ptr-to so mutations are
+			// reflected in map
+
+			// now set each dialog step's precomputed texts
+			for i := range npc.Dialog {
+				dia := npc.Dialog[i]
+
+				diaResponseComp, err := gs.preParseTemplate(dia.Response)
+				if err != nil {
+					return fmt.Errorf("npc %q: line %d: response: %w", npc.Label, i, err)
+				}
+				diaContentComp, err := gs.preParseTemplate(dia.Content)
+				if err != nil {
+					return fmt.Errorf("npc %q: line %d: content: %w", npc.Label, i, err)
+				}
+				diaChoiceComps := make([]*tunascript.Template, len(dia.Choices))
+				for j := range dia.Choices {
+					chComp, err := gs.preParseTemplate(dia.Choices[j][0])
+					if err != nil {
+						return fmt.Errorf("npc %q: line %d: choice %d: %w", npc.Label, i, j, err)
+					}
+					diaChoiceComps[j] = chComp
+				}
+
+				dia.tmplResponse = diaResponseComp
+				dia.tmplContent = diaContentComp
+				dia.tmplChoices = diaChoiceComps
+			}
+		}
+	}
+
+	return nil
 }
 
 func (gs *State) preParseTemplate(toExpand string) (*tunascript.Template, error) {

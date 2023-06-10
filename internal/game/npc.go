@@ -39,7 +39,7 @@ type NPC struct {
 	Movement Route
 
 	// Dialog is the Dialog tree that the NPC engages in with the player.
-	Dialog []DialogStep
+	Dialog []*DialogStep
 
 	// Convo is the currently active conversation with the NPC. If not set or
 	// set to nil, there is no active conversation between the player and the
@@ -131,14 +131,15 @@ func (npc NPC) Copy() NPC {
 		Pronouns:    npc.Pronouns,
 		Start:       npc.Start,
 		Movement:    npc.Movement.Copy(),
-		Dialog:      make([]DialogStep, len(npc.Dialog)),
+		Dialog:      make([]*DialogStep, len(npc.Dialog)),
 		Aliases:     make([]string, len(npc.Aliases)),
 
 		tmplDescription: npc.tmplDescription,
 	}
 
 	for i := range npc.Dialog {
-		npcCopy.Dialog[i] = npc.Dialog[i].Copy()
+		step := npc.Dialog[i].Copy()
+		npcCopy.Dialog[i] = &step
 	}
 	copy(npcCopy.Aliases, npc.Aliases)
 

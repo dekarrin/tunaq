@@ -8,7 +8,6 @@ import (
 
 	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/tqerrors"
-	"github.com/dekarrin/tunaq/tunascript"
 )
 
 // This file contains functions for handling the debug commands of game.State.
@@ -69,10 +68,6 @@ func (gs *State) executeDebugExpand(s string) (string, error) {
 func (gs *State) executeDebugFlags() (string, error) {
 	output := gs.ListFlags()
 	return output, nil
-}
-
-func (gs *State) executeDebugOps(s string) (string, error) {
-	return tunascript.TranslateOperators(s)
 }
 
 // ListFlags returns a text table of the Flags in the game and their current

@@ -141,7 +141,7 @@ func (ds DialogStep) String() string {
 // can be created simply by manually creating a Conversation and assigning a
 // sequence of steps to Dialog.
 type Conversation struct {
-	Dialog  []DialogStep
+	Dialog  []*DialogStep
 	cur     int
 	aliases map[string]int
 }
@@ -153,9 +153,9 @@ type Conversation struct {
 // that one is processed. If it returns a DialogStep with an Action of
 // DialogChoice, JumpTo should be used to jump to the given alias before calling
 // NextStep again.
-func (convo *Conversation) NextStep() DialogStep {
+func (convo *Conversation) NextStep() *DialogStep {
 	if convo.cur >= len(convo.Dialog) {
-		return DialogStep{Action: DialogEnd}
+		return &DialogStep{Action: DialogEnd}
 	}
 
 	current := convo.Dialog[convo.cur]
@@ -225,14 +225,14 @@ func (gs *State) RunConversation(npc *NPC) error {
 				npc.Convo = nil
 				return nil
 			case DialogLine:
-				line := gs.Expand(step.tmplContent, fmt.Sprintf("CONTENT FOR NPC %q DIALOG LINE %q", npc.Label, step.Label))
+				line := gs.Expand(step.tmplContent)
 				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
 					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
 					Wrap(gs.io.Width).
 					Insert(rosed.End, "\n")
 				if step.Response != "" {
-					resp := gs.Expand(step.tmplResponse, fmt.Sprintf("RESPONSE FOR NPC %q DIALOG LINE %q", npc.Label, step.Label))
+					resp := gs.Expand(step.tmplResponse)
 					ed = ed.
 						Insert(rosed.End, "\nYOU:\n").
 						Insert(rosed.End, rosed.Edit("\""+strings.TrimSpace(resp)+"\"").Wrap(gs.io.Width).String()).
@@ -254,7 +254,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 					return nil
 				}
 			case DialogChoice:
-				line := gs.Expand(step.tmplContent, fmt.Sprintf("CONTENT FOR NPC %q DIALOG LINE %q", npc.Label, step.Label))
+				line := gs.Expand(step.tmplContent)
 				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
 					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
@@ -268,7 +268,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 					chDest := step.Choices[idx][1]
 					choiceOut[idx] = chDest
 
-					ch := gs.Expand(tsCh, fmt.Sprintf("CHOICE FOR NPC %q DIALOG LINE %q CHOICE #%d", npc.Label, step.Label, idx+1))
+					ch := gs.Expand(tsCh)
 
 					ed = ed.Insert(rosed.End, fmt.Sprintf("%d) \"%s\"\n", idx+1, strings.TrimSpace(ch)))
 				}

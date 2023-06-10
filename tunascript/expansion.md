@@ -31,18 +31,6 @@ to produce the template frontend.
 ```fishi
 %%tokens
 
-# anything but backslash or dollar                  OR
-# backslash followed by any char                    OR
-# dollar followed by one of (
-#   any non-id-or-[               OR
-#   [ followd by any not [        OR
-#   EOT
-# )
-
-# mega regex for testing: (?:(?:[^\\\$]|\\.|\$(?:[^A-Za-z0-9_[]|\[[^[]|$))+|\$[A-Za-z0-9_]+|\$\[\[\s*[Ii][Ff](?:\s+(?:[^\\\]]|\][^\]]|\\.)*)?\]\]|\$\[\[\s*[Ee][Ll](?:[Ss][Ee]\s*)?[Ii][Ff](?:\s+(?:[^\\\]]|\][^\]]|\\.)*)?\]\]|\$\[\[\s*[Ee][Nn][Dd]\s*[Ii][Ff]\s*\]\]|\$\[\[\s*[Ee][Ll][Ss][Ee]\s*\]\])
-
-# $\[[stuff
-#  $[ something else
 (?:[^\\\$]|\\.|\$(?:[^A-Za-z0-9_[]|\[[^[]|$))+
 %token text
 
