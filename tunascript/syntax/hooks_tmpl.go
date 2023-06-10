@@ -7,32 +7,25 @@ import (
 	"github.com/dekarrin/ictiobus/trans"
 )
 
-func makeConstHook(v interface{}) trans.Hook {
-	return func(info trans.SetterInfo, args []interface{}) (interface{}, error) {
-		return v, nil
-	}
-}
-
 var (
-	ExpHooksTable = trans.HookMap{
+	TmplHooksTable = trans.HookMap{
 		"identity":         func(info trans.SetterInfo, args []interface{}) (interface{}, error) { return args[0], nil },
-		"ast":              expHookAST,
-		"text":             expHookText,
-		"flag":             expHookFlag,
-		"branch":           expHookBranch,
-		"branch_with_else": expHookBranchWithElse,
-		"cond_list":        expHookCondList,
-		"node_list":        expHookNodeList,
-		"test_const":       makeConstHook(Template{}),
+		"ast":              tmplHookAST,
+		"text":             tmplHookText,
+		"flag":             tmplHookFlag,
+		"branch":           tmplHookBranch,
+		"branch_with_else": tmplHookBranchWithElse,
+		"cond_list":        tmplHookCondList,
+		"node_list":        tmplHookNodeList,
 	}
 )
 
-func expHookCondList(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+func tmplHookCondList(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedElifText := args[0].(string)
 	elifBlocks := args[1].([]Block)
-	var list []ExpCondNode
+	var list []CondBlock
 	if len(args) >= 3 {
-		list = args[2].([]ExpCondNode)
+		list = args[2].([]CondBlock)
 	}
 
 	// extract the tunascript from the elif token. Fairly complicated due to
@@ -48,7 +41,7 @@ func expHookCondList(info trans.SetterInfo, args []interface{}) (interface{}, er
 	elifExpr = strings.TrimLeft(elifExpr, "Ff")
 	elifExpr = strings.TrimSuffix(elifExpr, "]]")
 
-	elifCond := ExpCondNode{
+	elifCond := CondBlock{
 		RawCond: elifExpr,
 		Content: elifBlocks,
 		Source:  info.FirstToken,
@@ -59,12 +52,12 @@ func expHookCondList(info trans.SetterInfo, args []interface{}) (interface{}, er
 	return list, nil
 }
 
-func expHookBranch(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+func tmplHookBranch(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedIfText := args[0].(string)
 	ifBlocks := args[1].([]Block)
-	var elseIfConds []ExpCondNode
+	var elseIfConds []CondBlock
 	if len(args) >= 3 {
-		elseIfConds = args[2].([]ExpCondNode)
+		elseIfConds = args[2].([]CondBlock)
 	}
 
 	// extract the tunascript from the if token
@@ -74,25 +67,25 @@ func expHookBranch(info trans.SetterInfo, args []interface{}) (interface{}, erro
 	ifExpr = strings.TrimLeft(ifExpr, "Ff")
 	ifExpr = strings.TrimSuffix(ifExpr, "]]")
 
-	ifCond := ExpCondNode{
+	ifCond := CondBlock{
 		RawCond: ifExpr,
 		Content: ifBlocks,
 		Source:  info.FirstToken,
 	}
 
-	return ExpBranchNode{
+	return BranchBlock{
 		If:     ifCond,
 		ElseIf: elseIfConds,
 	}, nil
 }
 
-func expHookBranchWithElse(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+func tmplHookBranchWithElse(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedIfText := args[0].(string)
 	ifBlocks := args[1].([]Block)
 	elseBlocks := args[2].([]Block)
-	var elseIfConds []ExpCondNode
+	var elseIfConds []CondBlock
 	if len(args) >= 4 {
-		elseIfConds = args[3].([]ExpCondNode)
+		elseIfConds = args[3].([]CondBlock)
 	}
 
 	// extract the tunascript from the if token
@@ -102,31 +95,31 @@ func expHookBranchWithElse(info trans.SetterInfo, args []interface{}) (interface
 	ifExpr = strings.TrimLeft(ifExpr, "Ff")
 	ifExpr = strings.TrimSuffix(ifExpr, "]]")
 
-	ifCond := ExpCondNode{
+	ifCond := CondBlock{
 		RawCond: ifExpr,
 		Content: ifBlocks,
 		Source:  info.FirstToken,
 	}
 
-	return ExpBranchNode{
+	return BranchBlock{
 		If:     ifCond,
 		ElseIf: elseIfConds,
 		Else:   elseBlocks,
 	}, nil
 }
 
-func expHookFlag(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+func tmplHookFlag(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedIdent := args[0].(string)
 
 	fname := strings.TrimPrefix(strings.ToUpper(lexedIdent), "$")
 
-	return ExpFlagNode{
+	return FlagBlock{
 		Flag:   fname,
 		Source: info.FirstToken,
 	}, nil
 }
 
-func expHookText(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+func tmplHookText(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedText := args[0].(string)
 	actualText := InterpretEscapes(lexedText)
 
@@ -142,7 +135,7 @@ func expHookText(info trans.SetterInfo, args []interface{}) (interface{}, error)
 		rtrimmed = ""
 	}
 
-	return ExpTextNode{
+	return TextBlock{
 		Text:              actualText,
 		LeftSpaceTrimmed:  ltrimmed,
 		RightSpaceTrimmed: rtrimmed,
@@ -150,7 +143,7 @@ func expHookText(info trans.SetterInfo, args []interface{}) (interface{}, error)
 	}, nil
 }
 
-func expHookAST(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+func tmplHookAST(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	nodes := args[0].([]Block)
 
 	ast := Template{
@@ -160,7 +153,7 @@ func expHookAST(info trans.SetterInfo, args []interface{}) (interface{}, error) 
 	return ast, nil
 }
 
-func expHookNodeList(info trans.SetterInfo, args []interface{}) (interface{}, error) {
+func tmplHookNodeList(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	var list []Block
 
 	var appendNode Block

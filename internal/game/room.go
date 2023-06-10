@@ -26,14 +26,14 @@ type Detail struct {
 	// tmplDescription is the precomputed template AST for the description text.
 	// It must generally be filled in with the game engine, and will not be
 	// present directly when loaded from disk.
-	tmplDescription *tunascript.ExpansionAST
+	tmplDescription *tunascript.Template
 }
 
 func (d Detail) GetAliases() []string {
 	return d.Aliases
 }
 
-func (d Detail) GetDescription() *tunascript.ExpansionAST {
+func (d Detail) GetDescription() *tunascript.Template {
 	return d.tmplDescription
 }
 
@@ -75,12 +75,12 @@ type Egress struct {
 	// tmplDescription is the precomputed template AST for the description text.
 	// It must generally be filled in with the game engine, and will not be
 	// present directly when loaded from disk.
-	tmplDescription *tunascript.ExpansionAST
+	tmplDescription *tunascript.Template
 
 	// tmplTravelMessage is the precomputed template AST for the travel message
 	// text. It must generally be filled in with the game engine, and will not
 	// be present directly when loaded from disk.
-	tmplTravelMessage *tunascript.ExpansionAST
+	tmplTravelMessage *tunascript.Template
 }
 
 func (egress Egress) String() string {
@@ -107,7 +107,7 @@ func (egress Egress) GetAliases() []string {
 	return egress.Aliases
 }
 
-func (egress Egress) GetDescription() *tunascript.ExpansionAST {
+func (egress Egress) GetDescription() *tunascript.Template {
 	return egress.tmplDescription
 }
 
@@ -142,7 +142,7 @@ type Room struct {
 	// tmplDescription is the precomputed template AST for the description text.
 	// It must generally be filled in with the game engine, and will not be
 	// present directly when loaded from disk.
-	tmplDescription *tunascript.ExpansionAST
+	tmplDescription *tunascript.Template
 }
 
 // Copy returns a deeply-copied Room.

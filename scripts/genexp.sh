@@ -33,7 +33,7 @@ ictcc --slr \
     -l TQTextExpansion -v 1.0 \
     -d tte \
     --sim-off \
-    --ir github.com/dekarrin/tunaq/tunascript/syntax.ExpansionAST \
-    --hooks ./tunascript/syntax --hooks-table ExpHooksTable \
+    --ir github.com/dekarrin/tunaq/tunascript/syntax.Template \
+    --hooks ./tunascript/syntax --hooks-table TmplHooksTable \
     --dest ./tunascript/expfe --pkg expfe \
     tunascript/expansion.md "$@"

@@ -65,7 +65,7 @@ type Item struct {
 	// tmplDescription is the precomputed template AST for the description text.
 	// It must generally be filled in with the game engine, and will not be
 	// present directly when loaded from disk.
-	tmplDescription *tunascript.ExpansionAST
+	tmplDescription *tunascript.Template
 }
 
 func (item Item) String() string {
@@ -92,6 +92,6 @@ func (item Item) GetAliases() []string {
 	return item.Aliases
 }
 
-func (item Item) GetDescription() *tunascript.ExpansionAST {
+func (item Item) GetDescription() *tunascript.Template {
 	return item.tmplDescription
 }

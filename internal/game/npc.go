@@ -53,7 +53,7 @@ type NPC struct {
 	// tmplDescription is the precomputed template AST for the description text.
 	// It must generally be filled in with the game engine, and will not be
 	// present directly when loaded from disk.
-	tmplDescription *tunascript.ExpansionAST
+	tmplDescription *tunascript.Template
 }
 
 // ResetRoute resets the route of the NPC. It should always be called before
@@ -167,6 +167,6 @@ func (npc NPC) GetAliases() []string {
 	return npc.Aliases
 }
 
-func (npc NPC) GetDescription() *tunascript.ExpansionAST {
+func (npc NPC) GetDescription() *tunascript.Template {
 	return npc.tmplDescription
 }

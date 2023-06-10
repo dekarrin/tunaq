@@ -20,7 +20,7 @@ import (
 // TODO: these should not be aliased like this, aliasing is not intended for
 // use outside of conversion. (Yeah, 8ut we're kind of doing exactly that!) true.
 type AST = syntax.AST
-type ExpansionAST = syntax.Template
+type Template = syntax.Template
 type Value = syntax.Value
 
 // TranslateOperators converts the operators in the given TunaScript string to
@@ -146,7 +146,7 @@ type Interpreter struct {
 	flags map[string]Value
 	fn    map[string]funcInfo
 	fe    ictiobus.Frontend[AST]
-	exp   ictiobus.Frontend[ExpansionAST]
+	tmpl  ictiobus.Frontend[Template]
 }
 
 // Init initializes the interpreter environment. All defined symbols
@@ -221,7 +221,7 @@ func (interp *Interpreter) EvalReader(r io.Reader) error {
 // the last pure TunaScript result executed within the template.
 //
 // This function does not require Target to have been set on the interpreter.
-func (interp *Interpreter) ExecTemplate(ast ExpansionAST) string {
+func (interp *Interpreter) ExecTemplate(ast Template) string {
 	if interp.flags == nil {
 		interp.flags = map[string]Value{}
 	}
@@ -280,14 +280,14 @@ func (interp *Interpreter) Exec(ast AST) Value {
 // templated text. Any TunaScript within template flow control blocks is also
 // parsed and checked for proper call semantics (i.e. they are checked to make
 // sure only query functions are used, and not ones with side effects).
-func (interp *Interpreter) ParseTemplate(code string) (ast ExpansionAST, err error) {
+func (interp *Interpreter) ParseTemplate(code string) (ast Template, err error) {
 	interp.initFrontend()
 
 	if interp.fn == nil {
 		interp.initFuncs()
 	}
 
-	ast, _, err = interp.exp.AnalyzeString(code)
+	ast, _, err = interp.tmpl.AnalyzeString(code)
 	if err != nil {
 
 		// wrap syntax errors so user of the Interpreter doesn't have to check
@@ -315,14 +315,14 @@ func (interp *Interpreter) ParseTemplate(code string) (ast ExpansionAST, err err
 // template flow control blocks is also parsed and checked for proper call
 // semantics (i.e. they are checked to make sure only query functions are used,
 // and not ones with side effects).
-func (interp *Interpreter) ParseTemplateReader(r io.Reader) (ast ExpansionAST, err error) {
+func (interp *Interpreter) ParseTemplateReader(r io.Reader) (ast Template, err error) {
 	interp.initFrontend()
 
 	if interp.fn == nil {
 		interp.initFuncs()
 	}
 
-	ast, _, err = interp.exp.Analyze(r)
+	ast, _, err = interp.tmpl.Analyze(r)
 	if err != nil {
 
 		// wrap syntax errors so user of the Interpreter doesn't have to check
@@ -437,9 +437,9 @@ func (interp *Interpreter) GetFlag(label string) string {
 func (interp *Interpreter) templateExecNode(n syntax.Block) string {
 	switch n.Type() {
 	case syntax.TmplText:
-		return n.AsTextNode().Text
+		return n.AsText().Text
 	case syntax.TmplFlag:
-		fl, ok := interp.flags[n.AsFlagNode().Flag]
+		fl, ok := interp.flags[n.AsFlag().Flag]
 		// in this case, we *do* care about it being defined, and cannot simply
 		// use the value. if it's not defined, we explicitly want to return an
 		// empty string. The zero value for Value will not do this; it
@@ -449,7 +449,7 @@ func (interp *Interpreter) templateExecNode(n syntax.Block) string {
 		}
 		return fl.String()
 	case syntax.TmplBranch:
-		nb := n.AsBranchNode()
+		nb := n.AsBranch()
 
 		ifResult := interp.Exec(nb.If.Cond)
 		if ifResult.Bool() {
@@ -628,15 +628,15 @@ func (interp *Interpreter) execLiteralNode(n syntax.LiteralNode) Value {
 
 // initializes the frontends in members fe and expfe so that they can be used.
 // If frontends are already initialized, this function does nothing. interp.fe
-// and interp.exp can be safely used after calling this function.
+// and interp.tmpl can be safely used after calling this function.
 func (interp *Interpreter) initFrontend() {
 	// if IR attribute is blank, fe is by-extension not yet set, because
 	// Ictiobus-generated frontends will never have an empty IRAttribute.
 	if interp.fe.IRAttribute == "" {
 		interp.fe = fe.Frontend(syntax.HooksTable, nil)
 	}
-	if interp.exp.IRAttribute == "" {
-		interp.exp = expfe.Frontend(syntax.ExpHooksTable, nil)
+	if interp.tmpl.IRAttribute == "" {
+		interp.tmpl = expfe.Frontend(syntax.TmplHooksTable, nil)
 	}
 }
 
@@ -647,15 +647,15 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.B
 	case syntax.TmplText:
 		return n, nil
 	case syntax.TmplBranch:
-		nb := n.AsBranchNode()
+		nb := n.AsBranch()
 		newIf, err := interp.translateTemplateTunascript(nb.If)
 		if err != nil {
 			return n, err
 		}
 
-		newBranch := syntax.ExpBranchNode{
-			If:     newIf.AsCondNode(),
-			ElseIf: make([]syntax.ExpCondNode, len(nb.ElseIf)),
+		newBranch := syntax.BranchBlock{
+			If:     newIf.AsCond(),
+			ElseIf: make([]syntax.CondBlock, len(nb.ElseIf)),
 			Else:   nb.Else,
 		}
 		for i := range nb.ElseIf {
@@ -663,11 +663,11 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.B
 			if err != nil {
 				return n, err
 			}
-			newBranch.ElseIf[i] = newElseIf.AsCondNode()
+			newBranch.ElseIf[i] = newElseIf.AsCond()
 		}
 		return newBranch, nil
 	case syntax.TmplCond:
-		nc := n.AsCondNode()
+		nc := n.AsCond()
 
 		// feed the text into the tunascript frontend and validate only query
 		// funcs were called.
@@ -710,7 +710,7 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.B
 		}
 
 		// otherwise, build the new node and it's good to go
-		newCondNode := syntax.ExpCondNode{
+		newCondNode := syntax.CondBlock{
 			RawCond: nc.RawCond,
 			Cond:    ast,
 			Content: nc.Content,

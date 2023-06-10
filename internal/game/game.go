@@ -239,7 +239,7 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	return gs, nil
 }
 
-func (gs *State) preParseTemplate(toExpand string) (*tunascript.ExpansionAST, error) {
+func (gs *State) preParseTemplate(toExpand string) (*tunascript.Template, error) {
 	preComp, err := gs.scripts.ParseTemplate(toExpand)
 	if err != nil {
 		var displayText string
@@ -359,7 +359,7 @@ func (gs *State) preParseAllTunascriptTemplates() error {
 				if err != nil {
 					return fmt.Errorf("npc %q: line %d: content: %w", npc.Label, i, err)
 				}
-				diaChoiceComps := make([]*tunascript.ExpansionAST, len(dia.Choices))
+				diaChoiceComps := make([]*tunascript.Template, len(dia.Choices))
 				for j := range dia.Choices {
 					chComp, err := gs.preParseTemplate(dia.Choices[j][0])
 					if err != nil {
@@ -411,7 +411,7 @@ func (gs *State) MoveNPCs() {
 //
 // If there is an error with the expanded text, the returned string will contain
 // the error followed by the unexpanded text.
-func (gs *State) Expand(s *tunascript.ExpansionAST, what string) string {
+func (gs *State) Expand(s *tunascript.Template, what string) string {
 	if what == "" {
 		what = "TEXT"
 	}

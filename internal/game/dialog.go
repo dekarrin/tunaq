@@ -71,17 +71,17 @@ type DialogStep struct {
 	// tmplResponse is the pre-computed tunascript template AST for the
 	// Response. It can only be created by a Tunascript engine and will not be
 	// present on initial load of DialogStep from disk.
-	tmplResponse *tunascript.ExpansionAST
+	tmplResponse *tunascript.Template
 
 	// tmplContent is the pre-computed tunascript template AST for the Content.
 	// It can only be created by a Tunascript engine and will not be present on
 	// initial load of DialogStep from disk.
-	tmplContent *tunascript.ExpansionAST
+	tmplContent *tunascript.Template
 
 	// tmplChoices is the pre-computed tunascript template ASTs for the player
 	// response parts of Choices. It can only be created by a Tunascript engine
 	// and will not be present on initial load of DialogStep from disk.
-	tmplChoices []*tunascript.ExpansionAST
+	tmplChoices []*tunascript.Template
 }
 
 // Copy returns a deeply-copied DialogStep.

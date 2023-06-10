@@ -111,25 +111,25 @@ const (
 // smallest abstract unit that a template can be divided into.
 type Block interface {
 
-	// Type returns the type of the ExpansionAST. This determines which of the As*()
+	// Type returns the type of the Block. This determines which of the As*()
 	// functions may be called.
 	Type() BlockType
 
 	// Returns this node as an ExpTextNode. Panics if Type() does not return
 	// ExpText.
-	AsTextNode() ExpTextNode
+	AsText() TextBlock
 
 	// Returns this node as an ExpFlagNode. Panics if Type() does not return
 	// ExpFlag.
-	AsFlagNode() ExpFlagNode
+	AsFlag() FlagBlock
 
 	// Returns this node as an ExpBranchNode. Panics if Type() does not return
 	// ExpBranch.
-	AsBranchNode() ExpBranchNode
+	AsBranch() BranchBlock
 
 	// Returns this node as an ExpCondNode. Panics if Type() does not return
 	// ExpCond.
-	AsCondNode() ExpCondNode
+	AsCond() CondBlock
 
 	// String returns a prettified representation of the node suitable for use
 	// in line-by-line comparisons of tree structure. Two nodes are considered
@@ -150,21 +150,29 @@ type Block interface {
 	Template() string
 }
 
-type ExpTextNode struct {
+// TextBlock is a block of unexpandable text in a template. This text will be
+// returned as-is when expanded.
+type TextBlock struct {
+
+	// Text is the literal text in the block.
 	Text              string
 	LeftSpaceTrimmed  string
 	RightSpaceTrimmed string
-	Source            lex.Token
+
+	// Source is the lexed token that was used to produce this TextBlock. If
+	// this TextBlock was not created by parsing template code, this will be
+	// nil.
+	Source lex.Token
 }
 
-func (n ExpTextNode) Type() BlockType             { return TmplText }
-func (n ExpTextNode) AsTextNode() ExpTextNode     { return n }
-func (n ExpTextNode) AsFlagNode() ExpFlagNode     { panic("Type() is not ExpFlag") }
-func (n ExpTextNode) AsBranchNode() ExpBranchNode { panic("Type() is not ExpBranch") }
-func (n ExpTextNode) AsCondNode() ExpCondNode     { panic("Type() is not ExpCond") }
+func (n TextBlock) Type() BlockType       { return TmplText }
+func (n TextBlock) AsText() TextBlock     { return n }
+func (n TextBlock) AsFlag() FlagBlock     { panic("Type() is not ExpFlag") }
+func (n TextBlock) AsBranch() BranchBlock { panic("Type() is not ExpBranch") }
+func (n TextBlock) AsCond() CondBlock     { panic("Type() is not ExpCond") }
 
-func (n ExpTextNode) String() string {
-	s := fmt.Sprintf("[EXP_TEXT ltrim=%t rtrim=%t\n", n.HasLeftTrimmed(), n.HasRightTrimmed())
+func (n TextBlock) String() string {
+	s := fmt.Sprintf("[TEXT ltrim=%t rtrim=%t\n", n.HasLeftTrimmed(), n.HasRightTrimmed())
 	wrappedText := rosed.Edit(n.Text).Wrap(60).String()
 
 	titleStart := "    "
@@ -174,14 +182,14 @@ func (n ExpTextNode) String() string {
 	return s
 }
 
-func (n ExpTextNode) HasLeftTrimmed() bool {
+func (n TextBlock) HasLeftTrimmed() bool {
 	if n.Text == "" {
 		return false
 	}
 	return n.LeftSpaceTrimmed != ""
 }
 
-func (n ExpTextNode) HasRightTrimmed() bool {
+func (n TextBlock) HasRightTrimmed() bool {
 	if n.Text == "" {
 		return false
 	}
@@ -189,11 +197,11 @@ func (n ExpTextNode) HasRightTrimmed() bool {
 }
 
 // Does not consider Source.
-func (n ExpTextNode) Equal(o any) bool {
-	other, ok := o.(ExpTextNode)
+func (n TextBlock) Equal(o any) bool {
+	other, ok := o.(TextBlock)
 	if !ok {
 		// also okay if its the pointer value, as long as its non-nil
-		otherPtr, ok := o.(*ExpTextNode)
+		otherPtr, ok := o.(*TextBlock)
 		if !ok {
 			return false
 		} else if otherPtr == nil {
@@ -215,7 +223,7 @@ func (n ExpTextNode) Equal(o any) bool {
 	return true
 }
 
-func (n ExpTextNode) Template() string {
+func (n TextBlock) Template() string {
 	// is any escaping required? escape backslashes and dollars just to be on
 	// the safe side.
 	tmplText := strings.ReplaceAll(n.Text, "\\", "\\\\")
@@ -223,28 +231,31 @@ func (n ExpTextNode) Template() string {
 	return tmplText
 }
 
-type ExpFlagNode struct {
+// FlagBlock holds a variable (flag) within a template. During expansion, this
+// will be replaced with the actual value of the flag at that time, converted to
+// a string for display.
+type FlagBlock struct {
 	Flag   string
 	Source lex.Token
 }
 
-func (n ExpFlagNode) Type() BlockType             { return TmplFlag }
-func (n ExpFlagNode) AsTextNode() ExpTextNode     { panic("Type() is not ExpText") }
-func (n ExpFlagNode) AsFlagNode() ExpFlagNode     { return n }
-func (n ExpFlagNode) AsBranchNode() ExpBranchNode { panic("Type() is not ExpBranch") }
-func (n ExpFlagNode) AsCondNode() ExpCondNode     { panic("Type() is not ExpCond") }
+func (n FlagBlock) Type() BlockType       { return TmplFlag }
+func (n FlagBlock) AsText() TextBlock     { panic("Type() is not ExpText") }
+func (n FlagBlock) AsFlag() FlagBlock     { return n }
+func (n FlagBlock) AsBranch() BranchBlock { panic("Type() is not ExpBranch") }
+func (n FlagBlock) AsCond() CondBlock     { panic("Type() is not ExpCond") }
 
-func (n ExpFlagNode) String() string {
-	s := fmt.Sprintf("[EXP_FLAG $%s]", n.Flag)
+func (n FlagBlock) String() string {
+	s := fmt.Sprintf("[FLAG $%s]", n.Flag)
 	return s
 }
 
 // Does not consider Source.
-func (n ExpFlagNode) Equal(o any) bool {
-	other, ok := o.(ExpFlagNode)
+func (n FlagBlock) Equal(o any) bool {
+	other, ok := o.(FlagBlock)
 	if !ok {
 		// also okay if its the pointer value, as long as its non-nil
-		otherPtr, ok := o.(*ExpFlagNode)
+		otherPtr, ok := o.(*FlagBlock)
 		if !ok {
 			return false
 		} else if otherPtr == nil {
@@ -260,15 +271,19 @@ func (n ExpFlagNode) Equal(o any) bool {
 	return true
 }
 
-func (n ExpFlagNode) Template() string {
+func (n FlagBlock) Template() string {
 	return "$" + n.Flag
 }
 
-type ExpBranchNode struct {
-	If ExpCondNode
+// BranchBlock is a series of control-flow statements and their contents within
+// a template. This may include the opening IF statement, any ELSE-IFs, and the
+// ELSE attached to the IF, if any is present. This block is expanded to the
+// first applicable branch's contents at the time that it is expanded.
+type BranchBlock struct {
+	If CondBlock
 
 	// ElseIf will be empty if there are no else-if blocks.
-	ElseIf []ExpCondNode
+	ElseIf []CondBlock
 
 	// Else will be nil if there are no else blocks.
 	Else []Block
@@ -276,13 +291,13 @@ type ExpBranchNode struct {
 	Source lex.Token
 }
 
-func (n ExpBranchNode) Type() BlockType             { return TmplFlag }
-func (n ExpBranchNode) AsTextNode() ExpTextNode     { panic("Type() is not ExpText") }
-func (n ExpBranchNode) AsFlagNode() ExpFlagNode     { panic("Type() is not ExpFlag") }
-func (n ExpBranchNode) AsBranchNode() ExpBranchNode { return n }
-func (n ExpBranchNode) AsCondNode() ExpCondNode     { panic("Type() is not ExpCond") }
+func (n BranchBlock) Type() BlockType       { return TmplFlag }
+func (n BranchBlock) AsText() TextBlock     { panic("Type() is not ExpText") }
+func (n BranchBlock) AsFlag() FlagBlock     { panic("Type() is not ExpFlag") }
+func (n BranchBlock) AsBranch() BranchBlock { return n }
+func (n BranchBlock) AsCond() CondBlock     { panic("Type() is not ExpCond") }
 
-func (n ExpBranchNode) String() string {
+func (n BranchBlock) String() string {
 	ifStart := " I: "
 	elifStart := " EI:"
 	elseStart := " E: "
@@ -305,11 +320,11 @@ func (n ExpBranchNode) String() string {
 }
 
 // Does not consider Source.
-func (n ExpBranchNode) Equal(o any) bool {
-	other, ok := o.(ExpBranchNode)
+func (n BranchBlock) Equal(o any) bool {
+	other, ok := o.(BranchBlock)
 	if !ok {
 		// also okay if its the pointer value, as long as its non-nil
-		otherPtr, ok := o.(*ExpBranchNode)
+		otherPtr, ok := o.(*BranchBlock)
 		if !ok {
 			return false
 		} else if otherPtr == nil {
@@ -341,7 +356,7 @@ func (n ExpBranchNode) Equal(o any) bool {
 	return true
 }
 
-func (n ExpBranchNode) Template() string {
+func (n BranchBlock) Template() string {
 	var sb strings.Builder
 
 	// if-block
@@ -388,7 +403,11 @@ func (n ExpBranchNode) Template() string {
 	return sb.String()
 }
 
-type ExpCondNode struct {
+// CondBlock is a single condition from a BranchBlock. It holds both the
+// TunaScript code that makes up its condition, which may or may not already be
+// parsed (it will be parsed if this CondBlock was in a Template returned by an
+// Interpreter).
+type CondBlock struct {
 	Cond AST
 
 	// On initial parsing of template trees, only this will be set. The
@@ -400,13 +419,13 @@ type ExpCondNode struct {
 	Source lex.Token
 }
 
-func (n ExpCondNode) Type() BlockType             { return TmplFlag }
-func (n ExpCondNode) AsTextNode() ExpTextNode     { panic("Type() is not ExpText") }
-func (n ExpCondNode) AsFlagNode() ExpFlagNode     { panic("Type() is not ExpFlag") }
-func (n ExpCondNode) AsBranchNode() ExpBranchNode { panic("Type() is not ExpBranch") }
-func (n ExpCondNode) AsCondNode() ExpCondNode     { return n }
+func (n CondBlock) Type() BlockType       { return TmplFlag }
+func (n CondBlock) AsText() TextBlock     { panic("Type() is not ExpText") }
+func (n CondBlock) AsFlag() FlagBlock     { panic("Type() is not ExpFlag") }
+func (n CondBlock) AsBranch() BranchBlock { panic("Type() is not ExpBranch") }
+func (n CondBlock) AsCond() CondBlock     { return n }
 
-func (n ExpCondNode) String() string {
+func (n CondBlock) String() string {
 	condStart := " IF:"
 	contentStart := " C: "
 
@@ -430,11 +449,11 @@ func (n ExpCondNode) String() string {
 }
 
 // Does not consider Source.
-func (n ExpCondNode) Equal(o any) bool {
-	other, ok := o.(ExpCondNode)
+func (n CondBlock) Equal(o any) bool {
+	other, ok := o.(CondBlock)
 	if !ok {
 		// also okay if its the pointer value, as long as its non-nil
-		otherPtr, ok := o.(*ExpCondNode)
+		otherPtr, ok := o.(*CondBlock)
 		if !ok {
 			return false
 		} else if otherPtr == nil {
@@ -461,7 +480,7 @@ func (n ExpCondNode) Equal(o any) bool {
 	return true
 }
 
-func (n ExpCondNode) Template() string {
+func (n CondBlock) Template() string {
 	var sb strings.Builder
 
 	sb.WriteString("$[[IF")

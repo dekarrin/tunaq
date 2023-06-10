@@ -11,7 +11,7 @@ type Targetable interface {
 
 	// GetDescription returns the template AST representing the description to
 	// show when the player looks at it.
-	GetDescription() *tunascript.ExpansionAST
+	GetDescription() *tunascript.Template
 
 	/*
 		// CanUse returns whether it is possible to use the Targetable on its own.
