@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/dekarrin/rosed"
@@ -60,6 +61,7 @@ type State struct {
 	scripts tunascript.Interpreter
 }
 
+// TODO: this should rly be an interface, not a struct.
 type IODevice struct {
 	// The width of each line of output.
 	Width int
@@ -217,6 +219,7 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 
 	// start scripting engine
 	gs.scripts = tunascript.Interpreter{
+		File:   "(text)",
 		Target: scriptInterface,
 	}
 
@@ -239,7 +242,33 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 func (gs *State) preComputeExp(toExpand string) (*tunascript.ExpansionAST, error) {
 	preComp, err := gs.scripts.ParseTemplate(toExpand)
 	if err != nil {
-		return nil, err
+		var displayText string
+
+		anyNonWSChar := regexp.MustCompile(`\S`)
+		// if there's no non-whitespace char in the text, then... well that's
+		// bizarre because it *should* work on empty input.
+		if anyNonWSChar.MatchString(toExpand) {
+			displayText = "TEMPLATE CONTENT:\n"
+			displayText += strings.Repeat("=", gs.io.Width) + "\n"
+			displayText += rosed.
+				Edit(strings.TrimSpace(toExpand)).
+				WithOptions(textFormatOptions).
+				Wrap(gs.io.Width).
+				String()
+			displayText += "\n" + strings.Repeat("=", gs.io.Width) + "\n"
+		} else {
+			displayText = "(NO CONTENT IN TEMPLATE)\n"
+		}
+
+		var addendum string
+		// TODO: this should be done by an errors.Is check, not this nonsense.
+		// might require updating ictiobus though to make syntax errors
+		// concerned with EOT special (which probs should be done, glub)
+		if strings.Contains(err.Error(), "unexpected end of input") {
+			addendum = "\n\nMERMAID'S ADVICE:\nDid you forget to write $[[ENDIF]] somewhere in the template?"
+		}
+
+		return nil, fmt.Errorf("template code has an error\n%s\nSYNTAX ERROR:\n%w%s", displayText, err, addendum)
 	}
 
 	return &preComp, nil
@@ -254,6 +283,7 @@ func (gs *State) preComputeAllTunascriptExpansions() error {
 		// compute room desc
 		preComp, err := gs.preComputeExp(r.Description)
 		if err != nil {
+			// show bad text separately
 			return fmt.Errorf("room %q: description: %w", r.Label, err)
 		}
 		r.tsDescription = preComp
