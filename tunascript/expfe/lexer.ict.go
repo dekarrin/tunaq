@@ -31,7 +31,7 @@ func Lexer(lazy bool) lex.Lexer {
 	lx.RegisterClass(expfetoken.TCEndif, "")
 	lx.RegisterClass(expfetoken.TCElse, "")
 
-	lx.AddPattern(`(?:[^\\\$]|\\.)+`, lex.LexAs(expfetoken.TCText.ID()), "", 0)
+	lx.AddPattern(`(?:[^\\\$]|\\.|\$[^A-Za-z0-9_]|\$$)+`, lex.LexAs(expfetoken.TCText.ID()), "", 0)
 	lx.AddPattern(`\$[A-Za-z0-9_]+`, lex.LexAs(expfetoken.TCFlag.ID()), "", 0)
 	lx.AddPattern(`\$\[\[\s*[Ii][Ff](?:\s+(?:[^\\\]]|\][^\]]|\\.)*)?\]\]`, lex.LexAs(expfetoken.TCIf.ID()), "", 0)
 	lx.AddPattern(`\$\[\[\s*[Ee][Ll](?:[Ss][Ee]\s*)?[Ii][Ff](?:\s+(?:[^\\\]]|\][^\]]|\\.)*)?\]\]`, lex.LexAs(expfetoken.TCElseif.ID()), "", 0)

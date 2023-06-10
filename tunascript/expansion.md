@@ -31,7 +31,7 @@ frontend.
 ```fishi
 %%tokens
 
-(?:[^\\\$]|\\.)+
+(?:[^\\\$]|\\.|\$[^A-Za-z0-9_]|\$$)+
 %token text
 
 \$[A-Za-z0-9_]+
