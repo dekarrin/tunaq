@@ -128,21 +128,22 @@ func expHookFlag(info trans.SetterInfo, args []interface{}) (interface{}, error)
 
 func expHookText(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedText := args[0].(string)
+	actualText := InterpretEscapes(lexedText)
 
 	var ltrimmed, rtrimmed string
 
-	ltrimmed = strings.TrimLeftFunc(lexedText, unicode.IsSpace)
-	rtrimmed = strings.TrimRightFunc(lexedText, unicode.IsSpace)
+	ltrimmed = strings.TrimLeftFunc(actualText, unicode.IsSpace)
+	rtrimmed = strings.TrimRightFunc(actualText, unicode.IsSpace)
 
-	if ltrimmed == lexedText {
+	if ltrimmed == actualText {
 		ltrimmed = ""
 	}
-	if rtrimmed == lexedText {
+	if rtrimmed == actualText {
 		rtrimmed = ""
 	}
 
 	return ExpTextNode{
-		Text:              lexedText,
+		Text:              actualText,
 		LeftSpaceTrimmed:  ltrimmed,
 		RightSpaceTrimmed: rtrimmed,
 		Source:            info.FirstToken,

@@ -216,7 +216,11 @@ func (n ExpTextNode) Equal(o any) bool {
 }
 
 func (n ExpTextNode) Template() string {
-	// is any escaping required? escape the dollars to be on the safe side.
+	// is any escaping required? escape backslashes and dollars just to be on
+	// the safe side.
+	tmplText := strings.ReplaceAll(n.Text, "\\", "\\\\")
+	tmplText = strings.ReplaceAll(tmplText, "$", "\\$")
+	return tmplText
 }
 
 type ExpFlagNode struct {
@@ -254,6 +258,10 @@ func (n ExpFlagNode) Equal(o any) bool {
 	}
 
 	return true
+}
+
+func (n ExpFlagNode) Template() string {
+	return "$" + n.Flag
 }
 
 type ExpBranchNode struct {
@@ -333,6 +341,53 @@ func (n ExpBranchNode) Equal(o any) bool {
 	return true
 }
 
+func (n ExpBranchNode) Template() string {
+	var sb strings.Builder
+
+	// if-block
+	sb.WriteString("$[[IF")
+	if n.If.Cond.Nodes != nil {
+		sb.WriteRune(' ')
+		sb.WriteString(n.If.Cond.Tunascript())
+	} else if n.If.RawCond != "" {
+		sb.WriteRune(' ')
+		sb.WriteString(n.If.RawCond)
+	}
+	sb.WriteString("]]")
+
+	for _, cont := range n.If.Content {
+		sb.WriteString(cont.Template())
+	}
+
+	// any else-ifs?
+	for _, elif := range n.ElseIf {
+		sb.WriteString("$[[ELSE IF")
+		if elif.Cond.Nodes != nil {
+			sb.WriteRune(' ')
+			sb.WriteString(elif.Cond.Tunascript())
+		} else if elif.RawCond != "" {
+			sb.WriteRune(' ')
+			sb.WriteString(elif.RawCond)
+		}
+		sb.WriteString("]]")
+		for _, cont := range elif.Content {
+			sb.WriteString(cont.Template())
+		}
+	}
+
+	// finally, do we have an else?
+	if len(n.Else) > 0 {
+		sb.WriteString("$[[ELSE]]")
+		for _, cont := range n.Else {
+			sb.WriteString(cont.Template())
+		}
+	}
+
+	// close the branch
+	sb.WriteString("$[[ENDIF]]")
+	return sb.String()
+}
+
 type ExpCondNode struct {
 	Cond AST
 
@@ -404,4 +459,25 @@ func (n ExpCondNode) Equal(o any) bool {
 	}
 
 	return true
+}
+
+func (n ExpCondNode) Template() string {
+	var sb strings.Builder
+
+	sb.WriteString("$[[IF")
+	if n.Cond.Nodes != nil {
+		sb.WriteRune(' ')
+		sb.WriteString(n.Cond.Tunascript())
+	} else if n.RawCond != "" {
+		sb.WriteRune(' ')
+		sb.WriteString(n.RawCond)
+	}
+	sb.WriteString("]]")
+
+	for _, cont := range n.Content {
+		sb.WriteString(cont.Template())
+	}
+
+	sb.WriteString("$[[ENDIF]]")
+	return sb.String()
 }
