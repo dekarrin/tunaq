@@ -162,7 +162,7 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 						return false
 					}
 					// get the item
-					var item Item
+					var item *Item
 					for _, it := range gs.World[roomLabel].Items {
 						if it.Label == target {
 							item = it
@@ -452,7 +452,7 @@ func (gs *State) ExecuteCommandTake(cmd command.Command) (string, error) {
 	gs.CurrentRoom.RemoveItem(item.Label)
 
 	// then add it to inventory.
-	gs.Inventory[item.Label] = *item
+	gs.Inventory[item.Label] = item
 
 	gs.itemLocations[item.Label] = "@INVEN"
 
@@ -472,7 +472,7 @@ func (gs *State) ExecuteCommandDrop(cmd command.Command) (string, error) {
 	delete(gs.Inventory, item.Label)
 
 	// add to room
-	gs.CurrentRoom.Items = append(gs.CurrentRoom.Items, *item)
+	gs.CurrentRoom.Items = append(gs.CurrentRoom.Items, item)
 	gs.itemLocations[item.Label] = gs.CurrentRoom.Label
 
 	output := fmt.Sprintf("You drop the %s onto the ground", item.Name)

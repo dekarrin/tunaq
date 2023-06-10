@@ -266,17 +266,19 @@ func (tr room) toGameRoom() game.Room {
 		Label:       strings.ToUpper(tr.Label),
 		Name:        tr.Name,
 		Description: tr.Description,
-		Exits:       make([]game.Egress, len(tr.Exits)),
+		Exits:       make([]*game.Egress, len(tr.Exits)),
 		NPCs:        make(map[string]*game.NPC),
-		Details:     make([]game.Detail, len(tr.Details)),
+		Details:     make([]*game.Detail, len(tr.Details)),
 	}
 
 	for i := range tr.Exits {
-		r.Exits[i] = tr.Exits[i].toGameEgress()
+		eggCopy := tr.Exits[i].toGameEgress()
+		r.Exits[i] = &eggCopy
 	}
 
 	for i := range tr.Details {
-		r.Details[i] = tr.Details[i].toGameDetail()
+		detCopy := tr.Details[i].toGameDetail()
+		r.Details[i] = &detCopy
 	}
 
 	return r

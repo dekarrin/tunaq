@@ -126,18 +126,17 @@ type Room struct {
 	Description string
 
 	// Exits is a list of room labels and ways to describe them, pointing to
-	// other rooms in the
-	// game.
-	Exits []Egress
+	// other rooms in the game.
+	Exits []*Egress
 
 	// Items is the items on the ground. This can be changed over time.
-	Items []Item
+	Items []*Item
 
 	// NPCs is the non-player characters currently in the world.
 	NPCs map[string]*NPC
 
 	// Details is the details that the player can look at in the room.
-	Details []Detail
+	Details []*Detail
 
 	// tmplDescription is the precomputed template AST for the description text.
 	// It must generally be filled in with the game engine, and will not be
@@ -151,20 +150,22 @@ func (room Room) Copy() Room {
 		Label:       room.Label,
 		Name:        room.Name,
 		Description: room.Description,
-		Exits:       make([]Egress, len(room.Exits)),
-		Items:       make([]Item, len(room.Items)),
+		Exits:       make([]*Egress, len(room.Exits)),
+		Items:       make([]*Item, len(room.Items)),
 		NPCs:        make(map[string]*NPC, len(room.NPCs)),
-		Details:     make([]Detail, len(room.Details)),
+		Details:     make([]*Detail, len(room.Details)),
 
 		tmplDescription: room.tmplDescription,
 	}
 
 	for i := range room.Exits {
-		rCopy.Exits[i] = room.Exits[i].Copy()
+		eggCopy := room.Exits[i].Copy()
+		rCopy.Exits[i] = &eggCopy
 	}
 
 	for i := range room.Items {
-		rCopy.Items[i] = room.Items[i].Copy()
+		itemCopy := room.Items[i].Copy()
+		rCopy.Items[i] = &itemCopy
 	}
 
 	for k := range room.NPCs {
@@ -173,7 +174,8 @@ func (room Room) Copy() Room {
 	}
 
 	for i := range room.Details {
-		rCopy.Details[i] = room.Details[i].Copy()
+		detCopy := room.Details[i].Copy()
+		rCopy.Details[i] = &detCopy
 	}
 
 	return rCopy
@@ -228,7 +230,7 @@ func (room Room) GetDetailByAlias(alias string) *Detail {
 
 	var foundDetail *Detail
 	if foundIdx != -1 {
-		foundDetail = &room.Details[foundIdx]
+		foundDetail = room.Details[foundIdx]
 	}
 	return foundDetail
 }
@@ -276,7 +278,7 @@ func (room Room) GetEgressByAlias(alias string) *Egress {
 
 	var foundEgress *Egress
 	if foundIdx != -1 {
-		foundEgress = &room.Exits[foundIdx]
+		foundEgress = room.Exits[foundIdx]
 	}
 	return foundEgress
 }
@@ -300,7 +302,7 @@ func (room Room) GetItemByAlias(alias string) *Item {
 
 	var foundItem *Item
 	if foundIdx != -1 {
-		foundItem = &room.Items[foundIdx]
+		foundItem = room.Items[foundIdx]
 	}
 	return foundItem
 }

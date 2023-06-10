@@ -86,7 +86,7 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 
 		gameItem := it.toGameItem()
 		r := world.Rooms[strings.ToUpper(it.Start)]
-		r.Items = append(r.Items, gameItem)
+		r.Items = append(r.Items, &gameItem)
 	}
 
 	// validate pronouns and gather them into a map for later conversion of NPC
