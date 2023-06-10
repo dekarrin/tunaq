@@ -10,7 +10,7 @@ import (
 // File item.go holds symbols related to items and inventory
 
 // Inventory is a store of items.
-type Inventory map[string]Item
+type Inventory map[string]*Item
 
 // GetItemByAlias returns the item from the Inventory that is represented by the
 // given alias. If no Item in the inventory has that alias, the returned item is
@@ -33,7 +33,7 @@ func (inv Inventory) GetItemByAlias(alias string) *Item {
 	var foundItem *Item
 	if foundLabel != "" {
 		item := inv[foundLabel]
-		foundItem = &item
+		foundItem = item
 	}
 	return foundItem
 }
