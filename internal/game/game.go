@@ -239,43 +239,6 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	return gs, nil
 }
 
-func (gs *State) preParseTemplate(toExpand string) (*tunascript.Template, error) {
-	preComp, err := gs.scripts.ParseTemplate(toExpand)
-	if err != nil {
-		var displayText string
-
-		anyNonWSChar := regexp.MustCompile(`\S`)
-		// if there's no non-whitespace char in the text, then... well that's
-		// bizarre because it *should* work on empty input.
-		if anyNonWSChar.MatchString(toExpand) {
-			displayText = "TEMPLATE CONTENT:\n"
-			displayText += strings.Repeat("=", gs.io.Width) + "\n"
-			displayText += rosed.
-				Edit(strings.TrimSpace(toExpand)).
-				WithOptions(textFormatOptions).
-				Wrap(gs.io.Width).
-				String()
-			displayText += "\n" + strings.Repeat("=", gs.io.Width) + "\n"
-		} else {
-			displayText = "(NO CONTENT IN TEMPLATE)\n"
-		}
-
-		var addendum string
-		// TODO: this should be done by an errors.Is check, not this nonsense.
-		// might require updating ictiobus though to make syntax errors
-		// concerned with EOT special (which probs should be done, glub)
-		if strings.Contains(err.Error(), "unexpected end of input") {
-			addendum = "\n\nMERMAID'S ADVICE:\nDid you forget to write $[[ENDIF]] somewhere in the template?"
-		} else if strings.Contains(err.Error(), "unexpected \"(\"") {
-			addendum = "\n\nMERMAID'S ADVICE:\nDid you forget a \"$\" before the name of a function?"
-		}
-
-		return nil, fmt.Errorf("template code has an error\n%s\nSYNTAX ERROR:\n%w%s", displayText, err, addendum)
-	}
-
-	return &preComp, nil
-}
-
 func (gs *State) preParseAllTunascriptTemplates() error {
 	roomKeys := util.OrderedKeys(gs.World)
 
@@ -740,4 +703,41 @@ func (gs *State) ExecuteCommandHelp(cmd command.Command) (string, error) {
 		InsertDefinitionsTable(rosed.End, commandHelp, gs.io.Width).String()
 
 	return output, nil
+}
+
+func (gs *State) preParseTemplate(toExpand string) (*tunascript.Template, error) {
+	preComp, err := gs.scripts.ParseTemplate(toExpand)
+	if err != nil {
+		var displayText string
+
+		anyNonWSChar := regexp.MustCompile(`\S`)
+		// if there's no non-whitespace char in the text, then... well that's
+		// bizarre because it *should* work on empty input.
+		if anyNonWSChar.MatchString(toExpand) {
+			displayText = "TEMPLATE CONTENT:\n"
+			displayText += strings.Repeat("=", gs.io.Width) + "\n"
+			displayText += rosed.
+				Edit(strings.TrimSpace(toExpand)).
+				WithOptions(textFormatOptions).
+				Wrap(gs.io.Width).
+				String()
+			displayText += "\n" + strings.Repeat("=", gs.io.Width) + "\n"
+		} else {
+			displayText = "(NO CONTENT IN TEMPLATE)\n"
+		}
+
+		var addendum string
+		// TODO: this should be done by an errors.Is check, not this nonsense.
+		// might require updating ictiobus though to make syntax errors
+		// concerned with EOT special (which probs should be done, glub)
+		if strings.Contains(err.Error(), "unexpected end of input") {
+			addendum = "\n\nMERMAID'S ADVICE:\nDid you forget to write $[[ENDIF]] somewhere in the template?"
+		} else if strings.Contains(err.Error(), "unexpected \"(\"") {
+			addendum = "\n\nMERMAID'S ADVICE:\nDid you forget a \"$\" before the name of a function?"
+		}
+
+		return nil, fmt.Errorf("template code has an error\n%s\nSYNTAX ERROR:\n%w%s", displayText, err, addendum)
+	}
+
+	return &preComp, nil
 }
