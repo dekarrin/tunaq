@@ -35,5 +35,5 @@ ictcc --slr \
     --sim-off \
     --ir github.com/dekarrin/tunaq/tunascript/syntax.Template \
     --hooks ./tunascript/syntax --hooks-table TmplHooksTable \
-    --dest ./tunascript/tmplfe --pkg tmplfe \
+    --dest ./tunascript/fetmpl --pkg fetmpl \
     tunascript/expansion.md "$@"

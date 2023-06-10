@@ -12,8 +12,8 @@ import (
 	"github.com/dekarrin/ictiobus"
 	"github.com/dekarrin/ictiobus/lex"
 	"github.com/dekarrin/ictiobus/syntaxerr"
-	"github.com/dekarrin/tunaq/tunascript/expfe"
 	"github.com/dekarrin/tunaq/tunascript/fe"
+	"github.com/dekarrin/tunaq/tunascript/fetmpl"
 	"github.com/dekarrin/tunaq/tunascript/syntax"
 )
 
@@ -636,7 +636,7 @@ func (interp *Interpreter) initFrontend() {
 		interp.fe = fe.Frontend(syntax.HooksTable, nil)
 	}
 	if interp.tmpl.IRAttribute == "" {
-		interp.tmpl = expfe.Frontend(syntax.TmplHooksTable, nil)
+		interp.tmpl = fetmpl.Frontend(syntax.TmplHooksTable, nil)
 	}
 }
 
