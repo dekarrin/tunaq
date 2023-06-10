@@ -419,7 +419,7 @@ type CondBlock struct {
 	Source lex.Token
 }
 
-func (n CondBlock) Type() BlockType       { return TmplFlag }
+func (n CondBlock) Type() BlockType       { return TmplCond }
 func (n CondBlock) AsText() TextBlock     { panic("Type() is not ExpText") }
 func (n CondBlock) AsFlag() FlagBlock     { panic("Type() is not ExpFlag") }
 func (n CondBlock) AsBranch() BranchBlock { panic("Type() is not ExpBranch") }

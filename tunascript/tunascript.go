@@ -5,7 +5,6 @@ package tunascript
 import (
 	"fmt"
 	"io"
-	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -656,8 +655,6 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.B
 		if err != nil {
 			return n, err
 		}
-
-		log.Printf("TRANSLATING BRANCH: %v", newIf)
 
 		newBranch := syntax.BranchBlock{
 			If:     newIf.AsCond(),

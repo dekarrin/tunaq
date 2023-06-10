@@ -266,6 +266,8 @@ func (gs *State) preParseTemplate(toExpand string) (*tunascript.Template, error)
 		// concerned with EOT special (which probs should be done, glub)
 		if strings.Contains(err.Error(), "unexpected end of input") {
 			addendum = "\n\nMERMAID'S ADVICE:\nDid you forget to write $[[ENDIF]] somewhere in the template?"
+		} else if strings.Contains(err.Error(), "unexpected \"(\"") {
+			addendum = "\n\nMERMAID'S ADVICE:\nDid you forget a \"$\" before the name of a function?"
 		}
 
 		return nil, fmt.Errorf("template code has an error\n%s\nSYNTAX ERROR:\n%w%s", displayText, err, addendum)
