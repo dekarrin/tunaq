@@ -7,6 +7,7 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/dekarrin/ictiobus v1.0.0
 	github.com/dekarrin/rosed v1.2.1
+	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.2
 	golang.org/x/text v0.8.0
 )

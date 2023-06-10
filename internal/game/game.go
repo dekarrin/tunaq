@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 
@@ -36,7 +37,8 @@ var textFormatOptions = rosed.Options{
 	IndentStr:          "  ",
 }
 
-// State is the game's entire state.
+// State is the game's entire state. It should not be used directly; call New to
+// create and initialize one.
 type State struct {
 	// World is all rooms that exist and their current state.
 	World map[string]*Room
@@ -104,24 +106,24 @@ func (wi worldInterface) Output(out string) bool {
 // startingRoom is the label of the room to start with.
 // ioDev is the input/output device to use when the user needs to be prompted
 // for more info, or for showing to the user.
-// io.Width is how wide the output should be. State will try to make all\
+// io.Width is how wide the output should be. State will try to make all
 // output fit within this width. If not set or < 2, it will be automatically
 // assumed to be 80.
-func New(world map[string]*Room, startingRoom string, flags map[string]string, ioDev IODevice) (State, error) {
+func New(world map[string]*Room, startingRoom string, flags map[string]string, ioDev IODevice) (*State, error) {
 	if ioDev.Width < 2 {
 		ioDev.Width = 80
 	}
 	if ioDev.Input == nil {
-		return State{}, fmt.Errorf("io device must define an Input function")
+		return nil, fmt.Errorf("io device must define an Input function")
 	}
 	if ioDev.InputInt == nil {
-		return State{}, fmt.Errorf("io device must define an InputInt function")
+		return nil, fmt.Errorf("io device must define an InputInt function")
 	}
 	if ioDev.Output == nil {
-		return State{}, fmt.Errorf("io device must define an Output function")
+		return nil, fmt.Errorf("io device must define an Output function")
 	}
 
-	gs := State{
+	gs := &State{
 		World:         world,
 		Inventory:     make(Inventory),
 		npcLocations:  make(map[string]string),
@@ -381,6 +383,7 @@ func (gs *State) Expand(s *tunascript.Template, what string) string {
 		what = "TEXT"
 	}
 
+	log.Printf("EXPANDING WITH: %v", gs.scripts)
 	expanded := gs.scripts.ExecTemplate(*s)
 
 	return expanded

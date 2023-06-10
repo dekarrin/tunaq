@@ -21,7 +21,7 @@ import (
 // Engine contains the things needed to run a game from an interactive shell
 // attached to an input stream and an output stream.
 type Engine struct {
-	state       game.State
+	state       *game.State
 	in          command.Reader
 	out         *bufio.Writer
 	forceDirect bool
