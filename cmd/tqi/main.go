@@ -36,7 +36,6 @@ exit the interpreter, type "QUIT".
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -79,7 +78,7 @@ func main() {
 		}
 	}()
 
-	flag.Parse()
+	pflag.Parse()
 
 	if *flagVersion {
 		fmt.Printf("%s\n", version.Current)
