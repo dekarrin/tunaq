@@ -8,28 +8,37 @@ import (
 	"github.com/dekarrin/rosed"
 )
 
-// ExpansionAST is a block of text containing both tunascript
-// expansion-legal expressions and regular text. The zero-value of an
-// ExpansionAST is not suitable for use and they should only be created by calls
-// to AnalyzeExpansion.
-type ExpansionAST struct {
-	Nodes []ExpNode
+// Template is a parsed tunaquest template containing both tunascript
+// template-legal expressions and regular text. The zero-value of an Template is
+// an empty Template. Text can be parsed into a Template by calling Analyze on
+// the template frontend.
+//
+// Templates cannot be expanded on their own and require the help of an engine
+// that provides a suitable execution environment. Typically, this is done with
+// an Interpreter from the tunascript package.
+type Template struct {
+	// Blocks is the template blocks that make up the complete template. They
+	// are arranged in the order they appear in the finished template.
+	Blocks []Block
 }
 
-func (ast ExpansionAST) String() string {
+// String returns a debug-tailored string that represents the Template. Two
+// templates are considered semantically identical and will produce the same
+// text if their String() methods produce the same output.
+func (tmpl Template) String() string {
 	var sb strings.Builder
 
-	sb.WriteString("ExpansionAST")
-	if len(ast.Nodes) < 1 {
+	sb.WriteString("Template")
+	if len(tmpl.Blocks) < 1 {
 		sb.WriteString("(empty)")
 		return sb.String()
 	}
 
 	const stmtStart = " B: "
-	for i := range ast.Nodes {
+	for i := range tmpl.Blocks {
 		sb.WriteRune('\n')
 
-		stmtStr := spaceIndentNewlines(ast.Nodes[i].String(), len(stmtStart))
+		stmtStr := spaceIndentNewlines(tmpl.Blocks[i].String(), len(stmtStart))
 
 		sb.WriteString(stmtStart)
 		sb.WriteString(stmtStr)
@@ -38,11 +47,22 @@ func (ast ExpansionAST) String() string {
 	return sb.String()
 }
 
-func (n ExpansionAST) Equal(o any) bool {
-	other, ok := o.(ExpansionAST)
+// Template returns the string that, if pased, would produce a Template
+// identical to this one. It does *not* return, necessarily, the exact text that
+// was parsed to create it, as some non-semantic elements such as whitespace
+// within control-flow statements may be slightly altered.
+func (tmpl Template) Template() string {
+	return ""
+}
+
+// Equal returns whether this Template is equal to another value. This will
+// return true only if o is another Template or Template pointer that has the
+// same members as tmpl.
+func (tmpl Template) Equal(o any) bool {
+	other, ok := o.(Template)
 	if !ok {
 		// also okay if its the pointer value, as long as its non-nil
-		otherPtr, ok := o.(*ExpansionAST)
+		otherPtr, ok := o.(*Template)
 		if !ok {
 			return false
 		} else if otherPtr == nil {
@@ -51,11 +71,11 @@ func (n ExpansionAST) Equal(o any) bool {
 		other = *otherPtr
 	}
 
-	if len(n.Nodes) != len(other.Nodes) {
+	if len(tmpl.Blocks) != len(other.Blocks) {
 		return false
 	}
-	for i := range n.Nodes {
-		if !n.Nodes[i].Equal(other.Nodes[i]) {
+	for i := range tmpl.Blocks {
+		if !tmpl.Blocks[i].Equal(other.Blocks[i]) {
 			return false
 		}
 	}
@@ -63,21 +83,37 @@ func (n ExpansionAST) Equal(o any) bool {
 	return true
 }
 
-type ExpNodeType int
+// BlockType is the type of a template Block. Every Block will be one of these
+// types, and it dictates which of its As*() functions can be called.
+type BlockType int
 
 const (
-	ExpText ExpNodeType = iota
-	ExpFlag
-	ExpBranch
-	ExpCond
+	// TmplText is the type of a TextBlock, which contains literal text which
+	// will not be expanded further.
+	TmplText BlockType = iota
+
+	// TmplFlag is the type of a FlagBlock, which contains a flag that will be
+	// replaced with its actual value at the time it is expanded.
+	TmplFlag
+
+	// TmplBranch is the type of a BranchBlock, which contains flow-control
+	// statements that will be replaced with the text in the applicable branch
+	// at the time it is expanded.
+	TmplBranch
+
+	// TmplCond is the type of a CondBlock, which contains both a TunaScript
+	// condition and the content that the block should be expanded to if it is
+	// selected as the branch from within a BranchBlock.
+	TmplCond
 )
 
-// ExpNode is a node in an ExpansionAST.
-type ExpNode interface {
+// Block is a block of parsed template code in a Template. It represents the
+// smallest abstract unit that a template can be divided into.
+type Block interface {
 
 	// Type returns the type of the ExpansionAST. This determines which of the As*()
 	// functions may be called.
-	Type() ExpNodeType
+	Type() BlockType
 
 	// Returns this node as an ExpTextNode. Panics if Type() does not return
 	// ExpText.
@@ -106,6 +142,12 @@ type ExpNode interface {
 	// nodes have the same structure regardless of the exact source that
 	// produced them.
 	Equal(o any) bool
+
+	// Template returns the string that, if pased, would produce a Block
+	// identical to this one. It does *not* return, necessarily, the exact text
+	// that was parsed to create it, as some non-semantic elements such as
+	// whitespace within control-flow statements may be slightly altered.
+	Template() string
 }
 
 type ExpTextNode struct {
@@ -115,7 +157,7 @@ type ExpTextNode struct {
 	Source            lex.Token
 }
 
-func (n ExpTextNode) Type() ExpNodeType           { return ExpText }
+func (n ExpTextNode) Type() BlockType             { return TmplText }
 func (n ExpTextNode) AsTextNode() ExpTextNode     { return n }
 func (n ExpTextNode) AsFlagNode() ExpFlagNode     { panic("Type() is not ExpFlag") }
 func (n ExpTextNode) AsBranchNode() ExpBranchNode { panic("Type() is not ExpBranch") }
@@ -173,12 +215,16 @@ func (n ExpTextNode) Equal(o any) bool {
 	return true
 }
 
+func (n ExpTextNode) Template() string {
+	// is any escaping required? escape the dollars to be on the safe side.
+}
+
 type ExpFlagNode struct {
 	Flag   string
 	Source lex.Token
 }
 
-func (n ExpFlagNode) Type() ExpNodeType           { return ExpFlag }
+func (n ExpFlagNode) Type() BlockType             { return TmplFlag }
 func (n ExpFlagNode) AsTextNode() ExpTextNode     { panic("Type() is not ExpText") }
 func (n ExpFlagNode) AsFlagNode() ExpFlagNode     { return n }
 func (n ExpFlagNode) AsBranchNode() ExpBranchNode { panic("Type() is not ExpBranch") }
@@ -217,12 +263,12 @@ type ExpBranchNode struct {
 	ElseIf []ExpCondNode
 
 	// Else will be nil if there are no else blocks.
-	Else []ExpNode
+	Else []Block
 
 	Source lex.Token
 }
 
-func (n ExpBranchNode) Type() ExpNodeType           { return ExpFlag }
+func (n ExpBranchNode) Type() BlockType             { return TmplFlag }
 func (n ExpBranchNode) AsTextNode() ExpTextNode     { panic("Type() is not ExpText") }
 func (n ExpBranchNode) AsFlagNode() ExpFlagNode     { panic("Type() is not ExpFlag") }
 func (n ExpBranchNode) AsBranchNode() ExpBranchNode { return n }
@@ -294,12 +340,12 @@ type ExpCondNode struct {
 	// contents of this string can be parsed by passing it to the TS frontend.
 	RawCond string
 
-	Content []ExpNode
+	Content []Block
 
 	Source lex.Token
 }
 
-func (n ExpCondNode) Type() ExpNodeType           { return ExpFlag }
+func (n ExpCondNode) Type() BlockType             { return TmplFlag }
 func (n ExpCondNode) AsTextNode() ExpTextNode     { panic("Type() is not ExpText") }
 func (n ExpCondNode) AsFlagNode() ExpFlagNode     { panic("Type() is not ExpFlag") }
 func (n ExpCondNode) AsBranchNode() ExpBranchNode { panic("Type() is not ExpBranch") }

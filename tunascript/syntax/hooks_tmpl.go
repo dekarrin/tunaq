@@ -23,13 +23,13 @@ var (
 		"branch_with_else": expHookBranchWithElse,
 		"cond_list":        expHookCondList,
 		"node_list":        expHookNodeList,
-		"test_const":       makeConstHook(ExpansionAST{}),
+		"test_const":       makeConstHook(Template{}),
 	}
 )
 
 func expHookCondList(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedElifText := args[0].(string)
-	elifBlocks := args[1].([]ExpNode)
+	elifBlocks := args[1].([]Block)
 	var list []ExpCondNode
 	if len(args) >= 3 {
 		list = args[2].([]ExpCondNode)
@@ -61,7 +61,7 @@ func expHookCondList(info trans.SetterInfo, args []interface{}) (interface{}, er
 
 func expHookBranch(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedIfText := args[0].(string)
-	ifBlocks := args[1].([]ExpNode)
+	ifBlocks := args[1].([]Block)
 	var elseIfConds []ExpCondNode
 	if len(args) >= 3 {
 		elseIfConds = args[2].([]ExpCondNode)
@@ -88,8 +88,8 @@ func expHookBranch(info trans.SetterInfo, args []interface{}) (interface{}, erro
 
 func expHookBranchWithElse(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 	lexedIfText := args[0].(string)
-	ifBlocks := args[1].([]ExpNode)
-	elseBlocks := args[2].([]ExpNode)
+	ifBlocks := args[1].([]Block)
+	elseBlocks := args[2].([]Block)
 	var elseIfConds []ExpCondNode
 	if len(args) >= 4 {
 		elseIfConds = args[3].([]ExpCondNode)
@@ -150,25 +150,25 @@ func expHookText(info trans.SetterInfo, args []interface{}) (interface{}, error)
 }
 
 func expHookAST(info trans.SetterInfo, args []interface{}) (interface{}, error) {
-	nodes := args[0].([]ExpNode)
+	nodes := args[0].([]Block)
 
-	ast := ExpansionAST{
-		Nodes: nodes,
+	ast := Template{
+		Blocks: nodes,
 	}
 
 	return ast, nil
 }
 
 func expHookNodeList(info trans.SetterInfo, args []interface{}) (interface{}, error) {
-	var list []ExpNode
+	var list []Block
 
-	var appendNode ExpNode
+	var appendNode Block
 
 	if len(args) >= 1 {
 		// add item to list
-		appendNode = args[0].(ExpNode)
+		appendNode = args[0].(Block)
 		if len(args) >= 2 {
-			list = args[1].([]ExpNode)
+			list = args[1].([]Block)
 		}
 	}
 

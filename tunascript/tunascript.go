@@ -20,7 +20,7 @@ import (
 // TODO: these should not be aliased like this, aliasing is not intended for
 // use outside of conversion. (Yeah, 8ut we're kind of doing exactly that!) true.
 type AST = syntax.AST
-type ExpansionAST = syntax.ExpansionAST
+type ExpansionAST = syntax.Template
 type Value = syntax.Value
 
 // TranslateOperators converts the operators in the given TunaScript string to
@@ -230,13 +230,13 @@ func (interp *Interpreter) ExecTemplate(ast ExpansionAST) string {
 		interp.initFuncs()
 	}
 
-	if len(ast.Nodes) < 1 {
+	if len(ast.Blocks) < 1 {
 		return ""
 	}
 
 	var sb strings.Builder
-	for i := range ast.Nodes {
-		s := interp.templateExecNode(ast.Nodes[i])
+	for i := range ast.Blocks {
+		s := interp.templateExecNode(ast.Blocks[i])
 		sb.WriteString(s)
 	}
 
@@ -299,12 +299,12 @@ func (interp *Interpreter) ParseTemplate(code string) (ast ExpansionAST, err err
 
 	// okay, we got the template AST, now go through and recursively translate
 	// the RawCond of ExpCondNodes to TunaScript ASTs.
-	for i := range ast.Nodes {
-		newNode, err := interp.translateTemplateTunascript(ast.Nodes[i])
+	for i := range ast.Blocks {
+		newNode, err := interp.translateTemplateTunascript(ast.Blocks[i])
 		if err != nil {
 			return ast, err
 		}
-		ast.Nodes[i] = newNode
+		ast.Blocks[i] = newNode
 	}
 
 	return ast, nil
@@ -334,12 +334,12 @@ func (interp *Interpreter) ParseTemplateReader(r io.Reader) (ast ExpansionAST, e
 
 	// okay, we got the template AST, now go through and recursively translate
 	// the RawCond of ExpCondNodes to TunaScript ASTs.
-	for i := range ast.Nodes {
-		newNode, err := interp.translateTemplateTunascript(ast.Nodes[i])
+	for i := range ast.Blocks {
+		newNode, err := interp.translateTemplateTunascript(ast.Blocks[i])
 		if err != nil {
 			return ast, err
 		}
-		ast.Nodes[i] = newNode
+		ast.Blocks[i] = newNode
 	}
 
 	return ast, nil
@@ -434,11 +434,11 @@ func (interp *Interpreter) GetFlag(label string) string {
 
 // templateExecNode executes a single template node and converts it to the
 // completed text.
-func (interp *Interpreter) templateExecNode(n syntax.ExpNode) string {
+func (interp *Interpreter) templateExecNode(n syntax.Block) string {
 	switch n.Type() {
-	case syntax.ExpText:
+	case syntax.TmplText:
 		return n.AsTextNode().Text
-	case syntax.ExpFlag:
+	case syntax.TmplFlag:
 		fl, ok := interp.flags[n.AsFlagNode().Flag]
 		// in this case, we *do* care about it being defined, and cannot simply
 		// use the value. if it's not defined, we explicitly want to return an
@@ -448,7 +448,7 @@ func (interp *Interpreter) templateExecNode(n syntax.ExpNode) string {
 			return ""
 		}
 		return fl.String()
-	case syntax.ExpBranch:
+	case syntax.TmplBranch:
 		nb := n.AsBranchNode()
 
 		ifResult := interp.Exec(nb.If.Cond)
@@ -487,7 +487,7 @@ func (interp *Interpreter) templateExecNode(n syntax.ExpNode) string {
 		// we hit none of the branch conditions and there return none of its
 		// content. return an empty string
 		return ""
-	case syntax.ExpCond:
+	case syntax.TmplCond:
 		// should never happen
 		panic("ExpCondNode passed to Interpreter.templateExecNode")
 	default:
@@ -640,13 +640,13 @@ func (interp *Interpreter) initFrontend() {
 	}
 }
 
-func (interp *Interpreter) translateTemplateTunascript(n syntax.ExpNode) (syntax.ExpNode, error) {
+func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.Block, error) {
 	switch n.Type() {
-	case syntax.ExpFlag:
+	case syntax.TmplFlag:
 		return n, nil
-	case syntax.ExpText:
+	case syntax.TmplText:
 		return n, nil
-	case syntax.ExpBranch:
+	case syntax.TmplBranch:
 		nb := n.AsBranchNode()
 		newIf, err := interp.translateTemplateTunascript(nb.If)
 		if err != nil {
@@ -666,7 +666,7 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.ExpNode) (syntax
 			newBranch.ElseIf[i] = newElseIf.AsCondNode()
 		}
 		return newBranch, nil
-	case syntax.ExpCond:
+	case syntax.TmplCond:
 		nc := n.AsCondNode()
 
 		// feed the text into the tunascript frontend and validate only query
