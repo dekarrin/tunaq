@@ -30,10 +30,10 @@ cd "$(dirname "$0")"/..
 # in Ictiobus 1.1.0, but for now, just don't generate it.
 
 ictcc --slr \
-    -l TQTextExpansion -v 1.0 \
+    -l 'TunaQuest Template' -v 1.0 \
     -d tte \
     --sim-off \
     --ir github.com/dekarrin/tunaq/tunascript/syntax.Template \
     --hooks ./tunascript/syntax --hooks-table TmplHooksTable \
-    --dest ./tunascript/expfe --pkg expfe \
+    --dest ./tunascript/tmplfe --pkg tmplfe \
     tunascript/expansion.md "$@"
