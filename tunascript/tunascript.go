@@ -297,8 +297,8 @@ func (interp *Interpreter) ParseTemplate(code string) (ast ExpansionAST, err err
 		}
 	}
 
-	// okay, we got the expansion parse tree, now go through and recursively
-	// translate the RawCond of ExpCondNodes to TunaScript ASTs.
+	// okay, we got the template AST, now go through and recursively translate
+	// the RawCond of ExpCondNodes to TunaScript ASTs.
 	for i := range ast.Nodes {
 		newNode, err := interp.translateTemplateTunascript(ast.Nodes[i])
 		if err != nil {
@@ -332,8 +332,8 @@ func (interp *Interpreter) ParseTemplateReader(r io.Reader) (ast ExpansionAST, e
 		}
 	}
 
-	// okay, we got the expansion parse tree, now go through and recursively
-	// translate the RawCond of ExpCondNodes to TunaScript ASTs.
+	// okay, we got the template AST, now go through and recursively translate
+	// the RawCond of ExpCondNodes to TunaScript ASTs.
 	for i := range ast.Nodes {
 		newNode, err := interp.translateTemplateTunascript(ast.Nodes[i])
 		if err != nil {

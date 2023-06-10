@@ -50,10 +50,10 @@ type NPC struct {
 	// currently on.
 	routeCur *int
 
-	// tsDescription is the precomputed tunascript Expansion AST for the
-	// description text. It must generally be filled in with the game engine,
-	// and will not be present directly when loaded from disk.
-	tsDescription *tunascript.ExpansionAST
+	// tmplDescription is the precomputed template AST for the description text.
+	// It must generally be filled in with the game engine, and will not be
+	// present directly when loaded from disk.
+	tmplDescription *tunascript.ExpansionAST
 }
 
 // ResetRoute resets the route of the NPC. It should always be called before
@@ -134,7 +134,7 @@ func (npc NPC) Copy() NPC {
 		Dialog:      make([]DialogStep, len(npc.Dialog)),
 		Aliases:     make([]string, len(npc.Aliases)),
 
-		tsDescription: npc.tsDescription,
+		tmplDescription: npc.tmplDescription,
 	}
 
 	for i := range npc.Dialog {
@@ -168,5 +168,5 @@ func (npc NPC) GetAliases() []string {
 }
 
 func (npc NPC) GetDescription() *tunascript.ExpansionAST {
-	return npc.tsDescription
+	return npc.tmplDescription
 }

@@ -62,10 +62,10 @@ type Item struct {
 	// explicitly given.
 	Aliases []string
 
-	// tsDescription is the precomputed tunascript Expansion AST for the
-	// description text. It must generally be filled in with the game engine,
-	// and will not be present directly when loaded from disk.
-	tsDescription *tunascript.ExpansionAST
+	// tmplDescription is the precomputed template AST for the description text.
+	// It must generally be filled in with the game engine, and will not be
+	// present directly when loaded from disk.
+	tmplDescription *tunascript.ExpansionAST
 }
 
 func (item Item) String() string {
@@ -80,7 +80,7 @@ func (item Item) Copy() Item {
 		Description: item.Description,
 		Aliases:     make([]string, len(item.Aliases)),
 
-		tsDescription: item.tsDescription,
+		tmplDescription: item.tmplDescription,
 	}
 
 	copy(iCopy.Aliases, item.Aliases)
@@ -93,5 +93,5 @@ func (item Item) GetAliases() []string {
 }
 
 func (item Item) GetDescription() *tunascript.ExpansionAST {
-	return item.tsDescription
+	return item.tmplDescription
 }

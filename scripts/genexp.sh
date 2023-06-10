@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Generates the TQ text expansion parser frontend by invoking ictcc.
+# Generates the TQ template parser frontend by invoking ictcc.
 
 # --------------------------------------------------
 

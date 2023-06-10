@@ -290,7 +290,7 @@ func (n ExpBranchNode) Equal(o any) bool {
 type ExpCondNode struct {
 	Cond AST
 
-	// On initial parsing of expansion trees, only this will be set. The
+	// On initial parsing of template trees, only this will be set. The
 	// contents of this string can be parsed by passing it to the TS frontend.
 	RawCond string
 

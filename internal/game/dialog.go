@@ -68,20 +68,20 @@ type DialogStep struct {
 	// blank on a PAUSE step, it will resume with the next step in the tree.
 	ResumeAt string
 
-	// tsResponse is the pre-computed tunascript expansion tree for the
+	// tmplResponse is the pre-computed tunascript template AST for the
 	// Response. It can only be created by a Tunascript engine and will not be
 	// present on initial load of DialogStep from disk.
-	tsResponse *tunascript.ExpansionAST
+	tmplResponse *tunascript.ExpansionAST
 
-	// tsContent is the pre-computed tunascript expansion tree for the Content.
+	// tmplContent is the pre-computed tunascript template AST for the Content.
 	// It can only be created by a Tunascript engine and will not be present on
 	// initial load of DialogStep from disk.
-	tsContent *tunascript.ExpansionAST
+	tmplContent *tunascript.ExpansionAST
 
-	// tsChoices is the pre-computed tunascript expansion trees for the player
+	// tmplChoices is the pre-computed tunascript template ASTs for the player
 	// response parts of Choices. It can only be created by a Tunascript engine
 	// and will not be present on initial load of DialogStep from disk.
-	tsChoices []*tunascript.ExpansionAST
+	tmplChoices []*tunascript.ExpansionAST
 }
 
 // Copy returns a deeply-copied DialogStep.
@@ -225,14 +225,14 @@ func (gs *State) RunConversation(npc *NPC) error {
 				npc.Convo = nil
 				return nil
 			case DialogLine:
-				line := gs.Expand(step.tsContent, fmt.Sprintf("CONTENT FOR NPC %q DIALOG LINE %q", npc.Label, step.Label))
+				line := gs.Expand(step.tmplContent, fmt.Sprintf("CONTENT FOR NPC %q DIALOG LINE %q", npc.Label, step.Label))
 				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
 					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
 					Wrap(gs.io.Width).
 					Insert(rosed.End, "\n")
 				if step.Response != "" {
-					resp := gs.Expand(step.tsResponse, fmt.Sprintf("RESPONSE FOR NPC %q DIALOG LINE %q", npc.Label, step.Label))
+					resp := gs.Expand(step.tmplResponse, fmt.Sprintf("RESPONSE FOR NPC %q DIALOG LINE %q", npc.Label, step.Label))
 					ed = ed.
 						Insert(rosed.End, "\nYOU:\n").
 						Insert(rosed.End, rosed.Edit("\""+strings.TrimSpace(resp)+"\"").Wrap(gs.io.Width).String()).
@@ -254,7 +254,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 					return nil
 				}
 			case DialogChoice:
-				line := gs.Expand(step.tsContent, fmt.Sprintf("CONTENT FOR NPC %q DIALOG LINE %q", npc.Label, step.Label))
+				line := gs.Expand(step.tmplContent, fmt.Sprintf("CONTENT FOR NPC %q DIALOG LINE %q", npc.Label, step.Label))
 				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
 					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
@@ -264,7 +264,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 
 				var choiceOut = make([]string, len(step.Choices))
 				for idx := range step.Choices {
-					tsCh := step.tsChoices[idx]
+					tsCh := step.tmplChoices[idx]
 					chDest := step.Choices[idx][1]
 					choiceOut[idx] = chDest
 

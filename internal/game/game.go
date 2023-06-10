@@ -230,8 +230,8 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 		}
 	}
 
-	// run pre-computations on all expandable text
-	err := gs.preComputeAllTunascriptExpansions()
+	// parse all expandable templates for later execution
+	err := gs.preParseAllTunascriptTemplates()
 	if err != nil {
 		return gs, err
 	}
@@ -239,7 +239,7 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	return gs, nil
 }
 
-func (gs *State) preComputeExp(toExpand string) (*tunascript.ExpansionAST, error) {
+func (gs *State) preParseTemplate(toExpand string) (*tunascript.ExpansionAST, error) {
 	preComp, err := gs.scripts.ParseTemplate(toExpand)
 	if err != nil {
 		var displayText string
@@ -274,35 +274,35 @@ func (gs *State) preComputeExp(toExpand string) (*tunascript.ExpansionAST, error
 	return &preComp, nil
 }
 
-func (gs *State) preComputeAllTunascriptExpansions() error {
+func (gs *State) preParseAllTunascriptTemplates() error {
 	roomKeys := util.OrderedKeys(gs.World)
 
 	for _, rKey := range roomKeys {
 		r := gs.World[rKey]
 
 		// compute room desc
-		preComp, err := gs.preComputeExp(r.Description)
+		preComp, err := gs.preParseTemplate(r.Description)
 		if err != nil {
 			// show bad text separately
 			return fmt.Errorf("room %q: description: %w", r.Label, err)
 		}
-		r.tsDescription = preComp
+		r.tmplDescription = preComp
 
 		// compute room exit descs and messages
 		for i := range r.Exits {
 			eg := r.Exits[i]
 
-			egDescComp, err := gs.preComputeExp(eg.Description)
+			egDescComp, err := gs.preParseTemplate(eg.Description)
 			if err != nil {
 				return fmt.Errorf("room %q: exit %d: description: %w", r.Label, i, err)
 			}
-			egMsgComp, err := gs.preComputeExp(eg.TravelMessage)
+			egMsgComp, err := gs.preParseTemplate(eg.TravelMessage)
 			if err != nil {
 				return fmt.Errorf("room %q: exit %d: message: %w", r.Label, i, err)
 			}
 
-			eg.tsDescription = egDescComp
-			eg.tsTravelMessage = egMsgComp
+			eg.tmplDescription = egDescComp
+			eg.tmplTravelMessage = egMsgComp
 
 			r.Exits[i] = eg
 		}
@@ -311,11 +311,11 @@ func (gs *State) preComputeAllTunascriptExpansions() error {
 		for i := range r.Details {
 			det := r.Details[i]
 
-			detComp, err := gs.preComputeExp(det.Description)
+			detComp, err := gs.preParseTemplate(det.Description)
 			if err != nil {
 				return fmt.Errorf("room %q: detail %d: description: %w", r.Label, i, err)
 			}
-			det.tsDescription = detComp
+			det.tmplDescription = detComp
 
 			r.Details[i] = det
 		}
@@ -324,11 +324,11 @@ func (gs *State) preComputeAllTunascriptExpansions() error {
 		for i := range r.Items {
 			it := r.Items[i]
 
-			itemComp, err := gs.preComputeExp(it.Description)
+			itemComp, err := gs.preParseTemplate(it.Description)
 			if err != nil {
 				return fmt.Errorf("item %q: description: %w", it.Label, err)
 			}
-			it.tsDescription = itemComp
+			it.tmplDescription = itemComp
 
 			r.Items[i] = it
 		}
@@ -338,11 +338,11 @@ func (gs *State) preComputeAllTunascriptExpansions() error {
 		for _, npcLabel := range npcKeys {
 			npc := r.NPCs[npcLabel]
 
-			npcComp, err := gs.preComputeExp(npc.Description)
+			npcComp, err := gs.preParseTemplate(npc.Description)
 			if err != nil {
 				return fmt.Errorf("npc %q: description: %w", npc.Label, err)
 			}
-			npc.tsDescription = npcComp
+			npc.tmplDescription = npcComp
 
 			// no need to re-assign to map bc npc is a ptr-to so mutations are
 			// reflected in map
@@ -351,26 +351,26 @@ func (gs *State) preComputeAllTunascriptExpansions() error {
 			for i := range npc.Dialog {
 				dia := npc.Dialog[i]
 
-				diaResponseComp, err := gs.preComputeExp(dia.Response)
+				diaResponseComp, err := gs.preParseTemplate(dia.Response)
 				if err != nil {
 					return fmt.Errorf("npc %q: line %d: response: %w", npc.Label, i, err)
 				}
-				diaContentComp, err := gs.preComputeExp(dia.Content)
+				diaContentComp, err := gs.preParseTemplate(dia.Content)
 				if err != nil {
 					return fmt.Errorf("npc %q: line %d: content: %w", npc.Label, i, err)
 				}
 				diaChoiceComps := make([]*tunascript.ExpansionAST, len(dia.Choices))
 				for j := range dia.Choices {
-					chComp, err := gs.preComputeExp(dia.Choices[j][0])
+					chComp, err := gs.preParseTemplate(dia.Choices[j][0])
 					if err != nil {
 						return fmt.Errorf("npc %q: line %d: choice %d: %w", npc.Label, i, j, err)
 					}
 					diaChoiceComps[j] = chComp
 				}
 
-				dia.tsResponse = diaResponseComp
-				dia.tsContent = diaContentComp
-				dia.tsChoices = diaChoiceComps
+				dia.tmplResponse = diaResponseComp
+				dia.tmplContent = diaContentComp
+				dia.tmplChoices = diaChoiceComps
 			}
 		}
 	}
@@ -401,9 +401,9 @@ func (gs *State) MoveNPCs() {
 	gs.npcLocations = newLocs
 }
 
-// Expand expands the given text using tunascript engine expansion rules. In
-// this context, $IF() and $ENDIF() become allowable functions, and mutation
-// functions are not allowed in the expression inside $IF.
+// Expand executes the given template text and turns it into the resulting text.
+// Any tunascript queries required to evaluate template flow-control statements
+// are executed at this time.
 //
 // The parameter what is the thing that is being described. It is only used in
 // error output. If what is blank and there is an error, a generic string will
@@ -425,7 +425,7 @@ func (gs *State) Expand(s *tunascript.ExpansionAST, what string) string {
 // error if there are issues retrieving it. If alias is empty, the room is
 // looked at. The returned string is not formatted except that any seperate
 // listings (such as items or NPCs in a room) will be separated by "\n\n". The
-// returned string will be expanded using tunascript expansion.
+// returned string will be expanded from its tunascript template.
 func (gs *State) Look(alias string) (string, error) {
 	var desc string
 	if alias != "" {
@@ -436,7 +436,7 @@ func (gs *State) Look(alias string) (string, error) {
 
 		desc = gs.Expand(lookTarget.GetDescription(), fmt.Sprintf("DESCRIPTION FOR %q", alias))
 	} else {
-		desc = gs.Expand(gs.CurrentRoom.tsDescription, fmt.Sprintf("DESCRIPTION OF ROOM %q", gs.CurrentRoom.Label))
+		desc = gs.Expand(gs.CurrentRoom.tmplDescription, fmt.Sprintf("DESCRIPTION OF ROOM %q", gs.CurrentRoom.Label))
 
 		if len(gs.CurrentRoom.Items) > 0 {
 			var itemNames []string
@@ -545,7 +545,7 @@ func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
 		return "", err
 	}
 
-	expanded := gs.Expand(egress.tsTravelMessage, fmt.Sprintf("Exit travel message for %q", cmd.Recipient))
+	expanded := gs.Expand(egress.tmplTravelMessage, fmt.Sprintf("Exit travel message for %q", cmd.Recipient))
 
 	output := rosed.Edit(expanded).WithOptions(textFormatOptions).
 		Wrap(gs.io.Width).
@@ -571,7 +571,7 @@ func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
 			CharsFrom(rosed.End)
 
 		for _, eg := range gs.CurrentRoom.Exits {
-			expanded := gs.Expand(eg.tsDescription, fmt.Sprintf("DESCRIPTION FOR %q", eg.Aliases[0]))
+			expanded := gs.Expand(eg.tmplDescription, fmt.Sprintf("DESCRIPTION FOR %q", eg.Aliases[0]))
 			ed = ed.Insert(rosed.End, "XX* "+eg.Aliases[0]+": "+expanded+"\n")
 		}
 

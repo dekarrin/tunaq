@@ -23,10 +23,10 @@ type Detail struct {
 	// LOOKs at it.
 	Description string
 
-	// tsDescription is the precomputed tunascript Expansion AST for the
-	// description text. It must generally be filled in with the game engine,
-	// and will not be present directly when loaded from disk.
-	tsDescription *tunascript.ExpansionAST
+	// tmplDescription is the precomputed template AST for the description text.
+	// It must generally be filled in with the game engine, and will not be
+	// present directly when loaded from disk.
+	tmplDescription *tunascript.ExpansionAST
 }
 
 func (d Detail) GetAliases() []string {
@@ -34,7 +34,7 @@ func (d Detail) GetAliases() []string {
 }
 
 func (d Detail) GetDescription() *tunascript.ExpansionAST {
-	return d.tsDescription
+	return d.tmplDescription
 }
 
 func (d Detail) String() string {
@@ -44,9 +44,9 @@ func (d Detail) String() string {
 // Copy returns a deeply-copied Egress.
 func (d Detail) Copy() Detail {
 	dCopy := Detail{
-		Aliases:       make([]string, len(d.Aliases)),
-		Description:   d.Description,
-		tsDescription: d.tsDescription,
+		Aliases:         make([]string, len(d.Aliases)),
+		Description:     d.Description,
+		tmplDescription: d.tmplDescription,
 	}
 
 	copy(dCopy.Aliases, d.Aliases)
@@ -72,15 +72,15 @@ type Egress struct {
 	// prevent spoilerific room names.
 	Aliases []string
 
-	// tsDescription is the precomputed tunascript Expansion AST for the
-	// description text. It must generally be filled in with the game engine,
-	// and will not be present directly when loaded from disk.
-	tsDescription *tunascript.ExpansionAST
+	// tmplDescription is the precomputed template AST for the description text.
+	// It must generally be filled in with the game engine, and will not be
+	// present directly when loaded from disk.
+	tmplDescription *tunascript.ExpansionAST
 
-	// tsTravelMessage is the precomputed tunascript Expansion AST for the
-	// travel message text. It must generally be filled in with the game engine,
-	// and will not be present directly when loaded from disk.
-	tsTravelMessage *tunascript.ExpansionAST
+	// tmplTravelMessage is the precomputed template AST for the travel message
+	// text. It must generally be filled in with the game engine, and will not
+	// be present directly when loaded from disk.
+	tmplTravelMessage *tunascript.ExpansionAST
 }
 
 func (egress Egress) String() string {
@@ -90,12 +90,12 @@ func (egress Egress) String() string {
 // Copy returns a deeply-copied Egress.
 func (egress Egress) Copy() Egress {
 	eCopy := Egress{
-		DestLabel:       egress.DestLabel,
-		Description:     egress.Description,
-		TravelMessage:   egress.TravelMessage,
-		Aliases:         make([]string, len(egress.Aliases)),
-		tsDescription:   egress.tsDescription,
-		tsTravelMessage: egress.tsTravelMessage,
+		DestLabel:         egress.DestLabel,
+		Description:       egress.Description,
+		TravelMessage:     egress.TravelMessage,
+		Aliases:           make([]string, len(egress.Aliases)),
+		tmplDescription:   egress.tmplDescription,
+		tmplTravelMessage: egress.tmplTravelMessage,
 	}
 
 	copy(eCopy.Aliases, egress.Aliases)
@@ -108,7 +108,7 @@ func (egress Egress) GetAliases() []string {
 }
 
 func (egress Egress) GetDescription() *tunascript.ExpansionAST {
-	return egress.tsDescription
+	return egress.tmplDescription
 }
 
 // Room is a scene in the game. It contains a series of exits that lead to other
@@ -139,10 +139,10 @@ type Room struct {
 	// Details is the details that the player can look at in the room.
 	Details []Detail
 
-	// tsDescription is the precomputed tunascript Expansion AST for the
-	// description text. It must generally be filled in with the game engine,
-	// and will not be present directly when loaded from disk.
-	tsDescription *tunascript.ExpansionAST
+	// tmplDescription is the precomputed template AST for the description text.
+	// It must generally be filled in with the game engine, and will not be
+	// present directly when loaded from disk.
+	tmplDescription *tunascript.ExpansionAST
 }
 
 // Copy returns a deeply-copied Room.
@@ -156,7 +156,7 @@ func (room Room) Copy() Room {
 		NPCs:        make(map[string]*NPC, len(room.NPCs)),
 		Details:     make([]Detail, len(room.Details)),
 
-		tsDescription: room.tsDescription,
+		tmplDescription: room.tmplDescription,
 	}
 
 	for i := range room.Exits {

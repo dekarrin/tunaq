@@ -2,6 +2,7 @@ Tunascript Expression Language
 ==============================
 
 UPDATE: there is no untyped; it is always string by default
+UPDATE: this doc needs re-working after move to Ictiobus.
 
 this file is a major work in prog and should rly not be relied on at all.
 

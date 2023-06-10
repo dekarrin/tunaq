@@ -1,4 +1,4 @@
-// Package syntax creates abstract TunaScript and TunaQuestExpansion language
+// Package syntax creates abstract TunaScript and TunaQuest template language
 // constructs from parse trees passed to it from generated frontends.
 package syntax
 

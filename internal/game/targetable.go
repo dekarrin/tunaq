@@ -9,8 +9,8 @@ type Targetable interface {
 	/// thing.
 	GetAliases() []string
 
-	// GetDescription returns the tunascript expansion AST representing the
-	// description to show when the player looks at it.
+	// GetDescription returns the template AST representing the description to
+	// show when the player looks at it.
 	GetDescription() *tunascript.ExpansionAST
 
 	/*
