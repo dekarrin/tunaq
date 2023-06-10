@@ -2,6 +2,8 @@
 
 # this file builds distributions for 3 major operating systems.
 
+cd "$(dirname "$0")"/..
+
 # fail immediately on first error
 set -eo pipefail
 

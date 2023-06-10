@@ -27,7 +27,7 @@ reflexive = ""
 label = ""
 action = "line"
 content = "Hi there, I'm Joey!"
-response = "Hello, Joey."
+response = "$JOEY_PLAYER_HELLO, Joey."
 
 [[npc.line]]
 content = "So, um..."
@@ -37,7 +37,7 @@ action = "choice"
 content = "Who are you?"
 choices = [
 	["Just a wanderer", "IM_WANDERER"],
-	["I'm PLAYER!", "IM_PLAYER"],
+	["I'm $JOEY_PLAYER_NAME!", "IM_PLAYER"],
 ]
 
 [[npc.line]]
@@ -50,7 +50,7 @@ action = "end"
 
 [[npc.line]]
 label = "IM_PLAYER"
-content = "Your name is PLAYER? That's a weird name!"
+content = "Your name is PLAYER? $JOEY_PLAYER_REACTION"
 
 [[npc.line]]
 action = "end"

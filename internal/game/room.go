@@ -7,6 +7,8 @@ package game
 import (
 	"fmt"
 	"strings"
+
+	"github.com/dekarrin/tunaq/tunascript"
 )
 
 // Detail is an additional piece of detail in a room that the user is allowed to
@@ -20,14 +22,19 @@ type Detail struct {
 	// Description is the long description of the detail, shown when the player
 	// LOOKs at it.
 	Description string
+
+	// tmplDescription is the precomputed template AST for the description text.
+	// It must generally be filled in with the game engine, and will not be
+	// present directly when loaded from disk.
+	tmplDescription *tunascript.Template
 }
 
 func (d Detail) GetAliases() []string {
 	return d.Aliases
 }
 
-func (d Detail) GetDescription() string {
-	return d.Description
+func (d Detail) GetDescription() *tunascript.Template {
+	return d.tmplDescription
 }
 
 func (d Detail) String() string {
@@ -37,8 +44,9 @@ func (d Detail) String() string {
 // Copy returns a deeply-copied Egress.
 func (d Detail) Copy() Detail {
 	dCopy := Detail{
-		Aliases:     make([]string, len(d.Aliases)),
-		Description: d.Description,
+		Aliases:         make([]string, len(d.Aliases)),
+		Description:     d.Description,
+		tmplDescription: d.tmplDescription,
 	}
 
 	copy(dCopy.Aliases, d.Aliases)
@@ -63,6 +71,16 @@ type Egress struct {
 	// egress. Note that the label is not included in this list by default to
 	// prevent spoilerific room names.
 	Aliases []string
+
+	// tmplDescription is the precomputed template AST for the description text.
+	// It must generally be filled in with the game engine, and will not be
+	// present directly when loaded from disk.
+	tmplDescription *tunascript.Template
+
+	// tmplTravelMessage is the precomputed template AST for the travel message
+	// text. It must generally be filled in with the game engine, and will not
+	// be present directly when loaded from disk.
+	tmplTravelMessage *tunascript.Template
 }
 
 func (egress Egress) String() string {
@@ -72,10 +90,12 @@ func (egress Egress) String() string {
 // Copy returns a deeply-copied Egress.
 func (egress Egress) Copy() Egress {
 	eCopy := Egress{
-		DestLabel:     egress.DestLabel,
-		Description:   egress.Description,
-		TravelMessage: egress.TravelMessage,
-		Aliases:       make([]string, len(egress.Aliases)),
+		DestLabel:         egress.DestLabel,
+		Description:       egress.Description,
+		TravelMessage:     egress.TravelMessage,
+		Aliases:           make([]string, len(egress.Aliases)),
+		tmplDescription:   egress.tmplDescription,
+		tmplTravelMessage: egress.tmplTravelMessage,
 	}
 
 	copy(eCopy.Aliases, egress.Aliases)
@@ -87,8 +107,8 @@ func (egress Egress) GetAliases() []string {
 	return egress.Aliases
 }
 
-func (egress Egress) GetDescription() string {
-	return egress.Description
+func (egress Egress) GetDescription() *tunascript.Template {
+	return egress.tmplDescription
 }
 
 // Room is a scene in the game. It contains a series of exits that lead to other
@@ -118,6 +138,11 @@ type Room struct {
 
 	// Details is the details that the player can look at in the room.
 	Details []Detail
+
+	// tmplDescription is the precomputed template AST for the description text.
+	// It must generally be filled in with the game engine, and will not be
+	// present directly when loaded from disk.
+	tmplDescription *tunascript.Template
 }
 
 // Copy returns a deeply-copied Room.
@@ -130,6 +155,8 @@ func (room Room) Copy() Room {
 		Items:       make([]Item, len(room.Items)),
 		NPCs:        make(map[string]*NPC, len(room.NPCs)),
 		Details:     make([]Detail, len(room.Details)),
+
+		tmplDescription: room.tmplDescription,
 	}
 
 	for i := range room.Exits {

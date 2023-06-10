@@ -1,5 +1,7 @@
 package game
 
+import "github.com/dekarrin/tunaq/tunascript"
+
 // Targetable is something that can be targeted by a player command. All can be
 // looked at.
 type Targetable interface {
@@ -7,9 +9,9 @@ type Targetable interface {
 	/// thing.
 	GetAliases() []string
 
-	// GetDescription returns the description to show when the player looks at
-	// it.
-	GetDescription() string
+	// GetDescription returns the template AST representing the description to
+	// show when the player looks at it.
+	GetDescription() *tunascript.Template
 
 	/*
 		// CanUse returns whether it is possible to use the Targetable on its own.

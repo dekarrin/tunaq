@@ -9,7 +9,7 @@ then
   exit 1
 fi
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")"/..
 
 ext=
 for_windows=
@@ -19,6 +19,12 @@ env GOFLAGS=-mod=mod go build -o tqi$ext cmd/tqi/main.go
 
 if [ -n "$for_windows" ]
 then
+  printf '%s\r\n' '@ECHO OFF' > tqi.bat
+  printf '%s\r\n' 'TITLE TunaQuest' >> tqi.bat
+  printf '%s\r\n' '%~dp0tqi.exe %*' >> tqi.bat
+  printf '%s\r\n' 'PAUSE' >> tqi.bat
+  printf '%s\r\n' 'EXIT' >> tqi.bat
+
   cat <<- 'EOF' > "tqi.sh"
   #!/bin/bash
 
@@ -30,7 +36,7 @@ then
     echo "Readline implementation fails in mintty, opening in new windows console..." >&2
 
     # windows command here:
-    start "" ".\tqi" "$@"
+    start //wait tqi.bat "$@"
   else
     ./tqi "$@"
   fi

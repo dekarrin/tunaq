@@ -12,6 +12,8 @@ but your eyes slowly adjust and you can make out what's in here by the light of 
 several of the walls.  There's a set of three antique doors dotting the walls of the hall. An oak one that says 'GLUB',
 a maplewood one that says 'NAK', and a rosewood one that says 'THIP'. There's also a ladder leading to a hatch above
 you, or you could head back through the tunnel to the backyard.
+
+Yes $[[ IF $FLAG_ENABLED(GRR)]] Oh hey. That mark you scratched on the wall is still here. $[[ENDIF]] spacer
 '''
 
 [[room.exit]]

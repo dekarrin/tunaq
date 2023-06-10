@@ -57,11 +57,12 @@ func (gs *State) executeDebugNPC(npcLabel string) (string, error) {
 }
 
 func (gs *State) executeDebugExec(s string) (string, error) {
-	return gs.scripts.Eval(s)
+	val, err := gs.scripts.Eval(s)
+	return val.String(), err
 }
 
 func (gs *State) executeDebugExpand(s string) (string, error) {
-	return gs.scripts.ExpandText(s)
+	return gs.scripts.Expand(s)
 }
 
 func (gs *State) executeDebugFlags() (string, error) {

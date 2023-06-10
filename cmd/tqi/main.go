@@ -36,13 +36,13 @@ exit the interpreter, type "QUIT".
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/dekarrin/tunaq"
 	"github.com/dekarrin/tunaq/internal/version"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -60,40 +60,25 @@ const (
 )
 
 var (
-	returnCode   int   = ExitSuccess
-	flagVersion  *bool = flag.Bool("version", false, "Gives the version info")
-	worldFile    string
-	forceDirect  bool
-	startCommand string
+	returnCode   int     = ExitSuccess
+	flagVersion  *bool   = pflag.Bool("version", false, "Gives the version info")
+	worldFile    *string = pflag.StringP("world", "w", "world.tqw", "The TQW world data or manifest file that contains the definition of the world")
+	forceDirect  *bool   = pflag.BoolP("direct", "d", false, "Force reading directly from stdin instead of going through GNU readline where possible")
+	startCommand *string = pflag.StringP("command", "c", "", "Execute the given player commands immediately at start and leave the interpreter open")
 )
-
-func init() {
-	const (
-		defaultWorldFile = "world.tqw"
-		worldUsage       = "the TQW world data or manifest file that contains the definition of the world"
-		forceDirectUsage = "force reading directly from stdin instead of going through GNU readline where possible"
-		commandUsage     = "execute the given player commands immediately at start and leave the interpreter open"
-	)
-	flag.StringVar(&worldFile, "world", defaultWorldFile, worldUsage)
-	flag.StringVar(&worldFile, "w", defaultWorldFile, worldUsage+" (shorthand)")
-	flag.BoolVar(&forceDirect, "direct", false, forceDirectUsage)
-	flag.BoolVar(&forceDirect, "d", false, forceDirectUsage+" (shorthand)")
-	flag.StringVar(&startCommand, "command", "", commandUsage)
-	flag.StringVar(&startCommand, "c", "", commandUsage+" (shorthand)")
-}
 
 func main() {
 	defer func() {
 		if panicErr := recover(); panicErr != nil {
 			// we are panicking, make sure we dont lose the panic just because
 			// we checked
-			panic("unrecoverable panic occured")
+			panic(fmt.Sprintf("unrecoverable panic occured: %v", panicErr))
 		} else {
 			os.Exit(returnCode)
 		}
 	}()
 
-	flag.Parse()
+	pflag.Parse()
 
 	if *flagVersion {
 		fmt.Printf("%s\n", version.Current)
@@ -101,11 +86,11 @@ func main() {
 	}
 
 	var startCommands []string
-	if startCommand != "" {
-		startCommands = strings.Split(startCommand, ";")
+	if *startCommand != "" {
+		startCommands = strings.Split(*startCommand, ";")
 	}
 
-	gameEng, initErr := tunaq.New(os.Stdin, os.Stdout, worldFile, forceDirect)
+	gameEng, initErr := tunaq.New(os.Stdin, os.Stdout, *worldFile, *forceDirect)
 	if initErr != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", initErr.Error())
 		returnCode = ExitInitError

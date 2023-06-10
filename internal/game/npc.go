@@ -3,6 +3,8 @@ package game
 import (
 	"fmt"
 	"math/rand"
+
+	"github.com/dekarrin/tunaq/tunascript"
 )
 
 // This file contains structs and routines related to NPCs.
@@ -37,7 +39,7 @@ type NPC struct {
 	Movement Route
 
 	// Dialog is the Dialog tree that the NPC engages in with the player.
-	Dialog []DialogStep
+	Dialog []*DialogStep
 
 	// Convo is the currently active conversation with the NPC. If not set or
 	// set to nil, there is no active conversation between the player and the
@@ -47,6 +49,11 @@ type NPC struct {
 	// for NPCs with a path movement route, routeCur gives the step it is
 	// currently on.
 	routeCur *int
+
+	// tmplDescription is the precomputed template AST for the description text.
+	// It must generally be filled in with the game engine, and will not be
+	// present directly when loaded from disk.
+	tmplDescription *tunascript.Template
 }
 
 // ResetRoute resets the route of the NPC. It should always be called before
@@ -124,12 +131,15 @@ func (npc NPC) Copy() NPC {
 		Pronouns:    npc.Pronouns,
 		Start:       npc.Start,
 		Movement:    npc.Movement.Copy(),
-		Dialog:      make([]DialogStep, len(npc.Dialog)),
+		Dialog:      make([]*DialogStep, len(npc.Dialog)),
 		Aliases:     make([]string, len(npc.Aliases)),
+
+		tmplDescription: npc.tmplDescription,
 	}
 
 	for i := range npc.Dialog {
-		npcCopy.Dialog[i] = npc.Dialog[i].Copy()
+		step := npc.Dialog[i].Copy()
+		npcCopy.Dialog[i] = &step
 	}
 	copy(npcCopy.Aliases, npc.Aliases)
 
@@ -158,6 +168,6 @@ func (npc NPC) GetAliases() []string {
 	return npc.Aliases
 }
 
-func (npc NPC) GetDescription() string {
-	return npc.Description
+func (npc NPC) GetDescription() *tunascript.Template {
+	return npc.tmplDescription
 }

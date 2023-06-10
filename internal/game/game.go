@@ -2,13 +2,14 @@ package game
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/dekarrin/rosed"
 	"github.com/dekarrin/tunaq/internal/command"
 	"github.com/dekarrin/tunaq/internal/tqerrors"
-	"github.com/dekarrin/tunaq/internal/tunascript"
 	"github.com/dekarrin/tunaq/internal/util"
+	"github.com/dekarrin/tunaq/tunascript"
 )
 
 var commandHelp = [][2]string{
@@ -34,7 +35,8 @@ var textFormatOptions = rosed.Options{
 	IndentStr:          "  ",
 }
 
-// State is the game's entire state.
+// State is the game's entire state. It should not be used directly; call New to
+// create and initialize one.
 type State struct {
 	// World is all rooms that exist and their current state.
 	World map[string]*Room
@@ -59,6 +61,7 @@ type State struct {
 	scripts tunascript.Interpreter
 }
 
+// TODO: this should rly be an interface, not a struct.
 type IODevice struct {
 	// The width of each line of output.
 	Width int
@@ -101,24 +104,24 @@ func (wi worldInterface) Output(out string) bool {
 // startingRoom is the label of the room to start with.
 // ioDev is the input/output device to use when the user needs to be prompted
 // for more info, or for showing to the user.
-// io.Width is how wide the output should be. State will try to make all\
+// io.Width is how wide the output should be. State will try to make all
 // output fit within this width. If not set or < 2, it will be automatically
 // assumed to be 80.
-func New(world map[string]*Room, startingRoom string, flags map[string]string, ioDev IODevice) (State, error) {
+func New(world map[string]*Room, startingRoom string, flags map[string]string, ioDev IODevice) (*State, error) {
 	if ioDev.Width < 2 {
 		ioDev.Width = 80
 	}
 	if ioDev.Input == nil {
-		return State{}, fmt.Errorf("io device must define an Input function")
+		return nil, fmt.Errorf("io device must define an Input function")
 	}
 	if ioDev.InputInt == nil {
-		return State{}, fmt.Errorf("io device must define an InputInt function")
+		return nil, fmt.Errorf("io device must define an InputInt function")
 	}
 	if ioDev.Output == nil {
-		return State{}, fmt.Errorf("io device must define an Output function")
+		return nil, fmt.Errorf("io device must define an Output function")
 	}
 
-	gs := State{
+	gs := &State{
 		World:         world,
 		Inventory:     make(Inventory),
 		npcLocations:  make(map[string]string),
@@ -214,9 +217,23 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 
 	}
 
-	gs.scripts = tunascript.NewInterpreter(scriptInterface)
+	// start scripting engine
+	gs.scripts = tunascript.Interpreter{
+		File:   "(text)",
+		Target: scriptInterface,
+	}
+
 	for fl := range flags {
-		gs.scripts.AddFlag(fl, flags[fl])
+		err := gs.scripts.AddFlag(fl, flags[fl])
+		if err != nil {
+			return gs, err
+		}
+	}
+
+	// parse all expandable templates for later execution
+	err := gs.preParseAllTunascriptTemplates()
+	if err != nil {
+		return gs, err
 	}
 
 	return gs, nil
@@ -245,34 +262,30 @@ func (gs *State) MoveNPCs() {
 	gs.npcLocations = newLocs
 }
 
+// Expand executes the given template text and turns it into the resulting text.
+// Any tunascript queries required to evaluate template flow-control statements
+// are executed at this time.
+func (gs *State) Expand(s *tunascript.Template) string {
+	expanded := gs.scripts.ExecTemplate(*s)
+	return expanded
+}
+
 // Look gets the look description as a single long string. It returns non-nil
 // error if there are issues retrieving it. If alias is empty, the room is
 // looked at. The returned string is not formatted except that any seperate
-// listings (such as items or NPCs in a room) will be separated by "\n\n".
+// listings (such as items or NPCs in a room) will be separated by "\n\n". The
+// returned string will be expanded from its tunascript template.
 func (gs *State) Look(alias string) (string, error) {
 	var desc string
-	var err error
 	if alias != "" {
 		lookTarget := gs.CurrentRoom.GetTargetable(alias)
 		if lookTarget == nil {
 			return "", tqerrors.Interpreterf("I don't see any %q here", alias)
 		}
 
-		desc, err = gs.scripts.ExpandText(lookTarget.GetDescription())
-		if err != nil {
-			msg := "TUNAQUEST SYSTEM WARNING: DIPFISH AND DARNATION!\n"
-			msg += fmt.Sprintf("TUNASCRIPT ERROR EXPANDING DESCRIPTION TEXT FOR %q:\n\n", alias)
-			msg += "TELL THE AUTHOR OF YOUR GAME ABOUT THIS SO THEY CAN FIX IT\n\n"
-			desc = msg + lookTarget.GetDescription()
-		}
+		desc = gs.Expand(lookTarget.GetDescription())
 	} else {
-		desc, err = gs.scripts.ExpandText(gs.CurrentRoom.Description)
-		if err != nil {
-			msg := "TUNAQUEST SYSTEM WARNING: DIPFISH AND DARNATION!\n"
-			msg += fmt.Sprintf("TUNASCRIPT ERROR EXPANDING DESCRIPTION TEXT FOR ROOM %q:\n\n", gs.CurrentRoom.Label)
-			msg += "TELL THE AUTHOR OF YOUR GAME ABOUT THIS SO THEY CAN FIX IT\n\n"
-			desc = msg + gs.CurrentRoom.Description
-		}
+		desc = gs.Expand(gs.CurrentRoom.tmplDescription)
 
 		if len(gs.CurrentRoom.Items) > 0 {
 			var itemNames []string
@@ -381,7 +394,9 @@ func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
 		return "", err
 	}
 
-	output := rosed.Edit(egress.TravelMessage).WithOptions(textFormatOptions).
+	expanded := gs.Expand(egress.tmplTravelMessage)
+
+	output := rosed.Edit(expanded).WithOptions(textFormatOptions).
 		Wrap(gs.io.Width).
 		Insert(rosed.End, "\n\n").
 		CharsFrom(rosed.End).
@@ -405,7 +420,8 @@ func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
 			CharsFrom(rosed.End)
 
 		for _, eg := range gs.CurrentRoom.Exits {
-			ed = ed.Insert(rosed.End, "XX* "+eg.Aliases[0]+": "+eg.Description+"\n")
+			expanded := gs.Expand(eg.tmplDescription)
+			ed = ed.Insert(rosed.End, "XX* "+eg.Aliases[0]+": "+expanded+"\n")
 		}
 
 		// from prior CharsEnd, this should only apply to the list of exits.
@@ -569,4 +585,145 @@ func (gs *State) ExecuteCommandHelp(cmd command.Command) (string, error) {
 		InsertDefinitionsTable(rosed.End, commandHelp, gs.io.Width).String()
 
 	return output, nil
+}
+
+func (gs *State) preParseAllTunascriptTemplates() error {
+	roomKeys := util.OrderedKeys(gs.World)
+
+	for _, rKey := range roomKeys {
+		r := gs.World[rKey]
+
+		// compute room desc
+		preComp, err := gs.preParseTemplate(r.Description)
+		if err != nil {
+			// show bad text separately
+			return fmt.Errorf("room %q: description: %w", r.Label, err)
+		}
+		r.tmplDescription = preComp
+
+		// compute room exit descs and messages
+		for i := range r.Exits {
+			eg := r.Exits[i]
+
+			egDescComp, err := gs.preParseTemplate(eg.Description)
+			if err != nil {
+				return fmt.Errorf("room %q: exit %d: description: %w", r.Label, i, err)
+			}
+			egMsgComp, err := gs.preParseTemplate(eg.TravelMessage)
+			if err != nil {
+				return fmt.Errorf("room %q: exit %d: message: %w", r.Label, i, err)
+			}
+
+			eg.tmplDescription = egDescComp
+			eg.tmplTravelMessage = egMsgComp
+
+			r.Exits[i] = eg
+		}
+
+		// compute room detail descs
+		for i := range r.Details {
+			det := r.Details[i]
+
+			detComp, err := gs.preParseTemplate(det.Description)
+			if err != nil {
+				return fmt.Errorf("room %q: detail %d: description: %w", r.Label, i, err)
+			}
+			det.tmplDescription = detComp
+
+			r.Details[i] = det
+		}
+
+		// compute item descs
+		for i := range r.Items {
+			it := r.Items[i]
+
+			itemComp, err := gs.preParseTemplate(it.Description)
+			if err != nil {
+				return fmt.Errorf("item %q: description: %w", it.Label, err)
+			}
+			it.tmplDescription = itemComp
+
+			r.Items[i] = it
+		}
+
+		// compute NPC descs
+		npcKeys := util.OrderedKeys(r.NPCs)
+		for _, npcLabel := range npcKeys {
+			npc := r.NPCs[npcLabel]
+
+			npcComp, err := gs.preParseTemplate(npc.Description)
+			if err != nil {
+				return fmt.Errorf("npc %q: description: %w", npc.Label, err)
+			}
+			npc.tmplDescription = npcComp
+
+			// no need to re-assign to map bc npc is a ptr-to so mutations are
+			// reflected in map
+
+			// now set each dialog step's precomputed texts
+			for i := range npc.Dialog {
+				dia := npc.Dialog[i]
+
+				diaResponseComp, err := gs.preParseTemplate(dia.Response)
+				if err != nil {
+					return fmt.Errorf("npc %q: line %d: response: %w", npc.Label, i, err)
+				}
+				diaContentComp, err := gs.preParseTemplate(dia.Content)
+				if err != nil {
+					return fmt.Errorf("npc %q: line %d: content: %w", npc.Label, i, err)
+				}
+				diaChoiceComps := make([]*tunascript.Template, len(dia.Choices))
+				for j := range dia.Choices {
+					chComp, err := gs.preParseTemplate(dia.Choices[j][0])
+					if err != nil {
+						return fmt.Errorf("npc %q: line %d: choice %d: %w", npc.Label, i, j, err)
+					}
+					diaChoiceComps[j] = chComp
+				}
+
+				dia.tmplResponse = diaResponseComp
+				dia.tmplContent = diaContentComp
+				dia.tmplChoices = diaChoiceComps
+			}
+		}
+	}
+
+	return nil
+}
+
+func (gs *State) preParseTemplate(toExpand string) (*tunascript.Template, error) {
+	preComp, err := gs.scripts.ParseTemplate(toExpand)
+	if err != nil {
+		var displayText string
+
+		anyNonWSChar := regexp.MustCompile(`\S`)
+		// if there's no non-whitespace char in the text, then... well that's
+		// bizarre because it *should* work on empty input.
+		if anyNonWSChar.MatchString(toExpand) {
+			displayText = "TEMPLATE CONTENT:\n"
+			displayText += strings.Repeat("=", gs.io.Width) + "\n"
+			displayText += rosed.
+				Edit(strings.TrimSpace(toExpand)).
+				WithOptions(textFormatOptions).
+				Wrap(gs.io.Width).
+				String()
+			displayText += "\n" + strings.Repeat("=", gs.io.Width) + "\n"
+		} else {
+			displayText = "(NO CONTENT IN TEMPLATE)\n"
+		}
+
+		var addendum string
+		// TODO: this should be done by an errors.Is check, not this nonsense.
+		// might require updating ictiobus though to make syntax errors
+		// concerned with EOT special (which probs should be done, glub)
+		if strings.Contains(err.Error(), "unexpected end of input") {
+			addendum = "\n\nMERMAID'S ADVICE:\nDid you forget to write $[[ENDIF]] somewhere in the template?"
+		} else if strings.Contains(err.Error(), "unexpected \"(\"") {
+			addendum = "\n\nMERMAID'S ADVICE:\nDid you forget a \"$\" before the name of a function?"
+		}
+
+		return nil, fmt.Errorf("template code has an error\n%s\nSYNTAX ERROR:\n%w%s", displayText, err, addendum)
+	}
+
+	return &preComp, nil
 }

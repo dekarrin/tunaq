@@ -77,16 +77,21 @@ for later reading.
 
 This is accomplished by attaching pieces of a scripting language called
 "tunascript" to certain points in the game. This is done with the use of `if`
-attributes and `script` attributes.
+attributes and `script` attributes. The variables can then be used in template
+text (which most world text descriptions are treated as) by either directly
+giving a variable starting with `$` or using template flow-control statements to
+check variables and game state and show text based on their values.
 
 Right now, that feature is still being developed. You can test it in the
 meantime by using the `DEBUG EXPAND` or `DEBUG EXEC` commands. `EXPAND` will run
-text expansion of variables and the special tunascript functions `$IF` and
-`$ENDIF`, which are only ever allowed in expansions, not scripts. No tunascript
-that causes changes in the game state can be executed here, but functions that
-check the state are okay! `EXEC` on the other hand will evaluate any tunascript
-expression, and there are no restrictions on what can be called, but it doesn't
-have `$IF` or `$ENDIF`.
+text expansion of variables and the special tunaquest template directives
+`$[[ if TUNASCRIPT ]]` and `$[[ endif ]]`, along with their friends
+`$[[else if TUNASCRIPT]]` and `$[[ else ]]`. You replace `TUNASCRIPT` in those
+with the actual tunascript that is used to evaluate whether to expand that part
+of the template. No tunascript that causes changes in the game state can be
+executed here, but functions that check the state are okay! `EXEC` on the other
+hand will evaluate any tunascript expression, and there are no restrictions on
+what can be called.
 
 A complete description of tunascript.md is beyond the scope of this guide; check
 out the file `docs/tunascript.md` for more information.

@@ -36,7 +36,7 @@ You have a feeling it's going to be a long day.
 [[room.exit]]
 aliases = ["BATHROOM", "TOILET", "DOOR", "EAST", "BATHROOM DOOR"]
 dest = "BATHROOM"
-description = "your bathroom door"
+description = "your $FANCY_BATHROOM_NAME door"
 message = '''
 You go through the door and enter the bathroom.
 '''
@@ -46,7 +46,7 @@ aliases = ["HALLWAY", "HALL", "OUT", "SOUTH"]
 dest = "HALLWAY"
 description = "the door to the hall"
 message = '''
-You shut the door behind you as you go into the hall.
+You shut the door behind you as you $WALK_STYLE into the hall.
 '''
 
 

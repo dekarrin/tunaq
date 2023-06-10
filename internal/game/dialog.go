@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/dekarrin/rosed"
+	"github.com/dekarrin/tunaq/tunascript"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -66,6 +67,21 @@ type DialogStep struct {
 	// after a PAUSE step. It is only relevant if Action is DialogPause. If
 	// blank on a PAUSE step, it will resume with the next step in the tree.
 	ResumeAt string
+
+	// tmplResponse is the pre-computed tunascript template AST for the
+	// Response. It can only be created by a Tunascript engine and will not be
+	// present on initial load of DialogStep from disk.
+	tmplResponse *tunascript.Template
+
+	// tmplContent is the pre-computed tunascript template AST for the Content.
+	// It can only be created by a Tunascript engine and will not be present on
+	// initial load of DialogStep from disk.
+	tmplContent *tunascript.Template
+
+	// tmplChoices is the pre-computed tunascript template ASTs for the player
+	// response parts of Choices. It can only be created by a Tunascript engine
+	// and will not be present on initial load of DialogStep from disk.
+	tmplChoices []*tunascript.Template
 }
 
 // Copy returns a deeply-copied DialogStep.
@@ -125,7 +141,7 @@ func (ds DialogStep) String() string {
 // can be created simply by manually creating a Conversation and assigning a
 // sequence of steps to Dialog.
 type Conversation struct {
-	Dialog  []DialogStep
+	Dialog  []*DialogStep
 	cur     int
 	aliases map[string]int
 }
@@ -137,9 +153,9 @@ type Conversation struct {
 // that one is processed. If it returns a DialogStep with an Action of
 // DialogChoice, JumpTo should be used to jump to the given alias before calling
 // NextStep again.
-func (convo *Conversation) NextStep() DialogStep {
+func (convo *Conversation) NextStep() *DialogStep {
 	if convo.cur >= len(convo.Dialog) {
-		return DialogStep{Action: DialogEnd}
+		return &DialogStep{Action: DialogEnd}
 	}
 
 	current := convo.Dialog[convo.cur]
@@ -209,15 +225,14 @@ func (gs *State) RunConversation(npc *NPC) error {
 				npc.Convo = nil
 				return nil
 			case DialogLine:
-				line := step.Content
-				resp := step.Response
-
+				line := gs.Expand(step.tmplContent)
 				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
 					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
 					Wrap(gs.io.Width).
 					Insert(rosed.End, "\n")
-				if resp != "" {
+				if step.Response != "" {
+					resp := gs.Expand(step.tmplResponse)
 					ed = ed.
 						Insert(rosed.End, "\nYOU:\n").
 						Insert(rosed.End, rosed.Edit("\""+strings.TrimSpace(resp)+"\"").Wrap(gs.io.Width).String()).
@@ -229,7 +244,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 					return err
 				}
 
-				stopCmd, err := gs.io.Input("==> ")
+				stopCmd, err := gs.io.Input("(Enter to continue, 'STOP' to end) ==>")
 				if err != nil {
 					return err
 				}
@@ -239,7 +254,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 					return nil
 				}
 			case DialogChoice:
-				line := step.Content
+				line := gs.Expand(step.tmplContent)
 				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
 					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
@@ -249,9 +264,11 @@ func (gs *State) RunConversation(npc *NPC) error {
 
 				var choiceOut = make([]string, len(step.Choices))
 				for idx := range step.Choices {
-					ch := step.Choices[idx][0]
+					tsCh := step.tmplChoices[idx]
 					chDest := step.Choices[idx][1]
 					choiceOut[idx] = chDest
+
+					ch := gs.Expand(tsCh)
 
 					ed = ed.Insert(rosed.End, fmt.Sprintf("%d) \"%s\"\n", idx+1, strings.TrimSpace(ch)))
 				}
