@@ -5,6 +5,7 @@ package tunascript
 import (
 	"fmt"
 	"io"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -400,7 +401,8 @@ func (interp *Interpreter) AddFlag(label string, val string) error {
 		}
 	}
 
-	interp.flags[label] = ParseValue(val)
+	tsVal := ParseValue(val)
+	interp.flags[label] = tsVal
 
 	return nil
 }
@@ -411,6 +413,7 @@ func (interp *Interpreter) ListFlags() []string {
 	curFlagIdx := 0
 	for k := range interp.flags {
 		flags[curFlagIdx] = k
+		curFlagIdx++
 	}
 
 	sort.Strings(flags)
@@ -429,6 +432,7 @@ func (interp *Interpreter) GetFlag(label string) string {
 	if !ok {
 		return ""
 	}
+
 	return flag.String()
 }
 
@@ -652,6 +656,8 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.B
 		if err != nil {
 			return n, err
 		}
+
+		log.Printf("TRANSLATING BRANCH: %v", newIf)
 
 		newBranch := syntax.BranchBlock{
 			If:     newIf.AsCond(),

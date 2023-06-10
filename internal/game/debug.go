@@ -63,6 +63,12 @@ func (gs *State) executeDebugExec(s string) (string, error) {
 }
 
 func (gs *State) executeDebugExpand(s string) (string, error) {
+	tmpl, err := gs.scripts.ParseTemplate(s)
+	if err != nil {
+		return "", err
+	} else {
+		return tmpl.String(), nil
+	}
 	return gs.scripts.Expand(s)
 }
 

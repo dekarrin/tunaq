@@ -302,7 +302,7 @@ func (n BranchBlock) String() string {
 	elifStart := " EI:"
 	elseStart := " E: "
 
-	s := "[EXP_BRANCH\n"
+	s := "[BRANCH\n"
 
 	s += fmt.Sprintf("%s%s\n", ifStart, spaceIndentNewlines(n.If.String(), len(ifStart)))
 
@@ -433,10 +433,10 @@ func (n CondBlock) String() string {
 	if n.Cond.Nodes != nil {
 		condStr = spaceIndentNewlines(n.Cond.String(), len(condStart))
 	} else {
-		condStr = spaceIndentNewlines(n.RawCond, len(condStart))
+		condStr = spaceIndentNewlines("(raw) "+n.RawCond, len(condStart))
 	}
 
-	s := fmt.Sprintf("[EXP_COND\n%s%s", condStart, condStr)
+	s := fmt.Sprintf("[COND\n%s%s", condStart, condStr)
 
 	for i := range n.Content {
 		contentStr := spaceIndentNewlines(n.Content[i].String(), len(contentStart))

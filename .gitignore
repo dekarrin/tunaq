@@ -14,6 +14,7 @@
 /tqi.sh
 /tqi.exe~
 *.exe
+/tqi.bat
 
 # we are a go mod household tyvm
 /vendor
