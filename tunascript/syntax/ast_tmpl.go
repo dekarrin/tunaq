@@ -291,7 +291,7 @@ type BranchBlock struct {
 	Source lex.Token
 }
 
-func (n BranchBlock) Type() BlockType       { return TmplFlag }
+func (n BranchBlock) Type() BlockType       { return TmplBranch }
 func (n BranchBlock) AsText() TextBlock     { panic("Type() is not ExpText") }
 func (n BranchBlock) AsFlag() FlagBlock     { panic("Type() is not ExpFlag") }
 func (n BranchBlock) AsBranch() BranchBlock { return n }
