@@ -15,6 +15,16 @@ windows/amd64
 linux/amd64"
 fi
 
+function zip_files() {
+  if command -v zip
+  then
+
+  elif command -v 7za
+  then
+
+  else
+    echo "no zip command found; install one of 'zip', 7za' then try again.
+}
 
 # only do skip tests if tests have already been done.
 [ "$1" = "--skip-tests" ] && skip_tests=1
