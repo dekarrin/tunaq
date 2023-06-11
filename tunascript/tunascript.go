@@ -23,6 +23,14 @@ type AST = syntax.AST
 type Template = syntax.Template
 type Value = syntax.Value
 
+var (
+	// ReturnTrue is an AST that when executed, always returns true.
+	ReturnTrue = MustParse("true")
+
+	// ReturnFalse is an AST that when executed, always returns false.
+	ReturnFalse = MustParse("false")
+)
+
 // TranslateOperators converts the operators in the given TunaScript string to
 // function calls.
 func TranslateOperators(s string) (string, error) {
@@ -108,6 +116,15 @@ func ParseValue(s string) Value {
 	}
 
 	return syntax.ValueOf(s)
+}
+
+// MustParse does the same thing as Parse but will panic if any errors occur.
+func MustParse(code string) AST {
+	ast, err := Parse(code, "")
+	if err != nil {
+		panic(err.Error())
+	}
+	return ast
 }
 
 // Parse parses (but does not execute) TunaScript code. It will use fromFile in
@@ -339,7 +356,7 @@ func (interp *Interpreter) ParseTemplate(code string) (ast Template, err error) 
 	// okay, we got the template AST, now go through and recursively translate
 	// the RawCond of ExpCondNodes to TunaScript ASTs.
 	for i := range ast.Blocks {
-		newNode, err := interp.translateTemplateTunascript(ast.Blocks[i])
+		newNode, err := translateTemplateTunascript(ast.Blocks[i], interp.File)
 		if err != nil {
 			return ast, err
 		}
@@ -374,7 +391,7 @@ func (interp *Interpreter) ParseTemplateReader(r io.Reader) (ast Template, err e
 	// okay, we got the template AST, now go through and recursively translate
 	// the RawCond of ExpCondNodes to TunaScript ASTs.
 	for i := range ast.Blocks {
-		newNode, err := interp.translateTemplateTunascript(ast.Blocks[i])
+		newNode, err := translateTemplateTunascript(ast.Blocks[i], interp.File)
 		if err != nil {
 			return ast, err
 		}
@@ -682,7 +699,31 @@ func (interp *Interpreter) initFrontend() {
 	}
 }
 
-func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.Block, error) {
+// VerifyNoMutations returns whether the given AST contains no mutations. If it
+// does, a non-nil error.
+func VerifyNoMutations(ast AST) error {
+	queryOnly, badNode := validateQueryOnly(ast)
+	if !queryOnly {
+		// Goodness It Appears The User Is Attempting To Perform Mutations In A Template. This Is Disallowed.
+		// 4ND TH1S S1N SH4LL B3 D34LT W1TH SW1FTLY BY 1SSU1NG TH3 WORST OF PUN1SHM3NTS >:]
+		// No. But It Will Be Dealt With By Returning An Error.
+		// CLOS3 3NOUGH.
+		var tsSynErr *syntaxerr.Error
+		if badNode.Type() == syntax.ASTFunc {
+			fNode := badNode.AsFuncNode()
+			tsSynErr = lex.NewSyntaxErrorFromToken(fmt.Sprintf("$%s() changes things, so it can't be used in TQ templates", fNode.Func), badNode.Source())
+		} else if badNode.Type() == syntax.ASTAssignment {
+			aNode := badNode.AsAssignmentNode()
+			tsSynErr = lex.NewSyntaxErrorFromToken(fmt.Sprintf("%s changes things, so it can't be used in TQ templates", aNode.Op.Symbol()), badNode.Source())
+		} else {
+			panic("badNode is not assignment or func node")
+		}
+		return fmt.Errorf("code contains mutations:\n%s", tsSynErr.FullMessage())
+	}
+	return nil
+}
+
+func translateTemplateTunascript(n syntax.Block, forFile string) (syntax.Block, error) {
 	switch n.Type() {
 	case syntax.TmplFlag:
 		return n, nil
@@ -690,7 +731,7 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.B
 		return n, nil
 	case syntax.TmplBranch:
 		nb := n.AsBranch()
-		newIf, err := interp.translateTemplateTunascript(nb.If)
+		newIf, err := translateTemplateTunascript(nb.If, forFile)
 		if err != nil {
 			return n, err
 		}
@@ -701,7 +742,7 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.B
 			Else:   nb.Else,
 		}
 		for i := range nb.ElseIf {
-			newElseIf, err := interp.translateTemplateTunascript(nb.ElseIf[i])
+			newElseIf, err := translateTemplateTunascript(nb.ElseIf[i], forFile)
 			if err != nil {
 				return n, err
 			}
@@ -713,7 +754,7 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.B
 
 		// feed the text into the tunascript frontend and validate only query
 		// funcs were called.
-		ast, err := interp.Parse(nc.RawCond)
+		ast, err := Parse(nc.RawCond, forFile)
 		if err != nil {
 			// provide some context
 			synErr, ok := err.(*syntaxerr.Error)
@@ -722,13 +763,13 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.B
 			}
 
 			curErr := lex.NewSyntaxErrorFromToken("syntax error encountered while parsing TunaScript in template", nc.Source)
-			contextualizedErr := fmt.Errorf("%s:\n%s", curErr.MessageForFile(interp.File), synErr.FullMessage())
+			contextualizedErr := fmt.Errorf("%s:\n%s", curErr.MessageForFile(forFile), synErr.FullMessage())
 
 			return n, contextualizedErr
 		}
 
 		// no errors! great, double-check that all the TS is legal
-		queryOnly, badNode := interp.validateQueryOnly(ast)
+		queryOnly, badNode := validateQueryOnly(ast)
 		if !queryOnly {
 			// Goodness It Appears The User Is Attempting To Perform Mutations In A Template. This Is Disallowed.
 			// 4ND TH1S S1N SH4LL B3 D34LT W1TH SW1FTLY BY 1SSU1NG TH3 WORST OF PUN1SHM3NTS >:]
@@ -746,7 +787,7 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.B
 			}
 			curErr := lex.NewSyntaxErrorFromToken("syntax error encountered while parsing TunaScript in template", nc.Source)
 
-			contextualizedErr := fmt.Errorf("%s:\n%s", curErr.MessageForFile(interp.File), tsSynErr.FullMessage())
+			contextualizedErr := fmt.Errorf("%s:\n%s", curErr.MessageForFile(forFile), tsSynErr.FullMessage())
 
 			return n, contextualizedErr
 		}
@@ -764,9 +805,9 @@ func (interp *Interpreter) translateTemplateTunascript(n syntax.Block) (syntax.B
 	}
 }
 
-func (interp *Interpreter) validateQueryOnly(ast AST) (queryOnly bool, badNode syntax.ASTNode) {
+func validateQueryOnly(ast AST) (queryOnly bool, badNode syntax.ASTNode) {
 	for i := range ast.Nodes {
-		bn := interp.findFirstWithSideEffects(ast.Nodes[i])
+		bn := findFirstWithSideEffects(ast.Nodes[i])
 		if bn != nil {
 			return false, bn
 		}
@@ -776,17 +817,17 @@ func (interp *Interpreter) validateQueryOnly(ast AST) (queryOnly bool, badNode s
 
 // Will only return non-nil if it finds a FuncNode with a non-compliant func
 // node in a left-first, depth-first visit through all nodes.
-func (interp *Interpreter) findFirstWithSideEffects(n syntax.ASTNode) syntax.ASTNode {
+func findFirstWithSideEffects(n syntax.ASTNode) syntax.ASTNode {
 	switch n.Type() {
 	case syntax.ASTAssignment:
 		// this has side-effects
 		return n
 	case syntax.ASTBinaryOp:
-		leftBad := interp.findFirstWithSideEffects(n.AsBinaryOpNode().Left)
+		leftBad := findFirstWithSideEffects(n.AsBinaryOpNode().Left)
 		if leftBad != nil {
 			return leftBad
 		}
-		rightBad := interp.findFirstWithSideEffects(n.AsBinaryOpNode().Right)
+		rightBad := findFirstWithSideEffects(n.AsBinaryOpNode().Right)
 		if rightBad != nil {
 			return rightBad
 		}
@@ -794,22 +835,22 @@ func (interp *Interpreter) findFirstWithSideEffects(n syntax.ASTNode) syntax.AST
 	case syntax.ASTFlag:
 		return nil
 	case syntax.ASTGroup:
-		return interp.findFirstWithSideEffects(n.AsGroupNode().Expr)
+		return findFirstWithSideEffects(n.AsGroupNode().Expr)
 	case syntax.ASTLiteral:
 		return nil
 	case syntax.ASTUnaryOp:
-		return interp.findFirstWithSideEffects(n.AsUnaryOpNode().Operand)
+		return findFirstWithSideEffects(n.AsUnaryOpNode().Operand)
 	case syntax.ASTFunc:
 		// now this is the good stuff, the actual validation
 		fnode := n.AsFuncNode()
-		info := interp.fn[fnode.Func]
-		if info.def.SideEffects {
+		def := syntax.BuiltInFunctions[fnode.Func]
+		if def.SideEffects {
 			return &fnode
 		}
 
 		// ...but if it didnt have side effects, be shore to check its args 38O
 		for i := range fnode.Args {
-			badArg := interp.findFirstWithSideEffects(fnode.Args[i])
+			badArg := findFirstWithSideEffects(fnode.Args[i])
 			if badArg != nil {
 				return badArg
 			}

@@ -72,6 +72,16 @@ type Egress struct {
 	// prevent spoilerific room names.
 	Aliases []string
 
+	// If is the tunascript that is evaluated to determine if this egress is
+	// interactable and visible to the user. If IfRaw is empty, this will be an
+	// expression that always returns true.
+	If tunascript.AST
+
+	// IfRaw is the string that contains the TunaScript source code that was
+	// parsed into the AST located in If. It will be empty if no code was parsed
+	// to do so.
+	IfRaw string
+
 	// tmplDescription is the precomputed template AST for the description text.
 	// It must generally be filled in with the game engine, and will not be
 	// present directly when loaded from disk.

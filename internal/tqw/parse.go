@@ -7,6 +7,7 @@ import (
 
 	"github.com/dekarrin/tunaq/internal/command"
 	"github.com/dekarrin/tunaq/internal/game"
+	"github.com/dekarrin/tunaq/tunascript"
 )
 
 // these two are getting chucked into a char class so order matters
@@ -74,6 +75,31 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 		}
 
 		room := r.toGameRoom()
+
+		// run a parse on the tunascript and set the If of each egress
+		for i := range room.Exits {
+			egressIfCode := room.Exits[i].IfRaw
+
+			if strings.TrimSpace(egressIfCode) == "" {
+				// give it an "always true"
+				room.Exits[i].IfRaw = ""
+				room.Exits[i].If = tunascript.ReturnTrue
+			} else {
+				tsAST, err := tunascript.Parse(room.Exits[i].IfRaw, "")
+				if err != nil {
+					return world, fmt.Errorf("rooms[%q]: exits[%d]: %w", r.Label, i, err)
+				}
+
+				// check for mutations
+				err = tunascript.VerifyNoMutations(tsAST)
+				if err != nil {
+					return world, fmt.Errorf("rooms[%q]: exits[%d]: %w", r.Label, i, err)
+				}
+
+				room.Exits[i].If = tsAST
+			}
+		}
+
 		world.Rooms[r.Label] = &room
 	}
 

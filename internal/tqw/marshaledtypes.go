@@ -218,6 +218,7 @@ type egress struct {
 	Description string   `toml:"description"`
 	Message     string   `toml:"message"`
 	Aliases     []string `toml:"aliases"`
+	If          string   `toml:"if"`
 }
 
 func (te egress) toGameEgress() game.Egress {
@@ -226,6 +227,7 @@ func (te egress) toGameEgress() game.Egress {
 		Description:   te.Description,
 		TravelMessage: te.Message,
 		Aliases:       make([]string, len(te.Aliases)),
+		IfRaw:         te.If,
 	}
 
 	for i := range te.Aliases {
