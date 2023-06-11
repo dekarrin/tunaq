@@ -106,9 +106,14 @@ a brief overview of the file format and tunascript
 link to source code to see sample directly, and link to live server to play,
 (one day, glubglub!!!)
 
+## Dev Info
 
-Possible Issues For Devs
-------------------------
+### Requirements
+
+* To build the distributions you need a Go build environment.
+* To build the distributions you must have zip, 7z, or 7za installed.
+
+### Possible Issues
 It's an in-dev engine and is very incomplete at the moment. Note the following
 points if deving:
 * Currently, the `tqi` bin will fail running if built for windows and executed

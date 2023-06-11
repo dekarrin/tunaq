@@ -15,19 +15,35 @@ windows/amd64
 linux/amd64"
 fi
 
+redirected_output="$(mktemp)"
+
 function zip_files() {
   if command -v zip &>/dev/null
   then
-    zip "$1" "${@:2}" -rq
+   zip "$1" "${@:2}" -rq
   elif command -v 7z &>/dev/null
   then
-    7a a "$1" "${@:2}" -r
+    # 7z does not have a 'silent' mode so redirect it to a temp file and only
+    # show it if command fails
+    7z a "$1" "${@:2}" -r &>"$redirected_output"
+    exit_code="$?"
+    if [ "$exit_code" -ne 0 ]
+    then
+      cat "$redirected_output"
+      return "$exit_code"
+    fi
   elif command -v 7za &>/dev/null
   then
-    7za a "$1" "${@:2}" -r
+    7za a "$1" "${@:2}" -r &>"$redirected_output"
+    exit_code="$?"
+    if [ "$exit_code" -ne 0 ]
+    then
+      cat "$redirected_output"
+      return "$exit_code"
+    fi
   else
-    echo "no zip command found; install one of 'zip', 7za', '7z' then try again."
-    return 1
+    echo "ERR: none of {zip,7z,7za} present on system" >&2
+    return 2
   fi
 }
 
@@ -39,13 +55,8 @@ function tar_files() {
 	  then
 		  if ! gtar --version >/dev/null 2>&1
 		  then
-		  	echo "You appear to be running on a mac where 'tar' is BSD tar." >&2
-		  	echo "This will cause issues due to its adding of non-standard headers." >&2
-		  	echo "" >&2
-		  	echo "Please install GNU tar and make it available as 'gtar' with:" >&2
-		  	echo "  brew install gnu-tar" >&2
-		  	echo "And then try again" >&2
-		  	exit 1
+		  	echo "ERR: tar is BSD-flavored" >&2
+		  	return 1
 		  else
 		  	tar_cmd=gtar
 		  fi
@@ -54,6 +65,32 @@ function tar_files() {
 
   "$tar_cmd" czf "$1" "${@:2}"
 }
+
+# check all commands exist
+if [ "$(uname -s)" = "Darwin" ]
+then
+  if tar --version | grep bsdtar >/dev/null 2>&1
+  then
+    if ! gtar --version >/dev/null 2>&1
+    then
+      echo "You appear to be running on a mac where 'tar' is BSD tar." >&2
+      echo "This will cause issues due to its adding of non-standard headers." >&2
+      echo "" >&2
+      echo "Please install GNU tar and make it available as 'gtar' with:" >&2
+      echo "  brew install gnu-tar" >&2
+      echo "And then try again" >&2
+      exit 1
+    fi
+  fi
+fi
+
+if command -v zip &>/dev/null ; then nop=
+elif command -v 7z &>/dev/null ; then nop=
+elif command -v 7za &>/dev/null ; then nop=
+else
+  echo "no zip or zip-compatible command found (gzip is not compatible)" >&2
+  echo "install one of zip, 7z, or 7za and then try again." >&2
+fi
 
 # only do skip tests if tests have already been done.
 [ "$1" = "--skip-tests" ] && skip_tests=1
@@ -102,8 +139,14 @@ for p in $PLATFORMS
 do
   current_os="${p%/*}"
   current_arch="${p#*/}"
+
   echo "Building for $current_os on $current_arch..."
-  [ "$current_os" = "windows" ] && for_windows=1
+  if [ "$current_os" = "windows" ]
+  then
+    for_windows=1
+  else
+    for_windows=
+  fi
 
   dist_bin_name="$BINARY_NAME"
   if [ -n "$for_windows" ]
@@ -122,7 +165,7 @@ do
   mkdir "$distfolder"
   mkdir "$distfolder/docs"
   mkdir "$distfolder/world"
-  if [ "$for_windows" ]
+  if [ -n "$for_windows" ]
   then
     cp source.zip "$distfolder"
   else
@@ -140,7 +183,7 @@ do
   fi
   mv $dist_bin_name "$distfolder/"
 
-  if [ "$for_windows" ]
+  if [ -n "$for_windows" ]
   then
     archive_ext="zip"
     zip_files "$dist_versioned_name.$archive_ext" "$distfolder"
@@ -157,4 +200,4 @@ done
 
 rm -rf source.tar.gz
 rm -rf source.zip
-
+rm -rf "$redirected_output"
