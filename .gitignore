@@ -8,13 +8,15 @@
 /.vscode
 /.idea
 
-# bins
+# bins and tunaquest artifacts
 /tqi
 /tqi.exe
 /tqi.sh
 /tqi.exe~
 *.exe
 /tqi.bat
+/source-*
+/tunaquest-*
 
 # we are a go mod household tyvm
 /vendor
@@ -32,5 +34,4 @@ tunascript/tsi.exe
 /tsi.exe
 /tte
 /tte.exe
-
 
