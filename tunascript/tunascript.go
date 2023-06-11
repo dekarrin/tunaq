@@ -110,6 +110,45 @@ func ParseValue(s string) Value {
 	return syntax.ValueOf(s)
 }
 
+// Parse parses (but does not execute) TunaScript code. It will use fromFile in
+// error reporting; this can be left as "". The code is converted into an AST
+// for further examination.
+func Parse(code string, fromFile string) (ast AST, err error) {
+	tsFront := fe.Frontend(syntax.HooksTable, nil)
+
+	ast, _, err = tsFront.AnalyzeString(code)
+	if err != nil {
+
+		// wrap syntax errors so user of the Interpreter doesn't have to check
+		// for a special syntax error just to get the detailed syntax err info
+		if synErr, ok := err.(*syntaxerr.Error); ok {
+			return ast, fmt.Errorf("%s", synErr.MessageForFile(fromFile))
+		}
+	}
+
+	return ast, err
+}
+
+// ParseReader parses (but does not execute) TunaScript code in the given
+// reader. It will use fromFile in error reporting; this can be left as "". The
+// entire contents of the Reader are read as TS code, which is returned as an
+// AST for further examination.
+func ParseReader(r io.Reader, fromFile string) (ast AST, err error) {
+	tsFront := fe.Frontend(syntax.HooksTable, nil)
+
+	ast, _, err = tsFront.Analyze(r)
+	if err != nil {
+
+		// wrap syntax errors so user of the Interpreter doesn't have to check
+		// for a special syntax error just to get the detailed syntax err info
+		if synErr, ok := err.(*syntaxerr.Error); ok {
+			return ast, fmt.Errorf("%s", synErr.MessageForFile(fromFile))
+		}
+	}
+
+	return ast, err
+}
+
 type WorldInterface interface {
 
 	// InInventory returns whether the given label Item is in the player
