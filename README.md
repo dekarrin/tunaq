@@ -111,7 +111,66 @@ link to source code to see sample directly, and link to live server to play,
 ### Requirements
 
 * To build the distributions you need a Go build environment.
-* To build the distributions you must have zip, 7z, or 7za installed.
+* To build the distributions you must have zip, 7z, or 7za installed. You can
+install one via any method you choose; below are some instructions for getting
+them using popular methods generally available.
+
+#### Installing Build Requirements On Mac
+
+* For zip-file creation support needed to run `scripts/create-dists.sh`, do at
+least one of the following:
+    * Install zip with brew by running `brew install zip`.
+
+#### Installing Build Requirements On Linux (Ubuntu)
+
+These steps should work with Ubuntu and most Debian-derived distributions
+(although some may have different names for the packages).
+
+* For zip-file creation support needed to run `scripts/create-dists.sh`, do at
+least one of the following:
+    * Install 7z: `sudo apt install p7zip-full`.
+    * Install zip: `sudo apt install zip`.
+#### Installing Build Requirements On Linux (CentOS)
+
+These steps should work with CentOS and most RedHat-derived distributions
+(although some may have different names for the packages).
+
+* For zip-file creation support needed to run `scripts/create-dists.sh`, do at
+least one of the following:
+  * Install 7za only: `sudo yum install p7zip`
+  * Install 7z: `sudo yum install p7zip p7zip-plugins`
+  * Install zip: `sudo yum install zip`
+
+#### Installing Build Requirements On Windows
+
+* For zip-file creation support needed to run `scripts/create-dists.sh`, do at
+least one of the following:
+  * Install 7za: Get it from the
+  [7-Zip downloads page](https://7-zip.org/download.html).
+    1. First, grab the 7zr EXE. At the time of this writing, it is listed with
+    the description "7zr.exe (x86): 7-Zip console executable" and the latest
+    stable release is available at [7zr.exe v23.00 (x86)](https://7-zip.org/a/7zr.exe).
+    2. Place 7zr on your PATH or other executable location if you wish, but as
+    it will only be assisting in getting an executable that handles everything
+    7zr does and more, you can simply elect to leave it in your Downloads folder
+    for the moment.
+    3. Next, download the "7-Zip Extra" archive. As of the time of this writing,
+    it is listed with a type of .7z and a description that mentions the
+    "standalone console version", and the latest stable release is available at
+    [7-Zip Extra v22.01](https://7-zip.org/a/7z2201-extra.7z). Place it in the
+    same location as the 7zr EXE.
+    4. Use 7zr to extract the extras with Windows Command Prompt or a shell of
+    your choice:
+        * `cd Downloads` (or whatever directory you downloaded 7-Zip Extra to)
+        * `mkdir 7zip-extra`
+        * `move 7z2201-extra.7z 7zip-extra`
+        * `move 7zr.exe 7zip-extra`
+        * `cd 7zip-extra`
+        * `7zr.exe x 7z2201-extra.7z`
+    5. 7za.exe should now be present in the folder `7zip-extra` in your
+    Downloads folder. Place it somewhere on your PATH, and then you can delete
+    everything in the `7zip-extra` folder. If you are on a 64-bit system, you
+    can grab the one in the `x64` sub-folder instead, but it's not required.
 
 ### Possible Issues
 It's an in-dev engine and is very incomplete at the moment. Note the following
