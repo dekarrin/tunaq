@@ -40,6 +40,32 @@ type worldSymbols struct {
 	flagLabels    stringSet
 }
 
+// raw is what to set raw to, parsed is the parsed code to set, err is any error
+// that occurs. If tsCode is empty, tunascript.ReturnTrue is returned as a
+// No-Op and raw is set to the empty string, otherwise if tsCode is valid
+// tunascript, raw will simply be set to that.
+func parseTunascript(tsCode string, allowMutation bool) (raw string, parsed tunascript.AST, err error) {
+	if strings.TrimSpace(tsCode) == "" {
+		// give it an "always true"
+		return "", tunascript.ReturnTrue, nil
+	} else {
+		tsAST, err := tunascript.Parse(tsCode, "")
+		if err != nil {
+			return "", tunascript.AST{}, err
+		}
+
+		// check for mutations
+		if !allowMutation {
+			err = tunascript.VerifyNoMutations(tsAST)
+			if err != nil {
+				return "", tunascript.AST{}, err
+			}
+		}
+
+		return tsCode, tsAST, nil
+	}
+}
+
 func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 	if len(tqw.Rooms) < 1 {
 		return WorldData{}, fmt.Errorf("no room definitions were read")
@@ -78,26 +104,12 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 
 		// run a parse on the tunascript and set the If of each egress
 		for i := range room.Exits {
-			egressIfCode := room.Exits[i].IfRaw
-
-			if strings.TrimSpace(egressIfCode) == "" {
-				// give it an "always true"
-				room.Exits[i].IfRaw = ""
-				room.Exits[i].If = tunascript.ReturnTrue
-			} else {
-				tsAST, err := tunascript.Parse(room.Exits[i].IfRaw, "")
-				if err != nil {
-					return world, fmt.Errorf("rooms[%q]: exits[%d]: %w", r.Label, i, err)
-				}
-
-				// check for mutations
-				err = tunascript.VerifyNoMutations(tsAST)
-				if err != nil {
-					return world, fmt.Errorf("rooms[%q]: exits[%d]: %w", r.Label, i, err)
-				}
-
-				room.Exits[i].If = tsAST
+			raw, tsAST, err := parseTunascript(room.Exits[i].IfRaw, false)
+			if err != nil {
+				return world, fmt.Errorf("rooms[%q]: exits[%d]: %w", r.Label, i, err)
 			}
+			room.Exits[i].IfRaw = raw
+			room.Exits[i].If = tsAST
 		}
 
 		world.Rooms[r.Label] = &room
@@ -111,6 +123,15 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 		}
 
 		gameItem := it.toGameItem()
+
+		// run a parse on the tunascript and set the If of the item.
+		raw, tsAST, err := parseTunascript(gameItem.IfRaw, false)
+		if err != nil {
+			return world, fmt.Errorf("items[%q]: %w", it.Label, err)
+		}
+		gameItem.IfRaw = raw
+		gameItem.If = tsAST
+
 		r := world.Rooms[strings.ToUpper(it.Start)]
 		r.Items = append(r.Items, &gameItem)
 	}

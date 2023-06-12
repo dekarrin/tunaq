@@ -196,6 +196,7 @@ type item struct {
 	Description string   `toml:"description"`
 	Aliases     []string `toml:"aliases"`
 	Start       string   `toml:"start"`
+	If          string   `toml:"if"`
 }
 
 func (ti item) toGameItem() game.Item {
@@ -204,6 +205,7 @@ func (ti item) toGameItem() game.Item {
 		Name:        ti.Name,
 		Description: ti.Description,
 		Aliases:     make([]string, len(ti.Aliases)),
+		IfRaw:       ti.If,
 	}
 
 	for i := range ti.Aliases {
