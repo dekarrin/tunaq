@@ -42,6 +42,7 @@ type npc struct {
 	Start       string       `toml:"start"`
 	Movement    route        `toml:"movement"`
 	Dialogs     []dialogStep `toml:"line"`
+	If          string       `toml:"if"`
 }
 
 func (tn npc) toGameNPC() game.NPC {
@@ -54,6 +55,7 @@ func (tn npc) toGameNPC() game.NPC {
 		Movement:    tn.Movement.toGameRoute(),
 		Dialog:      make([]*game.DialogStep, len(tn.Dialogs)),
 		Aliases:     make([]string, len(tn.Aliases)),
+		IfRaw:       tn.If,
 	}
 
 	for i := range tn.Dialogs {

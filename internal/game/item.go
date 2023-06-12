@@ -62,7 +62,7 @@ type Item struct {
 	// explicitly given.
 	Aliases []string
 
-	// If is the tunascript that is evaluated to determine if this egress is
+	// If is the tunascript that is evaluated to determine if this item is
 	// interactable and visible to the user. If IfRaw is empty, this will be an
 	// expression that always returns true.
 	If tunascript.AST

@@ -181,8 +181,16 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 			npc.PronounSet = pronouns[strings.ToUpper(npc.Pronouns)]
 		}
 
-		// done parsing, NPC is good to go, add it to the world
 		gameNPC := npc.toGameNPC()
+
+		// done with main parsing of NPC, now parse its tunascript
+		raw, tsAST, err := parseTunascript(gameNPC.IfRaw, false)
+		if err != nil {
+			return world, fmt.Errorf("npcs[%q]: %w", npc.Label, err)
+		}
+		gameNPC.IfRaw = raw
+		gameNPC.If = tsAST
+
 		world.Rooms[gameNPC.Start].NPCs[gameNPC.Label] = &gameNPC
 	}
 
