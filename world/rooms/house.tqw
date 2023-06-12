@@ -9,6 +9,7 @@ name = "pogo hammer"
 description = '''
 A hammer combined with a pogo-stick. What could go wrong?
 '''
+if = "$POGO_VISIBLE"
 start = "YOUR_ROOM"
 
 
