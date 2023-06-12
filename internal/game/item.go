@@ -89,6 +89,8 @@ func (item Item) Copy() Item {
 		Name:        item.Name,
 		Description: item.Description,
 		Aliases:     make([]string, len(item.Aliases)),
+		If:          item.If,
+		IfRaw:       item.IfRaw,
 
 		tmplDescription: item.tmplDescription,
 	}

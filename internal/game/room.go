@@ -104,6 +104,8 @@ func (egress Egress) Copy() Egress {
 		Description:       egress.Description,
 		TravelMessage:     egress.TravelMessage,
 		Aliases:           make([]string, len(egress.Aliases)),
+		If:                egress.If,
+		IfRaw:             egress.IfRaw,
 		tmplDescription:   egress.tmplDescription,
 		tmplTravelMessage: egress.tmplTravelMessage,
 	}
@@ -217,7 +219,7 @@ func (room Room) GetTargetable(alias string, userLabel string, tsEng *tunascript
 	if eg := room.GetEgressByAlias(alias, userLabel, tsEng); eg != nil {
 		return eg
 	}
-	if it := room.GetItemByAlias(alias); it != nil {
+	if it := room.GetItemByAlias(alias, userLabel, tsEng); it != nil {
 		return it
 	}
 	if npc := room.GetNPCByAlias(alias); npc != nil {
@@ -284,13 +286,33 @@ func (room Room) ExitsAvailable(exiter string, tsEng *tunascript.Interpreter) []
 		return room.Exits
 	}
 
-	tsEng.AddFlag(FlagExiter, exiter)
+	tsEng.AddFlag(FlagAsker, exiter)
 	for i := range room.Exits {
 		if tsEng.Exec(room.Exits[i].If).Bool() {
 			avail = append(avail, room.Exits[i])
 		}
 	}
-	tsEng.RemoveFlag(FlagExiter)
+	tsEng.RemoveFlag(FlagAsker)
+
+	return avail
+}
+
+// ItemsAvailable returns all items that the entity with the given label can
+// see, as per the Item's If value.
+func (room Room) ItemsAvailable(asker string, tsEng *tunascript.Interpreter) []*Item {
+	var avail []*Item
+
+	if asker == "" || tsEng == nil {
+		return room.Items
+	}
+
+	tsEng.AddFlag(FlagAsker, asker)
+	for i := range room.Items {
+		if tsEng.Exec(room.Items[i].If).Bool() {
+			avail = append(avail, room.Items[i])
+		}
+	}
+	tsEng.RemoveFlag(FlagAsker)
 
 	return avail
 }
@@ -323,19 +345,23 @@ func (room Room) GetEgressByAlias(alias string, exiter string, tsEng *tunascript
 
 	// run the If-check
 	if foundEgress != nil && exiter != "" && tsEng != nil {
-		tsEng.AddFlag(FlagExiter, exiter)
+		tsEng.AddFlag(FlagAsker, exiter)
 		if !tsEng.Exec(foundEgress.If).Bool() {
 			foundEgress = nil
 		}
-		tsEng.RemoveFlag(FlagExiter)
+		tsEng.RemoveFlag(FlagAsker)
 	}
 
 	return foundEgress
 }
 
 // GetItemByAlias returns the item from the room that is represented by the
-// given alias. If no Item has that alias, the returned item is nil.
-func (room Room) GetItemByAlias(alias string) *Item {
+// given alias. If no Item visible to asker has that alias, the returned item
+// is nil. If an item with that alias exists, visibility is determined by
+// whether calling its If with the given interpreter returns true. To allow
+// returning of an Item regardless of its visibility, simply pass in "" for the
+// asker or nil for the interpreter.
+func (room Room) GetItemByAlias(alias string, asker string, tsEng *tunascript.Interpreter) *Item {
 	foundIdx := -1
 
 	for idx, it := range room.Items {
@@ -353,6 +379,15 @@ func (room Room) GetItemByAlias(alias string) *Item {
 	var foundItem *Item
 	if foundIdx != -1 {
 		foundItem = room.Items[foundIdx]
+	}
+
+	// run the If-check
+	if foundItem != nil && asker != "" && tsEng != nil {
+		tsEng.AddFlag(FlagAsker, asker)
+		if !tsEng.Exec(foundItem.If).Bool() {
+			foundItem = nil
+		}
+		tsEng.RemoveFlag(FlagAsker)
 	}
 	return foundItem
 }

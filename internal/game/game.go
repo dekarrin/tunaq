@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	TagPlayer  = "@PLAYER"
-	FlagExiter = "TQ_EXITER"
+	TagPlayer = "@PLAYER"
+	FlagAsker = "TQ_ASKER"
 )
 
 var commandHelp = [][2]string{
@@ -156,28 +156,33 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 			} else {
 				// item?
 				if roomLabel, ok := gs.itemLocations[target]; ok {
-					if roomLabel == "@INVEN" {
-						// it DOES move from backpack
-						it := gs.Inventory[target]
-						gs.World[dest].Items = append(gs.World[dest].Items, it)
-						delete(gs.Inventory, it.Label)
-						gs.itemLocations[target] = dest
-					}
 					if roomLabel == dest {
 						return false
 					}
-					// get the item
+
 					var item *Item
-					for _, it := range gs.World[roomLabel].Items {
-						if it.Label == target {
-							item = it
-							break
+					if roomLabel == "@INVEN" {
+						// it DOES move from backpack
+						item = gs.Inventory[target]
+						delete(gs.Inventory, item.Label)
+					} else {
+						// get the item
+						for _, it := range gs.World[roomLabel].Items {
+							if it.Label == target {
+								item = it
+								break
+							}
 						}
+						gs.World[roomLabel].RemoveItem(target)
 					}
 
-					gs.World[roomLabel].RemoveItem(target)
-					gs.World[dest].Items = append(gs.World[dest].Items, item)
+					if dest == "@INVEN" {
+						gs.Inventory[target] = item
+					} else {
+						gs.World[dest].Items = append(gs.World[dest].Items, item)
+					}
 					gs.itemLocations[target] = dest
+
 					return true
 				}
 
@@ -292,10 +297,11 @@ func (gs *State) Look(alias string) (string, error) {
 	} else {
 		desc = gs.Expand(gs.CurrentRoom.tmplDescription)
 
-		if len(gs.CurrentRoom.Items) > 0 {
+		availItems := gs.CurrentRoom.ItemsAvailable(TagPlayer, &gs.scripts)
+		if len(availItems) > 0 {
 			var itemNames []string
 
-			for _, it := range gs.CurrentRoom.Items {
+			for _, it := range availItems {
 				itemNames = append(itemNames, it.Name)
 			}
 
@@ -450,7 +456,7 @@ func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
 // ExecuteCommandTake executes the TAKE command with the arguments in the
 // provided Command and returns the output.
 func (gs *State) ExecuteCommandTake(cmd command.Command) (string, error) {
-	item := gs.CurrentRoom.GetItemByAlias(cmd.Recipient)
+	item := gs.CurrentRoom.GetItemByAlias(cmd.Recipient, TagPlayer, &gs.scripts)
 	if item == nil {
 		return "", tqerrors.Interpreterf("I don't see any %q here", cmd.Recipient)
 	}
