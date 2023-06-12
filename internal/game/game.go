@@ -252,7 +252,7 @@ func (gs *State) MoveNPCs() {
 		room := gs.World[roomLabel]
 		npc := room.NPCs[npcLabel]
 
-		next := npc.NextRouteStep(room)
+		next := npc.NextRouteStep(room, &gs.scripts)
 
 		if next != "" {
 			nextRoom := gs.World[next]
