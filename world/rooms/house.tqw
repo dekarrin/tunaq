@@ -37,6 +37,7 @@ You have a feeling it's going to be a long day.
 aliases = ["BATHROOM", "TOILET", "DOOR", "EAST", "BATHROOM DOOR"]
 dest = "BATHROOM"
 description = "your $FANCY_BATHROOM_NAME door"
+if = "$BATHROOM_OPEN"
 message = '''
 You go through the door and enter the bathroom.
 '''

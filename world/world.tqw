@@ -32,3 +32,8 @@ default = "SOME PLAYER"
 [[flag]]
 label = "JOEY_PLAYER_HELLO"
 default = "What's up"
+
+[[flag]]
+label = "BATHROOM_OPEN"
+default = on
+

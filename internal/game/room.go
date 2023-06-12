@@ -203,12 +203,18 @@ func (room Room) String() string {
 
 // GetTargetable returns the first Targetable game object (Egress, Item, NPC,
 // or Detail) from the room that is referred to by the given alias. If no
-// Targetable has that alias, the returned Targetable will be nil.
-func (room Room) GetTargetable(alias string) (t Targetable) {
+// Targetable has that alias, the returned Targetable will be nil. If no
+// Targetable visible to user has that alias, the returned egress is nil. If a
+// Targetable with that alias exists, visibility is determined by calling its If
+// function with the given interpreter. To allow returning of a Targetable
+// regardless of its visibility, simply pass in nil for the interpreter. User
+// label represents the thing trying to get/use/activate a Targetable, and may
+// not come into play for all of them.
+func (room Room) GetTargetable(alias string, userLabel string, tsEng *tunascript.Interpreter) (t Targetable) {
 	if det := room.GetDetailByAlias(alias); det != nil {
 		return det
 	}
-	if eg := room.GetEgressByAlias(alias); eg != nil {
+	if eg := room.GetEgressByAlias(alias, userLabel, tsEng); eg != nil {
 		return eg
 	}
 	if it := room.GetItemByAlias(alias); it != nil {
@@ -269,9 +275,33 @@ func (room Room) GetNPCByAlias(alias string) *NPC {
 	return foundNPC
 }
 
-// GetEgressByAlias returns the egress from the room that is represented by the
-// given alias. If no Egress has that alias, the returned egress is nil.
-func (room Room) GetEgressByAlias(alias string) *Egress {
+// ExitsAvailable returns all exits that the entity with the given label can
+// see, as per the Egress's If value.
+func (room Room) ExitsAvailable(exiter string, tsEng *tunascript.Interpreter) []*Egress {
+	var avail []*Egress
+
+	if exiter == "" || tsEng == nil {
+		return room.Exits
+	}
+
+	tsEng.AddFlag(FlagExiter, exiter)
+	for i := range room.Exits {
+		if tsEng.Exec(room.Exits[i].If).Bool() {
+			avail = append(avail, room.Exits[i])
+		}
+	}
+	tsEng.RemoveFlag(FlagExiter)
+
+	return avail
+}
+
+// GetEgressByAlias returns the active egress from the room that is represented
+// by the given alias. If no Egress visible to exiter has that alias, the
+// returned egress is nil. If an egress with that alias exists, visibility is
+// determined by whether calling its If with the given interpreter returns true.
+// To allow returning of an egress regardless of its visibility, simply pass in
+// "" for the exiter or nil for the interpreter.
+func (room Room) GetEgressByAlias(alias string, exiter string, tsEng *tunascript.Interpreter) *Egress {
 	foundIdx := -1
 
 	for egIdx, eg := range room.Exits {
@@ -290,6 +320,16 @@ func (room Room) GetEgressByAlias(alias string) *Egress {
 	if foundIdx != -1 {
 		foundEgress = room.Exits[foundIdx]
 	}
+
+	// run the If-check
+	if foundEgress != nil && exiter != "" && tsEng != nil {
+		tsEng.AddFlag(FlagExiter, exiter)
+		if !tsEng.Exec(foundEgress.If).Bool() {
+			foundEgress = nil
+		}
+		tsEng.RemoveFlag(FlagExiter)
+	}
+
 	return foundEgress
 }
 

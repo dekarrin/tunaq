@@ -462,6 +462,13 @@ func (interp *Interpreter) AddFlag(label string, val string) error {
 	return nil
 }
 
+// RemoveFlag removes the current value of the flag with the given label. It
+// will no longer exist as a defined variable. If there is already no flag with
+// the given label, this function has no effect.
+func (interp *Interpreter) RemoveFlag(label string) {
+	delete(interp.flags, label)
+}
+
 // ListFlags returns a list of all flags, sorted.
 func (interp *Interpreter) ListFlags() []string {
 	flags := make([]string, len(interp.flags))

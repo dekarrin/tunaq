@@ -12,6 +12,11 @@ import (
 	"github.com/dekarrin/tunaq/tunascript"
 )
 
+const (
+	TagPlayer  = "@PLAYER"
+	FlagExiter = "TQ_EXITER"
+)
+
 var commandHelp = [][2]string{
 	{"HELP", "show this help"},
 	{"DROP/PUT", "put down an object in the room"},
@@ -142,7 +147,7 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 				// TODO: don't fail silently
 				return false
 			}
-			if target == "@PLAYER" {
+			if target == TagPlayer {
 				if gs.CurrentRoom.Label == dest {
 					return false
 				}
@@ -278,7 +283,7 @@ func (gs *State) Expand(s *tunascript.Template) string {
 func (gs *State) Look(alias string) (string, error) {
 	var desc string
 	if alias != "" {
-		lookTarget := gs.CurrentRoom.GetTargetable(alias)
+		lookTarget := gs.CurrentRoom.GetTargetable(alias, TagPlayer, &gs.scripts)
 		if lookTarget == nil {
 			return "", tqerrors.Interpreterf("I don't see any %q here", alias)
 		}
@@ -380,7 +385,7 @@ func (gs *State) Advance(cmd command.Command) error {
 // ExecuteCommandGo executes the GO command with the arguments in the provided
 // Command and returns the output.
 func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
-	egress := gs.CurrentRoom.GetEgressByAlias(cmd.Recipient)
+	egress := gs.CurrentRoom.GetEgressByAlias(cmd.Recipient, TagPlayer, &gs.scripts)
 	if egress == nil {
 		return "", tqerrors.Interpreterf("%q isn't a place you can go from here", cmd.Recipient)
 	}
@@ -411,7 +416,9 @@ func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
 // provided Command and returns the output.
 func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
 	ed := rosed.Edit("You search for ways out of the room, ").WithOptions(textFormatOptions)
-	if len(gs.CurrentRoom.Exits) < 1 {
+
+	foundExits := gs.CurrentRoom.ExitsAvailable(TagPlayer, &gs.scripts)
+	if len(foundExits) < 1 {
 		ed = ed.Insert(rosed.End, "but you can't seem to find any exits right now")
 	} else {
 
@@ -419,7 +426,7 @@ func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
 			Insert(rosed.End, "and find:\n").
 			CharsFrom(rosed.End)
 
-		for _, eg := range gs.CurrentRoom.Exits {
+		for _, eg := range foundExits {
 			expanded := gs.Expand(eg.tmplDescription)
 			ed = ed.Insert(rosed.End, "XX* "+eg.Aliases[0]+": "+expanded+"\n")
 		}
@@ -493,7 +500,7 @@ func (gs *State) ExecuteCommandLook(cmd command.Command) (string, error) {
 		ed = ed.Insert(rosed.End, "You check your surroundings.\n\n")
 	} else {
 		// is this an NPC? don't use 'the' with them
-		tgt := gs.CurrentRoom.GetTargetable(cmd.Recipient)
+		tgt := gs.CurrentRoom.GetTargetable(cmd.Recipient, TagPlayer, &gs.scripts)
 
 		theText := "the"
 		if IsNPC(tgt) {
