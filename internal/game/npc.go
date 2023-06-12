@@ -145,6 +145,8 @@ func (npc NPC) Copy() NPC {
 		Movement:    npc.Movement.Copy(),
 		Dialog:      make([]*DialogStep, len(npc.Dialog)),
 		Aliases:     make([]string, len(npc.Aliases)),
+		If:          npc.If,
+		IfRaw:       npc.IfRaw,
 
 		tmplDescription: npc.tmplDescription,
 	}

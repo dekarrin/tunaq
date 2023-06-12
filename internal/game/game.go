@@ -14,6 +14,7 @@ import (
 
 const (
 	TagPlayer = "@PLAYER"
+	TagSelf   = "@SELF"
 	FlagAsker = "TQ_ASKER"
 )
 
@@ -249,13 +250,22 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	return gs, nil
 }
 
-// MoveNPCs applies all movements on NPCs that are in the world.
+// MoveNPCs applies all movements on NPCs that are in the world whose If's
+// currently evaluate to true.
 func (gs *State) MoveNPCs() {
 	newLocs := map[string]string{}
 
 	for npcLabel, roomLabel := range gs.npcLocations {
 		room := gs.World[roomLabel]
 		npc := room.NPCs[npcLabel]
+
+		gs.scripts.AddFlag(FlagAsker, "@SELF")
+		isActive := gs.scripts.Exec(npc.If).Bool()
+		gs.scripts.RemoveFlag(FlagAsker)
+
+		if !isActive {
+			continue
+		}
 
 		next := npc.NextRouteStep(room, &gs.scripts)
 
@@ -311,28 +321,27 @@ func (gs *State) Look(alias string) (string, error) {
 			desc += util.MakeTextList(itemNames, true) + "."
 		}
 
-		if len(gs.CurrentRoom.NPCs) > 0 {
+		availNPCs := gs.CurrentRoom.NPCsAvailable(TagPlayer, &gs.scripts)
+		if len(availNPCs) > 0 {
 			var npcNames []string
 
-			for _, npc := range gs.CurrentRoom.NPCs {
+			for _, npc := range availNPCs {
 				npcNames = append(npcNames, npc.Name)
 			}
 
 			// TODO: prop so npcs can be invisible to looks for static npcs that are
 			// mostly included in description.
-			if len(npcNames) > 0 {
-				desc += "\n\nOh! "
+			desc += "\n\nOh! "
 
-				desc += util.MakeTextList(npcNames, false)
+			desc += util.MakeTextList(npcNames, false)
 
-				if len(npcNames) == 1 {
-					desc += " is "
-				} else {
-					desc += " are "
-				}
-
-				desc += "here."
+			if len(npcNames) == 1 {
+				desc += " is "
+			} else {
+				desc += " are "
 			}
+
+			desc += "here."
 		}
 	}
 
@@ -550,7 +559,7 @@ func (gs *State) ExecuteCommandInventory(cmd command.Command) (string, error) {
 // loop that will not exit until the conversation is PAUSED or an END step is
 // reached in it.
 func (gs *State) ExecuteCommandTalk(cmd command.Command) (string, error) {
-	npc := gs.CurrentRoom.GetNPCByAlias(cmd.Recipient)
+	npc := gs.CurrentRoom.GetNPCByAlias(cmd.Recipient, TagPlayer, &gs.scripts)
 	if npc == nil {
 		return "", tqerrors.Interpreterf("I don't see a %q you can talk to here.", cmd.Recipient)
 	}

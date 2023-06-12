@@ -6,6 +6,7 @@ package game
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/dekarrin/tunaq/tunascript"
@@ -222,7 +223,7 @@ func (room Room) GetTargetable(alias string, userLabel string, tsEng *tunascript
 	if it := room.GetItemByAlias(alias, userLabel, tsEng); it != nil {
 		return it
 	}
-	if npc := room.GetNPCByAlias(alias); npc != nil {
+	if npc := room.GetNPCByAlias(alias, userLabel, tsEng); npc != nil {
 		return npc
 	}
 
@@ -254,8 +255,12 @@ func (room Room) GetDetailByAlias(alias string) *Detail {
 }
 
 // GetNPCByAlias returns the NPC from the room that is referred to by the given
-// alias. If no NPC has that alias, the returned NPC is nil.
-func (room Room) GetNPCByAlias(alias string) *NPC {
+// alias. If no NPC visible to asker has that alias, the returned NPC is nil. If
+// an NPC with that alias exists, visibility is determined by whether calling
+// its If with the given interpreter returns true. To allow returning of an NPC
+// regardless of its visibility, simply pass in "" for the asker or nil for the
+// interpreter.
+func (room Room) GetNPCByAlias(alias string, asker string, tsEng *tunascript.Interpreter) *NPC {
 	foundLabel := ""
 
 	for label, npc := range room.NPCs {
@@ -274,47 +279,17 @@ func (room Room) GetNPCByAlias(alias string) *NPC {
 	if foundLabel != "" {
 		foundNPC = room.NPCs[foundLabel]
 	}
+
+	// run the If-check
+	if foundNPC != nil && asker != "" && tsEng != nil {
+		tsEng.AddFlag(FlagAsker, asker)
+		if !tsEng.Exec(foundNPC.If).Bool() {
+			foundNPC = nil
+		}
+		tsEng.RemoveFlag(FlagAsker)
+	}
+
 	return foundNPC
-}
-
-// ExitsAvailable returns all exits that the entity with the given label can
-// see, as per the Egress's If value.
-func (room Room) ExitsAvailable(exiter string, tsEng *tunascript.Interpreter) []*Egress {
-	var avail []*Egress
-
-	if exiter == "" || tsEng == nil {
-		return room.Exits
-	}
-
-	tsEng.AddFlag(FlagAsker, exiter)
-	for i := range room.Exits {
-		if tsEng.Exec(room.Exits[i].If).Bool() {
-			avail = append(avail, room.Exits[i])
-		}
-	}
-	tsEng.RemoveFlag(FlagAsker)
-
-	return avail
-}
-
-// ItemsAvailable returns all items that the entity with the given label can
-// see, as per the Item's If value.
-func (room Room) ItemsAvailable(asker string, tsEng *tunascript.Interpreter) []*Item {
-	var avail []*Item
-
-	if asker == "" || tsEng == nil {
-		return room.Items
-	}
-
-	tsEng.AddFlag(FlagAsker, asker)
-	for i := range room.Items {
-		if tsEng.Exec(room.Items[i].If).Bool() {
-			avail = append(avail, room.Items[i])
-		}
-	}
-	tsEng.RemoveFlag(FlagAsker)
-
-	return avail
 }
 
 // GetEgressByAlias returns the active egress from the room that is represented
@@ -390,6 +365,78 @@ func (room Room) GetItemByAlias(alias string, asker string, tsEng *tunascript.In
 		tsEng.RemoveFlag(FlagAsker)
 	}
 	return foundItem
+}
+
+// NPCsAvailable returns all exits that the entity with the given label can
+// see, as per the Egress's If value. The returned slice will be ordered by
+// label.
+func (room Room) NPCsAvailable(asker string, tsEng *tunascript.Interpreter) []*NPC {
+	var avail []*NPC
+
+	var allLabels []string
+
+	for k := range room.NPCs {
+		allLabels = append(allLabels, k)
+	}
+
+	sort.Strings(allLabels)
+
+	if asker == "" || tsEng == nil {
+		for _, lbl := range allLabels {
+			avail = append(avail, room.NPCs[lbl])
+		}
+	} else {
+		tsEng.AddFlag(FlagAsker, asker)
+		for _, lbl := range allLabels {
+			npc := room.NPCs[lbl]
+			if tsEng.Exec(npc.If).Bool() {
+				avail = append(avail, npc)
+			}
+		}
+		tsEng.RemoveFlag(FlagAsker)
+	}
+
+	return avail
+}
+
+// ExitsAvailable returns all exits that the entity with the given label can
+// see, as per the Egress's If value.
+func (room Room) ExitsAvailable(exiter string, tsEng *tunascript.Interpreter) []*Egress {
+	var avail []*Egress
+
+	if exiter == "" || tsEng == nil {
+		return room.Exits
+	}
+
+	tsEng.AddFlag(FlagAsker, exiter)
+	for i := range room.Exits {
+		if tsEng.Exec(room.Exits[i].If).Bool() {
+			avail = append(avail, room.Exits[i])
+		}
+	}
+	tsEng.RemoveFlag(FlagAsker)
+
+	return avail
+}
+
+// ItemsAvailable returns all items that the entity with the given label can
+// see, as per the Item's If value.
+func (room Room) ItemsAvailable(asker string, tsEng *tunascript.Interpreter) []*Item {
+	var avail []*Item
+
+	if asker == "" || tsEng == nil {
+		return room.Items
+	}
+
+	tsEng.AddFlag(FlagAsker, asker)
+	for i := range room.Items {
+		if tsEng.Exec(room.Items[i].If).Bool() {
+			avail = append(avail, room.Items[i])
+		}
+	}
+	tsEng.RemoveFlag(FlagAsker)
+
+	return avail
 }
 
 // RemoveItem removes the item of the given label from the room. If there is
