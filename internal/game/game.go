@@ -53,6 +53,9 @@ type State struct {
 	// Inventory is the objects that the player currently has.
 	Inventory Inventory
 
+	// TagSets is a set of tags and the Targetables that they refer to.
+	TagSets map[string][]*Targetable
+
 	// npcLocations is a map of an NPC's label to the label of the room that the
 	// NPC is currently in.
 	npcLocations map[string]string
