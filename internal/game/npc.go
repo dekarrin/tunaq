@@ -46,6 +46,16 @@ type NPC struct {
 	// NPC.
 	Convo *Conversation
 
+	// If is the tunascript that is evaluated to determine if this NPC is
+	// interactable and visible to the user. If IfRaw is empty, this will be an
+	// expression that always returns true.
+	If tunascript.AST
+
+	// IfRaw is the string that contains the TunaScript source code that was
+	// parsed into the AST located in If. It will be empty if no code was parsed
+	// to do so.
+	IfRaw string
+
 	// for NPCs with a path movement route, routeCur gives the step it is
 	// currently on.
 	routeCur *int
@@ -65,10 +75,11 @@ func (npc *NPC) ResetRoute() {
 
 // NextRouteStep gets the name of the next location this character would like to
 // travel to. If it returns an empty string, the NPC's route dictates that they
-// should stay.
+// should stay. The tsInterpreter engine, if provided, is used to evaluate which
+// exits are visible/usable to this NPC.
 //
 // room is the current room that they are in.
-func (npc NPC) NextRouteStep(room *Room) string {
+func (npc NPC) NextRouteStep(room *Room, tsEng *tunascript.Interpreter) string {
 	if npc.routeCur == nil {
 		return ""
 	}
@@ -84,7 +95,8 @@ func (npc NPC) NextRouteStep(room *Room) string {
 		// first, get the list of allowed rooms. if allowedrooms is not set,
 		// all rooms are allowed.
 		candidateRooms := map[string]bool{}
-		for _, egress := range room.Exits {
+		availExits := room.ExitsAvailable(npc.Label, tsEng)
+		for _, egress := range availExits {
 			label := egress.DestLabel
 
 			if len(npc.Movement.AllowedRooms) > 0 {
@@ -133,6 +145,8 @@ func (npc NPC) Copy() NPC {
 		Movement:    npc.Movement.Copy(),
 		Dialog:      make([]*DialogStep, len(npc.Dialog)),
 		Aliases:     make([]string, len(npc.Aliases)),
+		If:          npc.If,
+		IfRaw:       npc.IfRaw,
 
 		tmplDescription: npc.tmplDescription,
 	}

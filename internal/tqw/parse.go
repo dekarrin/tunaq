@@ -7,6 +7,7 @@ import (
 
 	"github.com/dekarrin/tunaq/internal/command"
 	"github.com/dekarrin/tunaq/internal/game"
+	"github.com/dekarrin/tunaq/tunascript"
 )
 
 // these two are getting chucked into a char class so order matters
@@ -37,6 +38,32 @@ type worldSymbols struct {
 	npcLabels     stringSet
 	npcAliases    stringSet
 	flagLabels    stringSet
+}
+
+// raw is what to set raw to, parsed is the parsed code to set, err is any error
+// that occurs. If tsCode is empty, tunascript.ReturnTrue is returned as a
+// No-Op and raw is set to the empty string, otherwise if tsCode is valid
+// tunascript, raw will simply be set to that.
+func parseTunascript(tsCode string, allowMutation bool) (raw string, parsed tunascript.AST, err error) {
+	if strings.TrimSpace(tsCode) == "" {
+		// give it an "always true"
+		return "", tunascript.ReturnTrue, nil
+	} else {
+		tsAST, err := tunascript.Parse(tsCode, "")
+		if err != nil {
+			return "", tunascript.AST{}, err
+		}
+
+		// check for mutations
+		if !allowMutation {
+			err = tunascript.VerifyNoMutations(tsAST)
+			if err != nil {
+				return "", tunascript.AST{}, err
+			}
+		}
+
+		return tsCode, tsAST, nil
+	}
 }
 
 func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
@@ -74,6 +101,27 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 		}
 
 		room := r.toGameRoom()
+
+		// run a parse on the tunascript and set the If of each egress
+		for i := range room.Exits {
+			raw, tsAST, err := parseTunascript(room.Exits[i].IfRaw, false)
+			if err != nil {
+				return world, fmt.Errorf("rooms[%q]: exits[%d]: %w", r.Label, i, err)
+			}
+			room.Exits[i].IfRaw = raw
+			room.Exits[i].If = tsAST
+		}
+
+		// run a parse on the tunascript and set the If of each detail
+		for i := range room.Details {
+			raw, tsAST, err := parseTunascript(room.Details[i].IfRaw, false)
+			if err != nil {
+				return world, fmt.Errorf("rooms[%q]: detail[%d]: %w", r.Label, i, err)
+			}
+			room.Details[i].IfRaw = raw
+			room.Details[i].If = tsAST
+		}
+
 		world.Rooms[r.Label] = &room
 	}
 
@@ -85,6 +133,15 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 		}
 
 		gameItem := it.toGameItem()
+
+		// run a parse on the tunascript and set the If of the item.
+		raw, tsAST, err := parseTunascript(gameItem.IfRaw, false)
+		if err != nil {
+			return world, fmt.Errorf("items[%q]: %w", it.Label, err)
+		}
+		gameItem.IfRaw = raw
+		gameItem.If = tsAST
+
 		r := world.Rooms[strings.ToUpper(it.Start)]
 		r.Items = append(r.Items, &gameItem)
 	}
@@ -134,8 +191,16 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 			npc.PronounSet = pronouns[strings.ToUpper(npc.Pronouns)]
 		}
 
-		// done parsing, NPC is good to go, add it to the world
 		gameNPC := npc.toGameNPC()
+
+		// done with main parsing of NPC, now parse its tunascript
+		raw, tsAST, err := parseTunascript(gameNPC.IfRaw, false)
+		if err != nil {
+			return world, fmt.Errorf("npcs[%q]: %w", npc.Label, err)
+		}
+		gameNPC.IfRaw = raw
+		gameNPC.If = tsAST
+
 		world.Rooms[gameNPC.Start].NPCs[gameNPC.Label] = &gameNPC
 	}
 

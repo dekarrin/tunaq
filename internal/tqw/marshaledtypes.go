@@ -42,6 +42,7 @@ type npc struct {
 	Start       string       `toml:"start"`
 	Movement    route        `toml:"movement"`
 	Dialogs     []dialogStep `toml:"line"`
+	If          string       `toml:"if"`
 }
 
 func (tn npc) toGameNPC() game.NPC {
@@ -54,6 +55,7 @@ func (tn npc) toGameNPC() game.NPC {
 		Movement:    tn.Movement.toGameRoute(),
 		Dialog:      make([]*game.DialogStep, len(tn.Dialogs)),
 		Aliases:     make([]string, len(tn.Aliases)),
+		IfRaw:       tn.If,
 	}
 
 	for i := range tn.Dialogs {
@@ -196,6 +198,7 @@ type item struct {
 	Description string   `toml:"description"`
 	Aliases     []string `toml:"aliases"`
 	Start       string   `toml:"start"`
+	If          string   `toml:"if"`
 }
 
 func (ti item) toGameItem() game.Item {
@@ -204,6 +207,7 @@ func (ti item) toGameItem() game.Item {
 		Name:        ti.Name,
 		Description: ti.Description,
 		Aliases:     make([]string, len(ti.Aliases)),
+		IfRaw:       ti.If,
 	}
 
 	for i := range ti.Aliases {
@@ -218,6 +222,7 @@ type egress struct {
 	Description string   `toml:"description"`
 	Message     string   `toml:"message"`
 	Aliases     []string `toml:"aliases"`
+	If          string   `toml:"if"`
 }
 
 func (te egress) toGameEgress() game.Egress {
@@ -226,6 +231,7 @@ func (te egress) toGameEgress() game.Egress {
 		Description:   te.Description,
 		TravelMessage: te.Message,
 		Aliases:       make([]string, len(te.Aliases)),
+		IfRaw:         te.If,
 	}
 
 	for i := range te.Aliases {
@@ -238,12 +244,14 @@ func (te egress) toGameEgress() game.Egress {
 type detail struct {
 	Aliases     []string `toml:"aliases"`
 	Description string   `toml:"description"`
+	If          string   `toml:"if"`
 }
 
 func (td detail) toGameDetail() game.Detail {
 	det := game.Detail{
 		Aliases:     make([]string, len(td.Aliases)),
 		Description: td.Description,
+		IfRaw:       td.If,
 	}
 
 	for i := range det.Aliases {

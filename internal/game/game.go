@@ -12,6 +12,12 @@ import (
 	"github.com/dekarrin/tunaq/tunascript"
 )
 
+const (
+	TagPlayer = "@PLAYER"
+	TagSelf   = "@SELF"
+	FlagAsker = "TQ_ASKER"
+)
+
 var commandHelp = [][2]string{
 	{"HELP", "show this help"},
 	{"DROP/PUT", "put down an object in the room"},
@@ -142,7 +148,7 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 				// TODO: don't fail silently
 				return false
 			}
-			if target == "@PLAYER" {
+			if target == TagPlayer {
 				if gs.CurrentRoom.Label == dest {
 					return false
 				}
@@ -151,28 +157,33 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 			} else {
 				// item?
 				if roomLabel, ok := gs.itemLocations[target]; ok {
-					if roomLabel == "@INVEN" {
-						// it DOES move from backpack
-						it := gs.Inventory[target]
-						gs.World[dest].Items = append(gs.World[dest].Items, it)
-						delete(gs.Inventory, it.Label)
-						gs.itemLocations[target] = dest
-					}
 					if roomLabel == dest {
 						return false
 					}
-					// get the item
+
 					var item *Item
-					for _, it := range gs.World[roomLabel].Items {
-						if it.Label == target {
-							item = it
-							break
+					if roomLabel == "@INVEN" {
+						// it DOES move from backpack
+						item = gs.Inventory[target]
+						delete(gs.Inventory, item.Label)
+					} else {
+						// get the item
+						for _, it := range gs.World[roomLabel].Items {
+							if it.Label == target {
+								item = it
+								break
+							}
 						}
+						gs.World[roomLabel].RemoveItem(target)
 					}
 
-					gs.World[roomLabel].RemoveItem(target)
-					gs.World[dest].Items = append(gs.World[dest].Items, item)
+					if dest == "@INVEN" {
+						gs.Inventory[target] = item
+					} else {
+						gs.World[dest].Items = append(gs.World[dest].Items, item)
+					}
 					gs.itemLocations[target] = dest
+
 					return true
 				}
 
@@ -239,7 +250,8 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	return gs, nil
 }
 
-// MoveNPCs applies all movements on NPCs that are in the world.
+// MoveNPCs applies all movements on NPCs that are in the world whose If's
+// currently evaluate to true.
 func (gs *State) MoveNPCs() {
 	newLocs := map[string]string{}
 
@@ -247,7 +259,15 @@ func (gs *State) MoveNPCs() {
 		room := gs.World[roomLabel]
 		npc := room.NPCs[npcLabel]
 
-		next := npc.NextRouteStep(room)
+		gs.scripts.AddFlag(FlagAsker, "@SELF")
+		isActive := gs.scripts.Exec(npc.If).Bool()
+		gs.scripts.RemoveFlag(FlagAsker)
+
+		if !isActive {
+			continue
+		}
+
+		next := npc.NextRouteStep(room, &gs.scripts)
 
 		if next != "" {
 			nextRoom := gs.World[next]
@@ -278,7 +298,7 @@ func (gs *State) Expand(s *tunascript.Template) string {
 func (gs *State) Look(alias string) (string, error) {
 	var desc string
 	if alias != "" {
-		lookTarget := gs.CurrentRoom.GetTargetable(alias)
+		lookTarget := gs.CurrentRoom.GetTargetable(alias, TagPlayer, &gs.scripts)
 		if lookTarget == nil {
 			return "", tqerrors.Interpreterf("I don't see any %q here", alias)
 		}
@@ -287,10 +307,11 @@ func (gs *State) Look(alias string) (string, error) {
 	} else {
 		desc = gs.Expand(gs.CurrentRoom.tmplDescription)
 
-		if len(gs.CurrentRoom.Items) > 0 {
+		availItems := gs.CurrentRoom.ItemsAvailable(TagPlayer, &gs.scripts)
+		if len(availItems) > 0 {
 			var itemNames []string
 
-			for _, it := range gs.CurrentRoom.Items {
+			for _, it := range availItems {
 				itemNames = append(itemNames, it.Name)
 			}
 
@@ -300,28 +321,27 @@ func (gs *State) Look(alias string) (string, error) {
 			desc += util.MakeTextList(itemNames, true) + "."
 		}
 
-		if len(gs.CurrentRoom.NPCs) > 0 {
+		availNPCs := gs.CurrentRoom.NPCsAvailable(TagPlayer, &gs.scripts)
+		if len(availNPCs) > 0 {
 			var npcNames []string
 
-			for _, npc := range gs.CurrentRoom.NPCs {
+			for _, npc := range availNPCs {
 				npcNames = append(npcNames, npc.Name)
 			}
 
 			// TODO: prop so npcs can be invisible to looks for static npcs that are
 			// mostly included in description.
-			if len(npcNames) > 0 {
-				desc += "\n\nOh! "
+			desc += "\n\nOh! "
 
-				desc += util.MakeTextList(npcNames, false)
+			desc += util.MakeTextList(npcNames, false)
 
-				if len(npcNames) == 1 {
-					desc += " is "
-				} else {
-					desc += " are "
-				}
-
-				desc += "here."
+			if len(npcNames) == 1 {
+				desc += " is "
+			} else {
+				desc += " are "
 			}
+
+			desc += "here."
 		}
 	}
 
@@ -380,7 +400,7 @@ func (gs *State) Advance(cmd command.Command) error {
 // ExecuteCommandGo executes the GO command with the arguments in the provided
 // Command and returns the output.
 func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
-	egress := gs.CurrentRoom.GetEgressByAlias(cmd.Recipient)
+	egress := gs.CurrentRoom.GetEgressByAlias(cmd.Recipient, TagPlayer, &gs.scripts)
 	if egress == nil {
 		return "", tqerrors.Interpreterf("%q isn't a place you can go from here", cmd.Recipient)
 	}
@@ -411,7 +431,9 @@ func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
 // provided Command and returns the output.
 func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
 	ed := rosed.Edit("You search for ways out of the room, ").WithOptions(textFormatOptions)
-	if len(gs.CurrentRoom.Exits) < 1 {
+
+	foundExits := gs.CurrentRoom.ExitsAvailable(TagPlayer, &gs.scripts)
+	if len(foundExits) < 1 {
 		ed = ed.Insert(rosed.End, "but you can't seem to find any exits right now")
 	} else {
 
@@ -419,7 +441,7 @@ func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
 			Insert(rosed.End, "and find:\n").
 			CharsFrom(rosed.End)
 
-		for _, eg := range gs.CurrentRoom.Exits {
+		for _, eg := range foundExits {
 			expanded := gs.Expand(eg.tmplDescription)
 			ed = ed.Insert(rosed.End, "XX* "+eg.Aliases[0]+": "+expanded+"\n")
 		}
@@ -443,7 +465,7 @@ func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
 // ExecuteCommandTake executes the TAKE command with the arguments in the
 // provided Command and returns the output.
 func (gs *State) ExecuteCommandTake(cmd command.Command) (string, error) {
-	item := gs.CurrentRoom.GetItemByAlias(cmd.Recipient)
+	item := gs.CurrentRoom.GetItemByAlias(cmd.Recipient, TagPlayer, &gs.scripts)
 	if item == nil {
 		return "", tqerrors.Interpreterf("I don't see any %q here", cmd.Recipient)
 	}
@@ -493,7 +515,7 @@ func (gs *State) ExecuteCommandLook(cmd command.Command) (string, error) {
 		ed = ed.Insert(rosed.End, "You check your surroundings.\n\n")
 	} else {
 		// is this an NPC? don't use 'the' with them
-		tgt := gs.CurrentRoom.GetTargetable(cmd.Recipient)
+		tgt := gs.CurrentRoom.GetTargetable(cmd.Recipient, TagPlayer, &gs.scripts)
 
 		theText := "the"
 		if IsNPC(tgt) {
@@ -537,7 +559,7 @@ func (gs *State) ExecuteCommandInventory(cmd command.Command) (string, error) {
 // loop that will not exit until the conversation is PAUSED or an END step is
 // reached in it.
 func (gs *State) ExecuteCommandTalk(cmd command.Command) (string, error) {
-	npc := gs.CurrentRoom.GetNPCByAlias(cmd.Recipient)
+	npc := gs.CurrentRoom.GetNPCByAlias(cmd.Recipient, TagPlayer, &gs.scripts)
 	if npc == nil {
 		return "", tqerrors.Interpreterf("I don't see a %q you can talk to here.", cmd.Recipient)
 	}
