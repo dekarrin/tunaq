@@ -428,6 +428,8 @@ func (gs *State) Advance(cmd command.Command) error {
 		output, err = gs.ExecuteCommandDrop(cmd)
 	case "LOOK":
 		output, err = gs.ExecuteCommandLook(cmd)
+	case "USE":
+		output, err = gs.ExecuteCommandUse(cmd)
 	case "INVENTORY":
 		output, err = gs.ExecuteCommandInventory(cmd)
 	case "TALK":
@@ -446,6 +448,25 @@ func (gs *State) Advance(cmd command.Command) error {
 
 	// IO to give output:
 	return gs.io.Output("\n" + output + "\n\n")
+}
+
+// ExecuteCommandUse executes the USE command with the arguments in the provided
+// Command and returns the output.
+func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
+	withs := []string{}
+
+	usedItem := cmd.Recipient
+
+	// 1. check if the item is in inven or item on ground or detail or npc or egress
+	//
+	// (it doesnt work at all with anyfin but item rn)
+	//
+	// 2. for all the withs, does the item have an on-use? if one of the on-use
+	// is a tag, need to check if somefin satisfies it.
+	// 3. if it doesn't, do any of the withs? (if they aren't a tag)
+	// 4. if none of the above apply, did the user try to use with somefin but
+	// it makes more sense to use it alone? tell the user
+
 }
 
 // ExecuteCommandGo executes the GO command with the arguments in the provided
