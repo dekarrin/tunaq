@@ -112,6 +112,16 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 			room.Exits[i].If = tsAST
 		}
 
+		// run a parse on the tunascript and set the If of each detail
+		for i := range room.Details {
+			raw, tsAST, err := parseTunascript(room.Details[i].IfRaw, false)
+			if err != nil {
+				return world, fmt.Errorf("rooms[%q]: detail[%d]: %w", r.Label, i, err)
+			}
+			room.Details[i].IfRaw = raw
+			room.Details[i].If = tsAST
+		}
+
 		world.Rooms[r.Label] = &room
 	}
 

@@ -19,12 +19,13 @@ label = "YOUR_ROOM"
 name = "your bedroom"
 description = '''
 You are standing in your bedroom. Perhaps you are a young person who only now, on your 13th birthday, will receive a
-name. You have a pretty WINDOW in the corner overlooking the world outside. There's a door leading to your bathroom to
-the east, and a door leading to the hall to the south.
+name.$[[IF $WINDOW_ACTIVE]] You have a pretty WINDOW in the corner overlooking the world outside.$[[ENDIF]] There's a
+door leading to your bathroom to the east, and a door leading to the hall to the south.
 '''
 
 [[room.detail]]
 aliases = ["WINDOW", "CORNER WINDOW"]
+if = "$WINDOW_ACTIVE"
 description = '''
 The streets are empty. Wind skims the voids keeping neighbors apart, as if grazing the hollow of a cut reed, or say, a
 plundered mailbox. A familiar note is produced. It's the one Desolation plays to keep its instrument in tune.

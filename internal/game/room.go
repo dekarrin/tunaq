@@ -24,6 +24,16 @@ type Detail struct {
 	// LOOKs at it.
 	Description string
 
+	// If is the tunascript that is evaluated to determine if this detail is
+	// interactable and visible to the user. If IfRaw is empty, this will be an
+	// expression that always returns true.
+	If tunascript.AST
+
+	// IfRaw is the string that contains the TunaScript source code that was
+	// parsed into the AST located in If. It will be empty if no code was parsed
+	// to do so.
+	IfRaw string
+
 	// tmplDescription is the precomputed template AST for the description text.
 	// It must generally be filled in with the game engine, and will not be
 	// present directly when loaded from disk.
@@ -47,6 +57,8 @@ func (d Detail) Copy() Detail {
 	dCopy := Detail{
 		Aliases:         make([]string, len(d.Aliases)),
 		Description:     d.Description,
+		IfRaw:           d.IfRaw,
+		If:              d.If,
 		tmplDescription: d.tmplDescription,
 	}
 
@@ -214,7 +226,7 @@ func (room Room) String() string {
 // label represents the thing trying to get/use/activate a Targetable, and may
 // not come into play for all of them.
 func (room Room) GetTargetable(alias string, userLabel string, tsEng *tunascript.Interpreter) (t Targetable) {
-	if det := room.GetDetailByAlias(alias); det != nil {
+	if det := room.GetDetailByAlias(alias, userLabel, tsEng); det != nil {
 		return det
 	}
 	if eg := room.GetEgressByAlias(alias, userLabel, tsEng); eg != nil {
@@ -231,8 +243,12 @@ func (room Room) GetTargetable(alias string, userLabel string, tsEng *tunascript
 }
 
 // GetDetailByAlias returns the Detail from the room that is referred to by the
-// given alias. If no Detail has that alias, the returned *Detail will be nil.
-func (room Room) GetDetailByAlias(alias string) *Detail {
+// given alias. If no detail visible to asker has that alias, the returned
+// *Detail is nil. If a detail with that alias exists, visibility is determined
+// by whether calling its If with the given interpreter returns true. To allow
+// returning of a detail regardless of its visibility, simply pass in "" for the
+// asker or nil for the interpreter.
+func (room Room) GetDetailByAlias(alias string, asker string, tsEng *tunascript.Interpreter) *Detail {
 	foundIdx := -1
 
 	for dIdx, d := range room.Details {
@@ -251,6 +267,16 @@ func (room Room) GetDetailByAlias(alias string) *Detail {
 	if foundIdx != -1 {
 		foundDetail = room.Details[foundIdx]
 	}
+
+	// run the If-check
+	if foundDetail != nil && asker != "" && tsEng != nil {
+		tsEng.AddFlag(FlagAsker, asker)
+		if !tsEng.Exec(foundDetail.If).Bool() {
+			foundDetail = nil
+		}
+		tsEng.RemoveFlag(FlagAsker)
+	}
+
 	return foundDetail
 }
 
@@ -395,6 +421,26 @@ func (room Room) NPCsAvailable(asker string, tsEng *tunascript.Interpreter) []*N
 		}
 		tsEng.RemoveFlag(FlagAsker)
 	}
+
+	return avail
+}
+
+// DetailsAvailable returns all details that the entity with the given label can
+// see, as per the Detail's If value.
+func (room Room) DetailsAvailable(exiter string, tsEng *tunascript.Interpreter) []*Detail {
+	var avail []*Detail
+
+	if exiter == "" || tsEng == nil {
+		return room.Details
+	}
+
+	tsEng.AddFlag(FlagAsker, exiter)
+	for i := range room.Details {
+		if tsEng.Exec(room.Details[i].If).Bool() {
+			avail = append(avail, room.Details[i])
+		}
+	}
+	tsEng.RemoveFlag(FlagAsker)
 
 	return avail
 }

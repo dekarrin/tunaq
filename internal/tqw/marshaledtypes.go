@@ -244,12 +244,14 @@ func (te egress) toGameEgress() game.Egress {
 type detail struct {
 	Aliases     []string `toml:"aliases"`
 	Description string   `toml:"description"`
+	If          string   `toml:"if"`
 }
 
 func (td detail) toGameDetail() game.Detail {
 	det := game.Detail{
 		Aliases:     make([]string, len(td.Aliases)),
 		Description: td.Description,
+		IfRaw:       td.If,
 	}
 
 	for i := range det.Aliases {
