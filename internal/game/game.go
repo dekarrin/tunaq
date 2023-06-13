@@ -53,6 +53,9 @@ type State struct {
 	// Inventory is the objects that the player currently has.
 	Inventory Inventory
 
+	// TagSets is a set of tags and the Targetables that they refer to.
+	TagSets map[string][]Targetable
+
 	// npcLocations is a map of an NPC's label to the label of the room that the
 	// NPC is currently in.
 	npcLocations map[string]string
@@ -130,6 +133,7 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	gs := &State{
 		World:         world,
 		Inventory:     make(Inventory),
+		TagSets:       make(map[string][]Targetable),
 		npcLocations:  make(map[string]string),
 		itemLocations: make(map[string]string),
 		io:            ioDev,
@@ -246,6 +250,53 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	if err != nil {
 		return gs, err
 	}
+
+	// okay, now go through and track all taggables
+	var taggedNPCs, taggedExits, taggedDetails, taggedItems []Targetable
+
+	for roomLabel := range gs.World {
+		r := gs.World[roomLabel]
+		for i := range r.Items {
+			item := r.Items[i]
+			taggedItems = append(taggedItems, item)
+			for _, tag := range item.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, item)
+				gs.TagSets[tag] = tagged
+			}
+		}
+		for i := range r.NPCs {
+			npc := r.NPCs[i]
+			taggedNPCs = append(taggedNPCs, npc)
+			for _, tag := range npc.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, npc)
+				gs.TagSets[tag] = tagged
+			}
+		}
+		for i := range r.Details {
+			det := r.Details[i]
+			taggedDetails = append(taggedDetails, det)
+			for _, tag := range det.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, det)
+				gs.TagSets[tag] = tagged
+			}
+		}
+		for i := range r.Exits {
+			egress := r.Exits[i]
+			taggedExits = append(taggedExits, egress)
+			for _, tag := range egress.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, egress)
+				gs.TagSets[tag] = tagged
+			}
+		}
+	}
+	gs.TagSets["@NPC"] = taggedNPCs
+	gs.TagSets["@EXIT"] = taggedExits
+	gs.TagSets["@ITEM"] = taggedItems
+	gs.TagSets["@DETAIL"] = taggedDetails
 
 	return gs, nil
 }

@@ -17,6 +17,11 @@ import (
 // it cannot handle, player would not be allowed to do that with it. Every
 // detail at minimum can be LOOKed at.
 type Detail struct {
+	// Tags is a list of all tags that will include this Detail. Each tag
+	// includes the leading @-sign. All details are also implicitly included by
+	// the tag @DETAIL, regardless of whether it appears in this slice.
+	Tags []string
+
 	// Aliases is the aliases that the player can use to target the detail.
 	Aliases []string
 
@@ -56,6 +61,7 @@ func (d Detail) String() string {
 func (d Detail) Copy() Detail {
 	dCopy := Detail{
 		Aliases:         make([]string, len(d.Aliases)),
+		Tags:            make([]string, len(d.Tags)),
 		Description:     d.Description,
 		IfRaw:           d.IfRaw,
 		If:              d.If,
@@ -63,6 +69,7 @@ func (d Detail) Copy() Detail {
 	}
 
 	copy(dCopy.Aliases, d.Aliases)
+	copy(dCopy.Tags, d.Tags)
 
 	return dCopy
 }
@@ -70,6 +77,11 @@ func (d Detail) Copy() Detail {
 // Egress is an egress point from a room. It contains both a description and the
 // label it points to.
 type Egress struct {
+	// Tags is a list of all tags that will include this Egress. Each tag
+	// includes the leading @-sign. All egresses are also implicitly included by
+	// the tag @EXIT, regardless of whether it appears in this slice.
+	Tags []string
+
 	// DestLabel is the label of the room this egress goes to.
 	DestLabel string
 
@@ -117,6 +129,7 @@ func (egress Egress) Copy() Egress {
 		Description:       egress.Description,
 		TravelMessage:     egress.TravelMessage,
 		Aliases:           make([]string, len(egress.Aliases)),
+		Tags:              make([]string, len(egress.Tags)),
 		If:                egress.If,
 		IfRaw:             egress.IfRaw,
 		tmplDescription:   egress.tmplDescription,
@@ -124,6 +137,7 @@ func (egress Egress) Copy() Egress {
 	}
 
 	copy(eCopy.Aliases, egress.Aliases)
+	copy(eCopy.Tags, egress.Tags)
 
 	return eCopy
 }

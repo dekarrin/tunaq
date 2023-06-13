@@ -33,6 +33,7 @@ type topLevelWorldData struct {
 }
 
 type npc struct {
+	Tags        []string     `toml:"tags"`
 	Label       string       `toml:"label"`
 	Aliases     []string     `toml:"aliases"`
 	Name        string       `toml:"name"`
@@ -55,6 +56,7 @@ func (tn npc) toGameNPC() game.NPC {
 		Movement:    tn.Movement.toGameRoute(),
 		Dialog:      make([]*game.DialogStep, len(tn.Dialogs)),
 		Aliases:     make([]string, len(tn.Aliases)),
+		Tags:        make([]string, len(tn.Tags)),
 		IfRaw:       tn.If,
 	}
 
@@ -63,6 +65,13 @@ func (tn npc) toGameNPC() game.NPC {
 	}
 	for i := range tn.Aliases {
 		npc.Aliases[i] = strings.ToUpper(tn.Aliases[i])
+	}
+	for i := range tn.Tags {
+		tag := tn.Tags[i]
+		if !strings.HasPrefix(tag, "@") {
+			tag = "@" + tag
+		}
+		npc.Tags[i] = strings.ToUpper(tag)
 	}
 
 	return npc
@@ -193,6 +202,7 @@ func (tp pronounSet) toGamePronounSet() game.PronounSet {
 }
 
 type item struct {
+	Tags        []string `toml:"tags"`
 	Label       string   `toml:"label"`
 	Name        string   `toml:"name"`
 	Description string   `toml:"description"`
@@ -207,17 +217,26 @@ func (ti item) toGameItem() game.Item {
 		Name:        ti.Name,
 		Description: ti.Description,
 		Aliases:     make([]string, len(ti.Aliases)),
+		Tags:        make([]string, len(ti.Tags)),
 		IfRaw:       ti.If,
 	}
 
 	for i := range ti.Aliases {
 		gameItem.Aliases[i] = strings.ToUpper(ti.Aliases[i])
 	}
+	for i := range ti.Tags {
+		tag := ti.Tags[i]
+		if !strings.HasPrefix(tag, "@") {
+			tag = "@" + tag
+		}
+		gameItem.Tags[i] = strings.ToUpper(tag)
+	}
 
 	return gameItem
 }
 
 type egress struct {
+	Tags        []string `toml:"tags"`
 	Dest        string   `toml:"dest"`
 	Description string   `toml:"description"`
 	Message     string   `toml:"message"`
@@ -231,17 +250,26 @@ func (te egress) toGameEgress() game.Egress {
 		Description:   te.Description,
 		TravelMessage: te.Message,
 		Aliases:       make([]string, len(te.Aliases)),
+		Tags:          make([]string, len(te.Tags)),
 		IfRaw:         te.If,
 	}
 
 	for i := range te.Aliases {
 		eg.Aliases[i] = strings.ToUpper(te.Aliases[i])
 	}
+	for i := range te.Tags {
+		tag := te.Tags[i]
+		if !strings.HasPrefix(tag, "@") {
+			tag = "@" + tag
+		}
+		eg.Tags[i] = strings.ToUpper(tag)
+	}
 
 	return eg
 }
 
 type detail struct {
+	Tags        []string `toml:"tags"`
 	Aliases     []string `toml:"aliases"`
 	Description string   `toml:"description"`
 	If          string   `toml:"if"`
@@ -250,12 +278,20 @@ type detail struct {
 func (td detail) toGameDetail() game.Detail {
 	det := game.Detail{
 		Aliases:     make([]string, len(td.Aliases)),
+		Tags:        make([]string, len(td.Tags)),
 		Description: td.Description,
 		IfRaw:       td.If,
 	}
 
 	for i := range det.Aliases {
 		det.Aliases[i] = strings.ToUpper(td.Aliases[i])
+	}
+	for i := range det.Tags {
+		tag := td.Tags[i]
+		if !strings.HasPrefix(tag, "@") {
+			tag = "@" + tag
+		}
+		det.Tags[i] = strings.ToUpper(tag)
 	}
 
 	return det

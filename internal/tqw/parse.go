@@ -20,6 +20,12 @@ var (
 	identifierBadCharRegexp = regexp.MustCompile(fmt.Sprintf(`[^%s]`, labelChars))
 )
 
+var (
+	reservedTagNames = []string{
+		"@STEP", "@INVEN", "@PLAYER", "@NPC", "@DETAIL", "@ITEM", "@EXIT", "@SELF",
+	}
+)
+
 func parseManifest(tqw topLevelManifest) (Manifest, error) {
 	manif := Manifest{
 		Files: tqw.Files,
@@ -427,6 +433,10 @@ func validateNPCDef(npc npc, topLevelPronouns map[string]pronounSet, parsedRooms
 	if npc.Name == "" {
 		return fmt.Errorf("must have non-blank 'name' field")
 	}
+	err := checkTags(npc.Tags, "@NPC")
+	if err != nil {
+		return err
+	}
 
 	// check start for valid reference
 	startUpper := strings.ToUpper(npc.Start)
@@ -452,7 +462,7 @@ func validateNPCDef(npc npc, topLevelPronouns map[string]pronounSet, parsedRooms
 		}
 	}
 
-	err := validateRouteDef(npc.Movement, parsedRooms, npc.Start, syms)
+	err = validateRouteDef(npc.Movement, parsedRooms, npc.Start, syms)
 	if err != nil {
 		return fmt.Errorf("movement: %w", err)
 	}
@@ -709,6 +719,10 @@ func validateDetailDef(det detail) error {
 	if len(det.Aliases) < 1 {
 		return fmt.Errorf("must have a list of at least one alias in 'aliases' field")
 	}
+	err := checkTags(det.Tags, "@DETAIL")
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -722,6 +736,10 @@ func validateEgressDef(eg egress, syms worldSymbols) error {
 	}
 	if eg.Message == "" {
 		return fmt.Errorf("must have non-blank 'message' field")
+	}
+	err := checkTags(eg.Tags, "@EXIT")
+	if err != nil {
+		return err
 	}
 
 	// do not check alias naming rules and uniqueness here, that has already been
@@ -743,6 +761,10 @@ func validateItemDef(item item, syms worldSymbols) error {
 	}
 	if item.Description == "" {
 		return fmt.Errorf("must have non-blank 'description' field")
+	}
+	err := checkTags(item.Tags, "@ITEM")
+	if err != nil {
+		return err
 	}
 
 	for idx, al := range item.Aliases {
@@ -818,6 +840,42 @@ func checkLabel(label string, conflictSet stringSet, labeled string) error {
 		}
 
 		return fmt.Errorf("%q has the %q character in it which is not allowed for labels", label, badChar)
+	}
+
+	return nil
+}
+
+func checkTags(tags []string, autoTaggedAs string) error {
+	for i := range tags {
+		tag := tags[i]
+
+		// strip off leading @-sign, if present
+		tag = strings.TrimPrefix(tag, "@")
+
+		if tag == "" {
+			var extraNotes string
+			if strings.HasPrefix(tags[i], "@") {
+				extraNotes = " (and cannot be only the tag sign, \"@\")"
+			}
+			return fmt.Errorf("tags[%d]: must not be blank%s", i, extraNotes)
+		}
+
+		for _, ch := range tag {
+			if !((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_') {
+				return fmt.Errorf("tags[%d]: tag %q has the character '%c' in it, but it can only have A-Z, 0-9, and \"_\"", i, "@"+tag, ch)
+			}
+		}
+
+		// disallow reserved tags
+		for _, reserved := range reservedTagNames {
+			if "@"+strings.ToUpper(tag) == reserved {
+				var extraNote string
+				if reserved == autoTaggedAs {
+					extraNote = fmt.Sprintf(" (don't worry, %s will automatically work even if you don't list it here)", reserved)
+				}
+				return fmt.Errorf("tags[%d]: %q is already a pre-defined tag; use a different one%s", i, "@"+tag, extraNote)
+			}
+		}
 	}
 
 	return nil
