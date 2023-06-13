@@ -61,10 +61,12 @@ func makeHookBinaryOp(op BinaryOperation) trans.Hook {
 func makeHookAssignBinary(op AssignmentOperation) trans.Hook {
 	return func(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 		lexedIdent := args[0].(string)
+
+		fname := strings.TrimPrefix(strings.ToUpper(lexedIdent), "$")
 		value := args[1].(ASTNode)
 
 		node := AssignmentNode{
-			Flag:  lexedIdent,
+			Flag:  fname,
 			Value: value,
 			Op:    op,
 			src:   info.FirstToken,
@@ -78,8 +80,10 @@ func makeHookAssignUnary(op AssignmentOperation) trans.Hook {
 	return func(info trans.SetterInfo, args []interface{}) (interface{}, error) {
 		lexedIdent := args[0].(string)
 
+		fname := strings.TrimPrefix(strings.ToUpper(lexedIdent), "$")
+
 		node := AssignmentNode{
-			Flag: lexedIdent,
+			Flag: fname,
 			Op:   op,
 			src:  info.FirstToken,
 		}
