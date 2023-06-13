@@ -427,6 +427,10 @@ func validateNPCDef(npc npc, topLevelPronouns map[string]pronounSet, parsedRooms
 	if npc.Name == "" {
 		return fmt.Errorf("must have non-blank 'name' field")
 	}
+	err := checkTags(npc.Tags)
+	if err != nil {
+		return err
+	}
 
 	// check start for valid reference
 	startUpper := strings.ToUpper(npc.Start)
@@ -452,7 +456,7 @@ func validateNPCDef(npc npc, topLevelPronouns map[string]pronounSet, parsedRooms
 		}
 	}
 
-	err := validateRouteDef(npc.Movement, parsedRooms, npc.Start, syms)
+	err = validateRouteDef(npc.Movement, parsedRooms, npc.Start, syms)
 	if err != nil {
 		return fmt.Errorf("movement: %w", err)
 	}
@@ -702,12 +706,41 @@ func validateRoomDef(r room, syms worldSymbols) error {
 	return nil
 }
 
+func checkTags(tags []string) error {
+	for i := range tags {
+		tag := tags[i]
+
+		// strip off leading @-sign, if present
+		tag = strings.TrimPrefix(tag, "@")
+
+		if tag == "" {
+			var extraNotes string
+			if strings.HasPrefix(tags[i], "@") {
+				extraNotes = " (and cannot be only the tag sign, \"@\")"
+			}
+			return fmt.Errorf("tags[%d]: must not be blank%s", i, extraNotes)
+		}
+
+		for _, ch := range tag {
+			if !((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_') {
+				return fmt.Errorf("tags[%d]: tag %q has the character '%c' in it, but it can only have A-Z, 0-9, and \"_\"", i, "@"+tag, ch)
+			}
+		}
+	}
+
+	return nil
+}
+
 func validateDetailDef(det detail) error {
 	if det.Description == "" {
 		return fmt.Errorf("must have non-blank 'description' field")
 	}
 	if len(det.Aliases) < 1 {
 		return fmt.Errorf("must have a list of at least one alias in 'aliases' field")
+	}
+	err := checkTags(det.Tags)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -722,6 +755,10 @@ func validateEgressDef(eg egress, syms worldSymbols) error {
 	}
 	if eg.Message == "" {
 		return fmt.Errorf("must have non-blank 'message' field")
+	}
+	err := checkTags(eg.Tags)
+	if err != nil {
+		return err
 	}
 
 	// do not check alias naming rules and uniqueness here, that has already been
@@ -743,6 +780,10 @@ func validateItemDef(item item, syms worldSymbols) error {
 	}
 	if item.Description == "" {
 		return fmt.Errorf("must have non-blank 'description' field")
+	}
+	err := checkTags(item.Tags)
+	if err != nil {
+		return err
 	}
 
 	for idx, al := range item.Aliases {

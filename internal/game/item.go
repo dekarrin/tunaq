@@ -44,6 +44,10 @@ func (inv Inventory) GetItemByAlias(alias string) *Item {
 // alias is present, we can handle the ambiguous case by asking player to
 // restate.
 type Item struct {
+	// Tags is a list of all tags that will include this Item. Each tag
+	// includes the leading @-sign. All items are also implicitly included by
+	// the tag @ITEM, regardless of whether it appears in this slice.
+	Tags []string
 
 	// Label is a name for the item and canonical way to index it
 	// programmatically. It should be upper case and MUST be unique within all
@@ -89,6 +93,7 @@ func (item Item) Copy() Item {
 		Name:        item.Name,
 		Description: item.Description,
 		Aliases:     make([]string, len(item.Aliases)),
+		Tags:        make([]string, len(item.Tags)),
 		If:          item.If,
 		IfRaw:       item.IfRaw,
 
@@ -96,6 +101,7 @@ func (item Item) Copy() Item {
 	}
 
 	copy(iCopy.Aliases, item.Aliases)
+	copy(iCopy.Tags, item.Tags)
 
 	return iCopy
 }

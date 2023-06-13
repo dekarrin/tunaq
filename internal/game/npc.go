@@ -13,6 +13,11 @@ import (
 // depending on their Movement property and can be talked to by the player. If
 // they can move, they only do so when the player does.
 type NPC struct {
+	// Tags is a list of all tags that will include this NPC. Each tag
+	// includes the leading @-sign. All NPCs are also implicitly included by
+	// the tag @NPC, regardless of whether it appears in this slice.
+	Tags []string
+
 	// Label is a name for the NPC and canonical way to index it
 	// programmatically. It should be upper case and MUST be unique within all
 	// NPC labels of the world.
@@ -145,6 +150,7 @@ func (npc NPC) Copy() NPC {
 		Movement:    npc.Movement.Copy(),
 		Dialog:      make([]*DialogStep, len(npc.Dialog)),
 		Aliases:     make([]string, len(npc.Aliases)),
+		Tags:        make([]string, len(npc.Tags)),
 		If:          npc.If,
 		IfRaw:       npc.IfRaw,
 
@@ -156,6 +162,7 @@ func (npc NPC) Copy() NPC {
 		npcCopy.Dialog[i] = &step
 	}
 	copy(npcCopy.Aliases, npc.Aliases)
+	copy(npcCopy.Tags, npc.Tags)
 
 	if npc.Convo != nil {
 		npcCopy.Convo = &Conversation{
