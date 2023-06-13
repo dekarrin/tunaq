@@ -201,14 +201,35 @@ func (tp pronounSet) toGamePronounSet() game.PronounSet {
 	return ps
 }
 
+type useAction struct {
+	With []string `toml:"with"`
+	If   string   `toml:"if"`
+	Do   string   `toml:"do"`
+}
+
+func (ua useAction) toGameUseAction() game.UseAction {
+	gameAction := game.UseAction{
+		With:  make([]string, len(ua.With)),
+		IfRaw: ua.If,
+		DoRaw: ua.Do,
+	}
+
+	for i := range ua.With {
+		gameAction.With[i] = strings.ToUpper(ua.With[i])
+	}
+
+	return gameAction
+}
+
 type item struct {
-	Tags        []string `toml:"tags"`
-	Label       string   `toml:"label"`
-	Name        string   `toml:"name"`
-	Description string   `toml:"description"`
-	Aliases     []string `toml:"aliases"`
-	Start       string   `toml:"start"`
-	If          string   `toml:"if"`
+	Tags        []string    `toml:"tags"`
+	Label       string      `toml:"label"`
+	Name        string      `toml:"name"`
+	Description string      `toml:"description"`
+	Aliases     []string    `toml:"aliases"`
+	Start       string      `toml:"start"`
+	If          string      `toml:"if"`
+	OnUse       []useAction `toml:"on_use"`
 }
 
 func (ti item) toGameItem() game.Item {
@@ -219,6 +240,7 @@ func (ti item) toGameItem() game.Item {
 		Aliases:     make([]string, len(ti.Aliases)),
 		Tags:        make([]string, len(ti.Tags)),
 		IfRaw:       ti.If,
+		OnUse:       make([]game.UseAction, len(ti.OnUse)),
 	}
 
 	for i := range ti.Aliases {
@@ -230,6 +252,9 @@ func (ti item) toGameItem() game.Item {
 			tag = "@" + tag
 		}
 		gameItem.Tags[i] = strings.ToUpper(tag)
+	}
+	for i := range ti.OnUse {
+		gameItem.OnUse[i] = ti.OnUse[i].toGameUseAction()
 	}
 
 	return gameItem

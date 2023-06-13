@@ -175,7 +175,7 @@ func parseCommand(toParse string) (Command, error) {
 		for i := range tokens[1:] {
 			if tokens[i] == "WITH" {
 				if i+1 >= len(tokens) {
-					return parsedCmd, tqerrors.Interpreterf("I don't know where you want to use it with")
+					return parsedCmd, tqerrors.Interpreterf("I don't know what you want to use it with")
 				}
 				withIdx = i
 				parsedCmd.Instrument = strings.Join(tokens[i+1:], " ")
