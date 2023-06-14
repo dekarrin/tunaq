@@ -64,6 +64,15 @@ type State struct {
 	// currently in. will map to "@INVEN" if it is in the inventory.
 	itemLocations map[string]string
 
+	// exitLocations is a map of exit labels to the label of the room that they
+	// are in. This will never change but is maintained for tracking purposes.
+	exitLocations map[string]string
+
+	// detailLocations is a map of detail labels to the label of the room that
+	// they are in. This will never change but is maintained for tracking
+	// purposes.
+	detailLocations map[string]string
+
 	// width is how wide to make output
 	io IODevice
 
@@ -131,12 +140,14 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	}
 
 	gs := &State{
-		World:         world,
-		Inventory:     make(Inventory),
-		TagSets:       make(map[string][]Targetable),
-		npcLocations:  make(map[string]string),
-		itemLocations: make(map[string]string),
-		io:            ioDev,
+		World:           world,
+		Inventory:       make(Inventory),
+		TagSets:         make(map[string][]Targetable),
+		npcLocations:    make(map[string]string),
+		itemLocations:   make(map[string]string),
+		exitLocations:   make(map[string]string),
+		detailLocations: make(map[string]string),
+		io:              ioDev,
 	}
 
 	scriptInterface := worldInterface{
@@ -213,6 +224,62 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 		},
 	}
 
+	// first, go through and track all taggables
+	var taggedNPCs, taggedExits, taggedDetails, taggedItems []Targetable
+
+	for roomLabel := range gs.World {
+		r := gs.World[roomLabel]
+		for i := range r.Items {
+			item := r.Items[i]
+			taggedItems = append(taggedItems, item)
+			for _, tag := range item.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, item)
+				gs.TagSets[tag] = tagged
+			}
+			item.Tags = append(item.Tags, "@ITEM")
+			r.Items[i] = item
+		}
+		for i := range r.NPCs {
+			npc := r.NPCs[i]
+			taggedNPCs = append(taggedNPCs, npc)
+			for _, tag := range npc.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, npc)
+				gs.TagSets[tag] = tagged
+			}
+			npc.Tags = append(npc.Tags, "@NPC")
+			r.NPCs[i] = npc
+		}
+		for i := range r.Details {
+			det := r.Details[i]
+			taggedDetails = append(taggedDetails, det)
+			for _, tag := range det.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, det)
+				gs.TagSets[tag] = tagged
+			}
+			det.Tags = append(det.Tags, "@DETAIL")
+			r.Details[i] = det
+		}
+		for i := range r.Exits {
+			egress := r.Exits[i]
+			taggedExits = append(taggedExits, egress)
+			for _, tag := range egress.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, egress)
+				gs.TagSets[tag] = tagged
+			}
+			egress.Tags = append(egress.Tags, "@EXIT")
+			r.Exits[i] = egress
+		}
+		gs.World[roomLabel] = r
+	}
+	gs.TagSets["@NPC"] = taggedNPCs
+	gs.TagSets["@EXIT"] = taggedExits
+	gs.TagSets["@ITEM"] = taggedItems
+	gs.TagSets["@DETAIL"] = taggedDetails
+
 	// now set the current room
 	var startExists bool
 	gs.CurrentRoom, startExists = gs.World[startingRoom]
@@ -220,7 +287,7 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 		return gs, fmt.Errorf("starting room with label %q does not exist in passed-in rooms", startingRoom)
 	}
 
-	// read current npc locations and prep them for movement
+	// read current targetable entity locations. for NPCs, prep them for movement
 	for _, r := range gs.World {
 		for _, npc := range r.NPCs {
 			npc.ResetRoute()
@@ -229,7 +296,12 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 		for _, item := range r.Items {
 			gs.itemLocations[item.Label] = r.Label
 		}
-
+		for _, det := range r.Details {
+			gs.detailLocations[det.Label] = r.Label
+		}
+		for _, eg := range r.Exits {
+			gs.exitLocations[eg.Label] = r.Label
+		}
 	}
 
 	// start scripting engine
@@ -250,53 +322,6 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	if err != nil {
 		return gs, err
 	}
-
-	// okay, now go through and track all taggables
-	var taggedNPCs, taggedExits, taggedDetails, taggedItems []Targetable
-
-	for roomLabel := range gs.World {
-		r := gs.World[roomLabel]
-		for i := range r.Items {
-			item := r.Items[i]
-			taggedItems = append(taggedItems, item)
-			for _, tag := range item.Tags {
-				tagged := gs.TagSets[tag]
-				tagged = append(tagged, item)
-				gs.TagSets[tag] = tagged
-			}
-		}
-		for i := range r.NPCs {
-			npc := r.NPCs[i]
-			taggedNPCs = append(taggedNPCs, npc)
-			for _, tag := range npc.Tags {
-				tagged := gs.TagSets[tag]
-				tagged = append(tagged, npc)
-				gs.TagSets[tag] = tagged
-			}
-		}
-		for i := range r.Details {
-			det := r.Details[i]
-			taggedDetails = append(taggedDetails, det)
-			for _, tag := range det.Tags {
-				tagged := gs.TagSets[tag]
-				tagged = append(tagged, det)
-				gs.TagSets[tag] = tagged
-			}
-		}
-		for i := range r.Exits {
-			egress := r.Exits[i]
-			taggedExits = append(taggedExits, egress)
-			for _, tag := range egress.Tags {
-				tagged := gs.TagSets[tag]
-				tagged = append(tagged, egress)
-				gs.TagSets[tag] = tagged
-			}
-		}
-	}
-	gs.TagSets["@NPC"] = taggedNPCs
-	gs.TagSets["@EXIT"] = taggedExits
-	gs.TagSets["@ITEM"] = taggedItems
-	gs.TagSets["@DETAIL"] = taggedDetails
 
 	return gs, nil
 }

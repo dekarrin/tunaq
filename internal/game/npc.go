@@ -192,3 +192,11 @@ func (npc NPC) GetAliases() []string {
 func (npc NPC) GetDescription() *tunascript.Template {
 	return npc.tmplDescription
 }
+
+func (npc NPC) GetLabel() string {
+	return npc.Label
+}
+
+func (npc NPC) GetTags() []string {
+	return npc.Tags
+}

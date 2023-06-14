@@ -57,6 +57,14 @@ func (d Detail) GetDescription() *tunascript.Template {
 	return d.tmplDescription
 }
 
+func (d Detail) GetLabel() string {
+	return d.Label
+}
+
+func (d Detail) GetTags() []string {
+	return d.Tags
+}
+
 func (d Detail) String() string {
 	return fmt.Sprintf("Detail<%s>", d.Aliases)
 }
@@ -158,6 +166,14 @@ func (egress Egress) GetAliases() []string {
 
 func (egress Egress) GetDescription() *tunascript.Template {
 	return egress.tmplDescription
+}
+
+func (egress Egress) GetLabel() string {
+	return egress.Label
+}
+
+func (egress Egress) GetTags() []string {
+	return egress.Tags
 }
 
 // Room is a scene in the game. It contains a series of exits that lead to other

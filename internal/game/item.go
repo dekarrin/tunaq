@@ -120,3 +120,11 @@ func (item Item) GetAliases() []string {
 func (item Item) GetDescription() *tunascript.Template {
 	return item.tmplDescription
 }
+
+func (item Item) GetLabel() string {
+	return item.Label
+}
+
+func (item Item) GetTags() []string {
+	return item.Tags
+}
