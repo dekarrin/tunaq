@@ -261,6 +261,7 @@ func (ti item) toGameItem() game.Item {
 }
 
 type egress struct {
+	Label       string   `toml:"label"`
 	Tags        []string `toml:"tags"`
 	Dest        string   `toml:"dest"`
 	Description string   `toml:"description"`
@@ -295,6 +296,7 @@ func (te egress) toGameEgress() game.Egress {
 
 type detail struct {
 	Tags        []string `toml:"tags"`
+	Label       string   `toml:"label"`
 	Aliases     []string `toml:"aliases"`
 	Description string   `toml:"description"`
 	If          string   `toml:"if"`
@@ -302,6 +304,7 @@ type detail struct {
 
 func (td detail) toGameDetail() game.Detail {
 	det := game.Detail{
+		Label:       td.Label,
 		Aliases:     make([]string, len(td.Aliases)),
 		Tags:        make([]string, len(td.Tags)),
 		Description: td.Description,

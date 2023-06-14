@@ -469,6 +469,93 @@ func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
 
 }
 
+func (gs *State) hasUseWith(item *Item, withSet []string) (has bool, acts []UseAction) {
+	// tags introduce the possibility of mulitple matches.
+	// consider a tag with a use-set of "@DOGS", "ROTTWEILER" tested against an
+	// item with tagset of "@DOGS", label of "ROTTWEILER", and a UseAction that
+	// has a with of "@DOGS".
+	//
+	// It would first match on "@DOGS", then say "do i have any use-with
+	// ROTWEILER?" which it won't. Next it will try "ROTTWEILER" and say "do i
+	// have any useWith @DOGS?" which it will.
+
+	// go through each, and try to match the item label or tagset against the
+	// with. go to the next if it does not.
+	for i := range withSet {
+		with := withSet[i]
+		var matches bool
+		if strings.HasPrefix(with, "@") {
+			// it's a tag. do we match it?
+			if util.InSlice(with, item.Tags) {
+				// we do
+				matches = true
+			}
+		} else {
+			matches = item.Label == with
+		}
+
+		if !matches {
+			continue
+		}
+
+		// now, gather the *other* items from the withSet and search for those
+		otherWiths := make([]string, len(withSet)-1)
+		copy(otherWiths, withSet[0:i])
+		copy(otherWiths[i:], withSet[i+1:len(withSet)])
+
+		// okay, we now what it matches, now check its UseActions.
+
+	}
+}
+
+// latags is any list of strings where each element could be a label or a
+// tag. Concrete must not contain tags or it will always be false. The lengths
+// of the two lists must match or it will always be false. Concrete must contain
+// only labels.
+func (gs *State) concreteMatchesAltagList(concrete []string, latags []string) bool {
+	// CONSIDER: otherWiths = ["DACHSUND", "ROTTWEILER"]
+	// ACTUAL WITHS: ["@DOGS"], ["DACHSHUND"]
+	// Check DACHSUND =? "@DOGS": TRUE, candidate
+	//	Check ROTWEILDER =? DACHSUND: FALSE, break
+	// CHECK ROTTWIELER =? "@DOGS": TRUE, candidate
+	//  Check DACHSUND =? DACHSUND: TRUE, done
+
+	if len(concrete) != len(latags) {
+		return false
+	}
+
+	for i, latag := range latags {
+		conc := concrete[i]
+
+		if strings.HasPrefix(latag, "@") {
+			// is the concrete the label of somefin with that tag?
+			if !gs.HasTag(conc, latag) {
+				continue
+			}
+		} else if conc != latag {
+			continue
+		}
+
+		if len(latag) == 1 {
+			return true
+		}
+
+		restConc := make([]string, len(concrete)-1)
+		copy(restConc, concrete[0:i])
+		copy(restConc[i:], concrete[i+1:len(concrete)])
+
+		restLatag := make([]string, len(latags)-1)
+		copy(restLatag, latags[0:i])
+		copy(restLatag[i:], latags[i+1:len(latags)])
+
+		if gs.concreteMatchesAltagList(restConc, restLatag) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ExecuteCommandGo executes the GO command with the arguments in the provided
 // Command and returns the output.
 func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
@@ -820,4 +907,31 @@ func (gs *State) preParseTemplate(toExpand string) (*tunascript.Template, error)
 	}
 
 	return &preComp, nil
+}
+
+func (gs *State) HasTag(label, tag string) bool {
+	tagged := gs.TagSets[tag]
+
+	for _, tgt := range tagged {
+		if IsDetail(tgt) {
+			//det := tgt.(*Detail)
+			// details do not have labels, skip
+			continue
+		} else if IsEgress(tgt) {
+			//eg := tgt.(*Egress)
+			// egresses do not have labels, skip
+			continue
+		} else if IsItem(tgt) {
+			item := tgt.(*Item)
+			if item.Label == label {
+				return true
+			}
+		} else if IsNPC(tgt) {
+			npc := tgt.(*NPC)
+			if npc.Label == label {
+				return true
+			}
+		}
+	}
+	return false
 }

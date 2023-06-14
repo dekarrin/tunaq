@@ -38,6 +38,8 @@ type stringSet map[string]bool
 
 type worldSymbols struct {
 	roomLabels    stringSet
+	egressLabels  stringSet
+	detailLabels  stringSet
 	itemLabels    stringSet
 	itemAliases   stringSet
 	pronounLabels stringSet
@@ -83,7 +85,31 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 		Flags: make(map[string]string),
 	}
 
-	// first, get all of our game symbols so we can immediately check validity
+	// first, we need to auto-assign any empty egress or detail label
+	var autoEgress int
+	var autoDetail int
+	for roomIdx := range tqw.Rooms {
+		r := tqw.Rooms[roomIdx]
+		for exitIdx := range r.Exits {
+			eg := r.Exits[exitIdx]
+			if strings.TrimSpace(eg.Label) == "" {
+				eg.Label = fmt.Sprintf("__TUNAQUEST_AUTO__EGRESS_%d__", autoEgress)
+				r.Exits[exitIdx] = eg
+				autoEgress++
+			}
+		}
+		for detailIdx := range r.Details {
+			det := r.Details[detailIdx]
+			if strings.TrimSpace(det.Label) == "" {
+				det.Label = fmt.Sprintf("__TUNAQUEST_AUTO__DETAIL_%d__", autoDetail)
+				r.Details[detailIdx] = det
+				autoDetail++
+			}
+		}
+		tqw.Rooms[roomIdx] = r
+	}
+
+	// next, get all of our game symbols so we can immediately check validity
 	// of every reference as we go through it.
 	symbols, err := scanSymbols(tqw)
 	if err != nil {
@@ -237,9 +263,11 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 // returned will all be converted to upper case already.
 func scanSymbols(top topLevelWorldData) (symbols worldSymbols, err error) {
 	syms := worldSymbols{
-		roomLabels:  make(stringSet),
-		itemLabels:  make(stringSet),
-		itemAliases: make(stringSet),
+		roomLabels:   make(stringSet),
+		detailLabels: make(stringSet),
+		egressLabels: make(stringSet),
+		itemLabels:   make(stringSet),
+		itemAliases:  make(stringSet),
 
 		// hard-code the pre-existing pronoun labels
 		pronounLabels: stringSet{
@@ -259,12 +287,30 @@ func scanSymbols(top topLevelWorldData) (symbols worldSymbols, err error) {
 	// sufficient to detect it
 	//
 	// same for detailAliases
+	//
+	// But do make sure we pick up egress and detail labels here
 	for _, r := range top.Rooms {
 		rLabelUpper := strings.ToUpper(r.Label)
 		if err := checkLabel(rLabelUpper, syms.roomLabels, "a room"); err != nil {
 			return syms, fmt.Errorf("room %q: %w", r.Label, err)
 		}
 		syms.roomLabels[rLabelUpper] = true
+
+		for i, eg := range r.Exits {
+			egLabelUpper := strings.ToUpper(eg.Label)
+			if err := checkLabel(egLabelUpper, syms.egressLabels, "an exit"); err != nil {
+				return syms, fmt.Errorf("room %q: exit %d: %w", r.Label, i, err)
+			}
+			syms.egressLabels[egLabelUpper] = true
+		}
+
+		for i, det := range r.Details {
+			detLabelUpper := strings.ToUpper(det.Label)
+			if err := checkLabel(detLabelUpper, syms.detailLabels, "a detail"); err != nil {
+				return syms, fmt.Errorf("room %q: detail %d: %w", r.Label, i, err)
+			}
+			syms.detailLabels[detLabelUpper] = true
+		}
 	}
 
 	// scan items

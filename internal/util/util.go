@@ -361,6 +361,55 @@ func InSlice[V comparable](s V, slice []V) bool {
 	return false
 }
 
+// EqualSliceItems returns whether s1 and s2 have the same set of items, in any
+// order. If one has duplicate items, the other must have the same number of
+// duplicates of that item for them to be equal.
+func EqualSliceItems[V comparable](s1 []V, s2 []V) bool {
+	if len(s1) != len(s2) {
+		return false
+	}
+
+	s1Counts := make(map[V]int)
+	s2Counts := make(map[V]int)
+
+	for i := range s1 {
+		count := s1Counts[s1[i]]
+		count++
+		s1Counts[s1[i]] = count
+	}
+
+	for i := range s2 {
+		s1Count, ok := s1Counts[s2[i]]
+		if !ok {
+			// s2 has somefin that s1 doesn't, they are not equal
+			return false
+		}
+
+		count := s2Counts[s2[i]]
+		count++
+
+		if count > s1Count {
+			// s2 has more of somefin than s1, they are not equal
+			return false
+		}
+
+		s2Counts[s2[i]] = count
+	}
+
+	// now go through and make sure that the counts are all the same (only
+	// possibility at this point is that s2Counts contains too *few* of the
+	// items in s1Counts, including none, so we will iterate over s1Counts)
+	for elem, s1Count := range s1Counts {
+		s2Count := s2Counts[elem]
+
+		if s1Count != s2Count {
+			return false
+		}
+	}
+
+	return true
+}
+
 type namedSortable[V any] struct {
 	val  V
 	name string

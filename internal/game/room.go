@@ -22,6 +22,10 @@ type Detail struct {
 	// the tag @DETAIL, regardless of whether it appears in this slice.
 	Tags []string
 
+	// Label is a unique identifier for the detail. If it is not specified at
+	// start, one is automatically assigned.
+	Label string
+
 	// Aliases is the aliases that the player can use to target the detail.
 	Aliases []string
 
@@ -62,6 +66,7 @@ func (d Detail) Copy() Detail {
 	dCopy := Detail{
 		Aliases:         make([]string, len(d.Aliases)),
 		Tags:            make([]string, len(d.Tags)),
+		Label:           d.Label,
 		Description:     d.Description,
 		IfRaw:           d.IfRaw,
 		If:              d.If,
@@ -77,6 +82,10 @@ func (d Detail) Copy() Detail {
 // Egress is an egress point from a room. It contains both a description and the
 // label it points to.
 type Egress struct {
+	// Label is a unique identifier for the detail. If it is not specified at
+	// start, one is automatically assigned.
+	Label string
+
 	// Tags is a list of all tags that will include this Egress. Each tag
 	// includes the leading @-sign. All egresses are also implicitly included by
 	// the tag @EXIT, regardless of whether it appears in this slice.
@@ -125,6 +134,7 @@ func (egress Egress) String() string {
 // Copy returns a deeply-copied Egress.
 func (egress Egress) Copy() Egress {
 	eCopy := Egress{
+		Label:             egress.Label,
 		DestLabel:         egress.DestLabel,
 		Description:       egress.Description,
 		TravelMessage:     egress.TravelMessage,
