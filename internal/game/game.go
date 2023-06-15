@@ -518,59 +518,26 @@ func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
 	// verify that each item requested to use is even a thing in this room (or
 	// in backpack)
 	useTargets := make([]Targetable, len(useAliases))
-	useTargetLabels := make([]string, len(useAliases))
 	for i := range useAliases {
 		var tgt Targetable
-		tgt = gs.Inventory.GetItemByAlias(useAliases[i])
-		if tgt == nil {
+		tgtItem := gs.Inventory.GetItemByAlias(useAliases[i])
+		if tgtItem == nil {
 			// if not in invent, it could be in the room
 			tgt = gs.CurrentRoom.GetTargetable(useAliases[i], TagPlayer, &gs.scripts)
 			if tgt == nil {
 				return "", tqerrors.Interpreterf("I don't see any %q here or in your inventory", useAliases[i])
 			}
+		} else {
+			tgt = tgtItem
 		}
 
 		useTargets[i] = tgt
-		useTargetLabels[i] = tgt.GetLabel()
 	}
 
 	// all of the things requested to be used together exist in this room (or
 	// inven). Now we must do tricky matching to see if each has a use action
 	// that applies to the other(s)
-	useMatches := []useMatch{}
-
-	otherLabels := make([]string, len(useTargets)-1)
-	for i := range useTargets {
-		mainTarget := useTargets[i]
-		copy(otherLabels, useTargetLabels[0:i])
-		copy(otherLabels[i:], useTargetLabels[i+1:len(useTargetLabels)])
-
-		if IsItem(mainTarget) {
-			item := mainTarget.(*Item)
-
-			for j := range item.OnUse {
-				withLatags := item.OnUse[j].With
-				if gs.concreteMatchesLatagList(otherLabels, withLatags) {
-					specific := len(otherLabels)
-					for _, latag := range withLatags {
-						if strings.HasPrefix(latag, "@") {
-							specific--
-						}
-					}
-
-					otherAliases := make([]string, len(useTargets)-1)
-					copy(otherAliases, useAliases[0:i])
-					copy(otherAliases[i:], useAliases[i+1:len(useAliases)])
-
-					m := useMatch{"ITEM", mainTarget.GetLabel(), useAliases[i], j, i == 0, specific, otherAliases, item.OnUse[j]}
-					useMatches = append(useMatches, m)
-				}
-			}
-		}
-
-		// otherwise, nothing else currently has actions defined on them, so
-		// move on to the next permutation
-	}
+	useMatches := gs.findAllUseMatches(useTargets, useAliases)
 
 	// if we didn't find any matches, give an error to the user
 	if len(useMatches) < 1 {
@@ -580,55 +547,11 @@ func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
 		return "", tqerrors.Interpreterf("You can't quite work out how to use the %s", useAliases[0])
 	}
 
-	// okay, we now have a set of candidate use matches. Let's filter them down
-	// and get it down to one
-	if len(useMatches) > 1 {
-		// 1. first, if *any* are the main item being used, we default to that.
-		newMatches := []useMatch{}
-		var mainFound bool
-		for _, m := range useMatches {
-			if m.main {
-				mainFound = true
-			}
-		}
-		for _, m := range useMatches {
-			if m.main || !mainFound {
-				newMatches = append(newMatches, m)
-			}
-		}
-
-		useMatches = newMatches
-	}
-
-	if len(useMatches) > 1 {
-		// 2. take the most specific one(s) only
-		newMatches := []useMatch{}
-		highestSpecific := -1
-		for _, m := range useMatches {
-			if m.specific > highestSpecific {
-				highestSpecific = m.specific
-			}
-		}
-
-		for _, m := range useMatches {
-			if m.specific == highestSpecific {
-				newMatches = append(newMatches, m)
-			}
-		}
-
-		useMatches = newMatches
-	}
-
-	if len(useMatches) > 1 {
-		// 3. Take the first found.
-		useMatches = []useMatch{useMatches[0]}
-	}
-
+	um := selectBestUseMatch(useMatches)
 	// okay, we now have, FINALLY, a single UseAction that we can call
-	useInfo := useMatches[0]
 
 	// first, evaluate the If. We don't exec if it's false
-	if !gs.scripts.Exec(useInfo.act.If).Bool() {
+	if !gs.scripts.Exec(um.act.If).Bool() {
 		// give the same generic error as if there is no way to use them
 		if len(useMatches) < 1 {
 			if len(useTargets) > 1 {
@@ -642,10 +565,10 @@ func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
 
 	var withOthersMsg string
 	if len(useTargets) > 1 {
-		others := util.MakeTextList(useInfo.with, false)
+		others := util.MakeTextList(um.with, false)
 		withOthersMsg += "together with the " + others
 	}
-	ed = ed.Insert(rosed.End, fmt.Sprintf("You use the %s%s...\n\n", useInfo.alias, withOthersMsg))
+	ed = ed.Insert(rosed.End, fmt.Sprintf("You use the %s%s...\n\n", um.alias, withOthersMsg))
 
 	// enable buffering so any output doesn't just go directly to gs before we
 	// get a chance to write any other output
@@ -656,7 +579,7 @@ func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
 	}()
 
 	// execute the use script
-	gs.scripts.Exec(useInfo.act.Do)
+	gs.scripts.Exec(um.act.Do)
 
 	// was an $OUTPUT() func executed?
 	tsOutput := gs.tsBuf.String()
@@ -674,54 +597,6 @@ func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
 		String()
 
 	return output, nil
-}
-
-// latags is any list of strings where each element could be a label or a
-// tag. Concrete must not contain tags or it will always be false. The lengths
-// of the two lists must match or it will always be false. Concrete must contain
-// only labels.
-func (gs *State) concreteMatchesLatagList(concrete []string, latags []string) bool {
-	// CONSIDER: otherWiths = ["DACHSUND", "ROTTWEILER"]
-	// ACTUAL WITHS: ["@DOGS"], ["DACHSHUND"]
-	// Check DACHSUND =? "@DOGS": TRUE, candidate
-	//	Check ROTWEILDER =? DACHSUND: FALSE, break
-	// CHECK ROTTWIELER =? "@DOGS": TRUE, candidate
-	//  Check DACHSUND =? DACHSUND: TRUE, done
-
-	if len(concrete) != len(latags) {
-		return false
-	}
-
-	if len(concrete) == 0 {
-		return true
-	}
-
-	for i, latag := range latags {
-		conc := concrete[i]
-
-		if strings.HasPrefix(latag, "@") {
-			// is the concrete the label of somefin with that tag?
-			if !gs.HasTag(conc, latag) {
-				continue
-			}
-		} else if conc != latag {
-			continue
-		}
-
-		restConc := make([]string, len(concrete)-1)
-		copy(restConc, concrete[0:i])
-		copy(restConc[i:], concrete[i+1:len(concrete)])
-
-		restLatag := make([]string, len(latags)-1)
-		copy(restLatag, latags[0:i])
-		copy(restLatag[i:], latags[i+1:len(latags)])
-
-		if gs.concreteMatchesLatagList(restConc, restLatag) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // ExecuteCommandGo executes the GO command with the arguments in the provided
@@ -1103,5 +978,98 @@ func (gs *State) HasTag(label, tag string) bool {
 			}
 		}
 	}
+	return false
+}
+
+func (gs *State) findAllUseMatches(targets []Targetable, targetAliases []string) []useMatch {
+	// gather exact labels because we need them for matching
+	targetLabels := make([]string, len(targets))
+	for i := range targets {
+		targetLabels[i] = targets[i].GetLabel()
+	}
+
+	matches := []useMatch{}
+
+	otherLabels := make([]string, len(targets)-1)
+	for i := range targets {
+		mainTarget := targets[i]
+		copy(otherLabels, targetLabels[0:i])
+		copy(otherLabels[i:], targetLabels[i+1:])
+
+		if IsItem(mainTarget) {
+			item := mainTarget.(*Item)
+
+			for j := range item.OnUse {
+				withLatags := item.OnUse[j].With
+				if gs.concreteMatchesLatagList(otherLabels, withLatags) {
+					specific := len(otherLabels)
+					for _, latag := range withLatags {
+						if strings.HasPrefix(latag, "@") {
+							specific--
+						}
+					}
+
+					otherAliases := make([]string, len(targets)-1)
+					copy(otherAliases, targetAliases[0:i])
+					copy(otherAliases[i:], targetAliases[i+1:])
+
+					m := useMatch{"ITEM", mainTarget.GetLabel(), targetAliases[i], j, i == 0, specific, otherAliases, item.OnUse[j]}
+					matches = append(matches, m)
+				}
+			}
+		}
+
+		// otherwise, nothing else currently has actions defined on them, so
+		// move on to the next permutation
+	}
+
+	return matches
+}
+
+// latags is any list of strings where each element could be a label or a
+// tag. Concrete must not contain tags or it will always be false. The lengths
+// of the two lists must match or it will always be false. Concrete must contain
+// only labels.
+func (gs *State) concreteMatchesLatagList(concrete []string, latags []string) bool {
+	// CONSIDER: otherWiths = ["DACHSUND", "ROTTWEILER"]
+	// ACTUAL WITHS: ["@DOGS"], ["DACHSHUND"]
+	// Check DACHSUND =? "@DOGS": TRUE, candidate
+	//	Check ROTWEILDER =? DACHSUND: FALSE, break
+	// CHECK ROTTWIELER =? "@DOGS": TRUE, candidate
+	//  Check DACHSUND =? DACHSUND: TRUE, done
+
+	if len(concrete) != len(latags) {
+		return false
+	}
+
+	if len(concrete) == 0 {
+		return true
+	}
+
+	for i, latag := range latags {
+		conc := concrete[i]
+
+		if strings.HasPrefix(latag, "@") {
+			// is the concrete the label of somefin with that tag?
+			if !gs.HasTag(conc, latag) {
+				continue
+			}
+		} else if conc != latag {
+			continue
+		}
+
+		restConc := make([]string, len(concrete)-1)
+		copy(restConc, concrete[0:i])
+		copy(restConc[i:], concrete[i+1:])
+
+		restLatag := make([]string, len(latags)-1)
+		copy(restLatag, latags[0:i])
+		copy(restLatag[i:], latags[i+1:])
+
+		if gs.concreteMatchesLatagList(restConc, restLatag) {
+			return true
+		}
+	}
+
 	return false
 }

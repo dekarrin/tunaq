@@ -38,3 +38,52 @@ func (ue UseAction) Copy() UseAction {
 
 	return aCopy
 }
+
+// selectBestUseMatch selects the best candidate from several matches.
+func selectBestUseMatch(matches []useMatch) useMatch {
+	// okay, we now have a set of candidate use matches. Let's filter them down
+	// and get it down to one
+	if len(matches) > 1 {
+		// 1. first, if *any* are the main item being used, we default to that.
+		newMatches := []useMatch{}
+		var mainFound bool
+		for _, m := range matches {
+			if m.main {
+				mainFound = true
+			}
+		}
+		for _, m := range matches {
+			if m.main || !mainFound {
+				newMatches = append(newMatches, m)
+			}
+		}
+
+		matches = newMatches
+	}
+
+	if len(matches) > 1 {
+		// 2. take the most specific one(s) only
+		newMatches := []useMatch{}
+		highestSpecific := -1
+		for _, m := range matches {
+			if m.specific > highestSpecific {
+				highestSpecific = m.specific
+			}
+		}
+
+		for _, m := range matches {
+			if m.specific == highestSpecific {
+				newMatches = append(newMatches, m)
+			}
+		}
+
+		matches = newMatches
+	}
+
+	if len(matches) > 1 {
+		// 3. Take the first found.
+		matches = []useMatch{matches[0]}
+	}
+
+	return matches[0]
+}
