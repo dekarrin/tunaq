@@ -14,18 +14,25 @@ start = "YOUR_ROOM"
 
 [[item]]
 label = "MERLIN_WAND"
-aliases = ["WAND", "MERLIN'S WAND", "WIZARD WAND", "MERLIN'S WIZARD WAND", "WIZARD'S WAND", "MERLIN WAND"]
+aliases = ["WAND", "MERLINS WAND", "WIZARD WAND", "MERLINS WIZARD WAND", "WIZARDS WAND", "MERLIN WAND"]
 name = "Merlin's wizard wand"
 description = '''
 This ancient looking wand is carved out of a wood you're not sure you've ever seen before. It's surely been used for
 many a silly adventure, and you have a feeling it could reveal great secrets if it were to be used in the proper place.
 '''
+start = "YOUR_ROOM"
 
 [[item.on_use]]
-if = "$FLAG_DISABLED(SECRET_REVEALED)"
+if = "$FLAG_ENABLED(SECRET_REVEALED)"
 do = [
-"$OUTPUT(You hold up the wand. As you do, it starts glowing. There's a bright flash, and suddenly... a panel in the corner pops open.)",
-"$ENABLE(SECRET_REVEALED)",
+
+'''
+$OUTPUT(@You hold up the wand. As you do, it starts glowing. There's a bright flash, and suddenly... a panel in the corner pops open.@)
+''',
+
+'''
+$ENABLE(SECRET_REVEALED)
+''',
 ]
 
 # your_room

@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 
@@ -106,24 +107,6 @@ type IODevice struct {
 	InputInt func(prompt string) (int, error)
 }
 
-type worldInterface struct {
-	fnInInven func(string) bool
-	fnMove    func(string, string) bool
-	fnOutput  func(string) bool
-}
-
-func (wi worldInterface) InInventory(item string) bool {
-	return wi.fnInInven(item)
-}
-
-func (wi worldInterface) Move(target, dest string) bool {
-	return wi.fnMove(target, dest)
-}
-
-func (wi worldInterface) Output(out string) bool {
-	return wi.fnOutput(out)
-}
-
 // New creates a new State and loads the list of rooms into it. It performs
 // basic sanity checks to ensure that a valid world is being passed in and
 // normalizes them as needed.
@@ -158,85 +141,6 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 		detailLocations: make(map[string]string),
 		tsBuf:           &strings.Builder{},
 		io:              ioDev,
-	}
-
-	scriptInterface := worldInterface{
-		fnInInven: func(s string) bool {
-			_, ok := gs.Inventory[strings.ToUpper(s)]
-			return ok
-		},
-		fnMove: func(target, dest string) bool {
-			target = strings.ToUpper(target)
-			dest = strings.ToUpper(dest)
-
-			if _, ok := gs.World[dest]; !ok {
-				// TODO: don't fail silently
-				return false
-			}
-			if target == TagPlayer {
-				if gs.CurrentRoom.Label == dest {
-					return false
-				}
-				gs.CurrentRoom = gs.World[dest]
-				return true
-			} else {
-				// item?
-				if roomLabel, ok := gs.itemLocations[target]; ok {
-					if roomLabel == dest {
-						return false
-					}
-
-					var item *Item
-					if roomLabel == "@INVEN" {
-						// it DOES move from backpack
-						item = gs.Inventory[target]
-						delete(gs.Inventory, item.Label)
-					} else {
-						// get the item
-						for _, it := range gs.World[roomLabel].Items {
-							if it.Label == target {
-								item = it
-								break
-							}
-						}
-						gs.World[roomLabel].RemoveItem(target)
-					}
-
-					if dest == "@INVEN" {
-						gs.Inventory[target] = item
-					} else {
-						gs.World[dest].Items = append(gs.World[dest].Items, item)
-					}
-					gs.itemLocations[target] = dest
-
-					return true
-				}
-
-				// npc?
-				roomLabel, ok := gs.npcLocations[target]
-				if !ok {
-					return false
-				}
-				if roomLabel == dest {
-					return false
-				}
-
-				npc := gs.World[roomLabel].NPCs[target]
-				delete(gs.World[roomLabel].NPCs, npc.Label)
-				gs.World[dest].NPCs[npc.Label] = npc
-				gs.npcLocations[target] = dest
-				return true
-			}
-		},
-		fnOutput: func(s string) bool {
-			if gs.tsBufferOutput {
-				gs.tsBuf.WriteString(s)
-				return true
-			}
-
-			err := ioDev.Output(s)
-			return err == nil
-		},
 	}
 
 	// first, go through and track all taggables
@@ -322,7 +226,7 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	// start scripting engine
 	gs.scripts = tunascript.Interpreter{
 		File:   "(text)",
-		Target: scriptInterface,
+		Target: scriptBackend{game: gs},
 	}
 
 	for fl := range flags {
@@ -551,6 +455,7 @@ func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
 	// okay, we now have, FINALLY, a single UseAction that we can call
 
 	// first, evaluate the If. We don't exec if it's false
+	log.Printf("WTF\n%s", um.act.If.String())
 	if !gs.scripts.Exec(um.act.If).Bool() {
 		// give the same generic error as if there is no way to use them
 		if len(useMatches) < 1 {
