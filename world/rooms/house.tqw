@@ -12,6 +12,21 @@ A hammer combined with a pogo-stick. What could go wrong?
 if = "$POGO_VISIBLE"
 start = "YOUR_ROOM"
 
+[[item]]
+label = "MERLIN_WAND"
+aliases = ["WAND", "MERLIN'S WAND", "WIZARD WAND", "MERLIN'S WIZARD WAND", "WIZARD'S WAND", "MERLIN WAND"]
+name = "Merlin's wizard wand"
+description = '''
+This ancient looking wand is carved out of a wood you're not sure you've ever seen before. It's surely been used for
+many a silly adventure, and you have a feeling it could reveal great secrets if it were to be used in the proper place.
+'''
+
+[[item.on_use]]
+if = "$FLAG_DISABLED(SECRET_REVEALED)"
+do = [
+"$OUTPUT(You hold up the wand. As you do, it starts glowing. There's a bright flash, and suddenly... a panel in the corner pops open.)",
+"$ENABLE(SECRET_REVEALED)",
+]
 
 # your_room
 [[room]]
@@ -20,7 +35,8 @@ name = "your bedroom"
 description = '''
 You are standing in your bedroom. Perhaps you are a young person who only now, on your 13th birthday, will receive a
 name.$[[IF $WINDOW_ACTIVE]] You have a pretty WINDOW in the corner overlooking the world outside.$[[ENDIF]] There's a
-door leading to your bathroom to the east, and a door leading to the hall to the south.
+door leading to your bathroom to the east,$[[IF $SECRET_REVEALED]] a PANEL to the west,$[[ENDIF]] and a door leading to
+the hall to the south.
 '''
 
 [[room.detail]]
@@ -52,6 +68,45 @@ message = '''
 You shut the door behind you as you $WALK_STYLE into the hall.
 '''
 
+[[room.exit]]
+aliases = ["SECRET DOOR", "PANEL", "SECRET PANEL", "WEST"]
+if = "$SECRET_REVEALED"
+dest = "SECRET_ROOM"
+description = '''
+a hidden panel you revealed using your wits and the help of item use
+'''
+message = '''
+You crouch down and slide open the panel, then step into the darkness behind it.
+'''
+
+# secret room
+[[room]]
+label = "SECRET_ROOM"
+name = "a secret room, nestled away in the corner of your bedroom"
+description = '''
+You are standing in a dark alcove behind your bedroom wall. There's a PLAQUE on the wall, and a door back to your room
+to the EAST.
+'''
+
+[[room.exit]]
+aliases = ["DOOR", "EAST", "OUT"]
+dest = "YOUR_ROOM"
+description = "the door back to your bedroom"
+message = '''
+You duck under the door and go back into your room.
+'''
+
+[[room.detail]]
+aliases = ["PLAQUE"]
+description = '''
+It's a gold-plated plaque with an inscription on it. It reads:
+
+"If you're reading this, it means you've finally become an adult. Keep up the good work. I'm so proud of you, champ.
+
+-Dad"
+
+What a nice guy!
+'''
 
 # bathroom
 [[room]]
