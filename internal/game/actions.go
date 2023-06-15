@@ -22,8 +22,8 @@ type UseAction struct {
 	// conditions are met.
 	Do tunascript.AST
 
-	// DoRaw gives the exact source tunascript that was parsed to create Do.
-	DoRaw string
+	// DoRaw gives the exact source tunascript(s) that were parsed to create Do.
+	DoRaw []string
 }
 
 // Copy returns a deeply-copied UseAction.

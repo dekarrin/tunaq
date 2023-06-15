@@ -73,6 +73,15 @@ type State struct {
 	// purposes.
 	detailLocations map[string]string
 
+	// tsBufferOutput will send tunascript to tsBuf instead of to the io device
+	// if set to true. methods of *State can call this before executing
+	// tunascript to control exactly when it is output.
+	tsBufferOutput bool
+
+	// output from TunaScript $OUTPUT() functions is sent here instead of to the
+	// io device if tsBufferOutput is set to true.
+	tsBuf *strings.Builder
+
 	// width is how wide to make output
 	io IODevice
 
@@ -147,6 +156,7 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 		itemLocations:   make(map[string]string),
 		exitLocations:   make(map[string]string),
 		detailLocations: make(map[string]string),
+		tsBuf:           &strings.Builder{},
 		io:              ioDev,
 	}
 
@@ -219,6 +229,11 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 			}
 		},
 		fnOutput: func(s string) bool {
+			if gs.tsBufferOutput {
+				gs.tsBuf.WriteString(s)
+				return true
+			}
+
 			err := ioDev.Output(s)
 			return err == nil
 		},
@@ -475,69 +490,197 @@ func (gs *State) Advance(cmd command.Command) error {
 	return gs.io.Output("\n" + output + "\n\n")
 }
 
+type useMatch struct {
+	kind     string
+	lbl      string
+	alias    string
+	idx      int
+	main     bool
+	specific int
+	with     []string
+	act      UseAction
+}
+
 // ExecuteCommandUse executes the USE command with the arguments in the provided
 // Command and returns the output.
 func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
-	withs := []string{}
+	// allToBeUsed
+	var useAliases []string
+	useAliases = append(useAliases, cmd.Recipient)
 
-	usedItem := cmd.Recipient
-
-	// 1. check if the item is in inven or item on ground or detail or npc or egress
-	//
-	// (it doesnt work at all with anyfin but item rn)
-	//
-	// 2. for all the withs, does the item have an on-use? if one of the on-use
-	// is a tag, need to check if somefin satisfies it.
-	// 3. if it doesn't, do any of the withs? (if they aren't a tag)
-	// 4. if none of the above apply, did the user try to use with somefin but
-	// it makes more sense to use it alone? tell the user
-
-}
-
-func (gs *State) hasUseWith(item *Item, withSet []string) (has bool, acts []UseAction) {
-	// tags introduce the possibility of mulitple matches.
-	// consider a tag with a use-set of "@DOGS", "ROTTWEILER" tested against an
-	// item with tagset of "@DOGS", label of "ROTTWEILER", and a UseAction that
-	// has a with of "@DOGS".
-	//
-	// It would first match on "@DOGS", then say "do i have any use-with
-	// ROTWEILER?" which it won't. Next it will try "ROTTWEILER" and say "do i
-	// have any useWith @DOGS?" which it will.
-
-	// go through each, and try to match the item label or tagset against the
-	// with. go to the next if it does not.
-	for i := range withSet {
-		with := withSet[i]
-		var matches bool
-		if strings.HasPrefix(with, "@") {
-			// it's a tag. do we match it?
-			if util.InSlice(with, item.Tags) {
-				// we do
-				matches = true
-			}
-		} else {
-			matches = item.Label == with
-		}
-
-		if !matches {
-			continue
-		}
-
-		// now, gather the *other* items from the withSet and search for those
-		otherWiths := make([]string, len(withSet)-1)
-		copy(otherWiths, withSet[0:i])
-		copy(otherWiths[i:], withSet[i+1:len(withSet)])
-
-		// okay, we now what it matches, now check its UseActions.
-
+	// TODO: in future when player command parser supports with multiple, bring
+	// in multiple stuff here. For now, just add the one and only other thing if
+	// it is present
+	if cmd.Instrument != "" {
+		useAliases = append(useAliases, cmd.Instrument)
 	}
+
+	// verify that each item requested to use is even a thing in this room (or
+	// in backpack)
+	useTargets := make([]Targetable, len(useAliases))
+	useTargetLabels := make([]string, len(useAliases))
+	for i := range useAliases {
+		var tgt Targetable
+		tgt = gs.Inventory.GetItemByAlias(useAliases[i])
+		if tgt == nil {
+			// if not in invent, it could be in the room
+			tgt = gs.CurrentRoom.GetTargetable(useAliases[i], TagPlayer, &gs.scripts)
+			if tgt == nil {
+				return "", tqerrors.Interpreterf("I don't see any %q here or in your inventory", useAliases[i])
+			}
+		}
+
+		useTargets[i] = tgt
+		useTargetLabels[i] = tgt.GetLabel()
+	}
+
+	// all of the things requested to be used together exist in this room (or
+	// inven). Now we must do tricky matching to see if each has a use action
+	// that applies to the other(s)
+	useMatches := []useMatch{}
+
+	otherLabels := make([]string, len(useTargets)-1)
+	for i := range useTargets {
+		mainTarget := useTargets[i]
+		copy(otherLabels, useTargetLabels[0:i])
+		copy(otherLabels[i:], useTargetLabels[i+1:len(useTargetLabels)])
+
+		if IsItem(mainTarget) {
+			item := mainTarget.(*Item)
+
+			for j := range item.OnUse {
+				withLatags := item.OnUse[j].With
+				if gs.concreteMatchesLatagList(otherLabels, withLatags) {
+					specific := len(otherLabels)
+					for _, latag := range withLatags {
+						if strings.HasPrefix(latag, "@") {
+							specific--
+						}
+					}
+
+					otherAliases := make([]string, len(useTargets)-1)
+					copy(otherAliases, useAliases[0:i])
+					copy(otherAliases[i:], useAliases[i+1:len(useAliases)])
+
+					m := useMatch{"ITEM", mainTarget.GetLabel(), useAliases[i], j, i == 0, specific, otherAliases, item.OnUse[j]}
+					useMatches = append(useMatches, m)
+				}
+			}
+		}
+
+		// otherwise, nothing else currently has actions defined on them, so
+		// move on to the next permutation
+	}
+
+	// if we didn't find any matches, give an error to the user
+	if len(useMatches) < 1 {
+		if len(useTargets) > 1 {
+			return "", tqerrors.Interpreterf("You can't quite work out how to use those together")
+		}
+		return "", tqerrors.Interpreterf("You can't quite work out how to use the %s", useAliases[0])
+	}
+
+	// okay, we now have a set of candidate use matches. Let's filter them down
+	// and get it down to one
+	if len(useMatches) > 1 {
+		// 1. first, if *any* are the main item being used, we default to that.
+		newMatches := []useMatch{}
+		var mainFound bool
+		for _, m := range useMatches {
+			if m.main {
+				mainFound = true
+			}
+		}
+		for _, m := range useMatches {
+			if m.main || !mainFound {
+				newMatches = append(newMatches, m)
+			}
+		}
+
+		useMatches = newMatches
+	}
+
+	if len(useMatches) > 1 {
+		// 2. take the most specific one(s) only
+		newMatches := []useMatch{}
+		highestSpecific := -1
+		for _, m := range useMatches {
+			if m.specific > highestSpecific {
+				highestSpecific = m.specific
+			}
+		}
+
+		for _, m := range useMatches {
+			if m.specific == highestSpecific {
+				newMatches = append(newMatches, m)
+			}
+		}
+
+		useMatches = newMatches
+	}
+
+	if len(useMatches) > 1 {
+		// 3. Take the first found.
+		useMatches = []useMatch{useMatches[0]}
+	}
+
+	// okay, we now have, FINALLY, a single UseAction that we can call
+	useInfo := useMatches[0]
+
+	// first, evaluate the If. We don't exec if it's false
+	if !gs.scripts.Exec(useInfo.act.If).Bool() {
+		// give the same generic error as if there is no way to use them
+		if len(useMatches) < 1 {
+			if len(useTargets) > 1 {
+				return "", tqerrors.Interpreterf("You can't quite work out how to use those together")
+			}
+			return "", tqerrors.Interpreterf("You can't quite work out how to use the %s", useAliases[0])
+		}
+	}
+
+	ed := rosed.Edit("").WithOptions(textFormatOptions)
+
+	var withOthersMsg string
+	if len(useTargets) > 1 {
+		others := util.MakeTextList(useInfo.with, false)
+		withOthersMsg += "together with the " + others
+	}
+	ed = ed.Insert(rosed.End, fmt.Sprintf("You use the %s%s...\n\n", useInfo.alias, withOthersMsg))
+
+	// enable buffering so any output doesn't just go directly to gs before we
+	// get a chance to write any other output
+	gs.tsBufferOutput = true
+	defer func() {
+		gs.tsBuf.Reset()
+		gs.tsBufferOutput = false
+	}()
+
+	// execute the use script
+	gs.scripts.Exec(useInfo.act.Do)
+
+	// was an $OUTPUT() func executed?
+	tsOutput := gs.tsBuf.String()
+
+	if tsOutput != "" {
+		// add the $OUTPUT() text to the result
+		ed = ed.Insert(rosed.End, tsOutput)
+	} else {
+		// otherwise, we need to show the user that something has occured
+		ed = ed.Insert(rosed.End, "Something happened!")
+	}
+
+	output := ed.
+		Wrap(gs.io.Width).
+		String()
+
+	return output, nil
 }
 
 // latags is any list of strings where each element could be a label or a
 // tag. Concrete must not contain tags or it will always be false. The lengths
 // of the two lists must match or it will always be false. Concrete must contain
 // only labels.
-func (gs *State) concreteMatchesAltagList(concrete []string, latags []string) bool {
+func (gs *State) concreteMatchesLatagList(concrete []string, latags []string) bool {
 	// CONSIDER: otherWiths = ["DACHSUND", "ROTTWEILER"]
 	// ACTUAL WITHS: ["@DOGS"], ["DACHSHUND"]
 	// Check DACHSUND =? "@DOGS": TRUE, candidate
@@ -547,6 +690,10 @@ func (gs *State) concreteMatchesAltagList(concrete []string, latags []string) bo
 
 	if len(concrete) != len(latags) {
 		return false
+	}
+
+	if len(concrete) == 0 {
+		return true
 	}
 
 	for i, latag := range latags {
@@ -561,10 +708,6 @@ func (gs *State) concreteMatchesAltagList(concrete []string, latags []string) bo
 			continue
 		}
 
-		if len(latag) == 1 {
-			return true
-		}
-
 		restConc := make([]string, len(concrete)-1)
 		copy(restConc, concrete[0:i])
 		copy(restConc[i:], concrete[i+1:len(concrete)])
@@ -573,7 +716,7 @@ func (gs *State) concreteMatchesAltagList(concrete []string, latags []string) bo
 		copy(restLatag, latags[0:i])
 		copy(restLatag[i:], latags[i+1:len(latags)])
 
-		if gs.concreteMatchesAltagList(restConc, restLatag) {
+		if gs.concreteMatchesLatagList(restConc, restLatag) {
 			return true
 		}
 	}
@@ -939,13 +1082,15 @@ func (gs *State) HasTag(label, tag string) bool {
 
 	for _, tgt := range tagged {
 		if IsDetail(tgt) {
-			//det := tgt.(*Detail)
-			// details do not have labels, skip
-			continue
+			det := tgt.(*Detail)
+			if det.Label == label {
+				return true
+			}
 		} else if IsEgress(tgt) {
-			//eg := tgt.(*Egress)
-			// egresses do not have labels, skip
-			continue
+			eg := tgt.(*Egress)
+			if eg.Label == label {
+				return true
+			}
 		} else if IsItem(tgt) {
 			item := tgt.(*Item)
 			if item.Label == label {

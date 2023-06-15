@@ -204,19 +204,21 @@ func (tp pronounSet) toGamePronounSet() game.PronounSet {
 type useAction struct {
 	With []string `toml:"with"`
 	If   string   `toml:"if"`
-	Do   string   `toml:"do"`
+	Do   []string `toml:"do"`
 }
 
 func (ua useAction) toGameUseAction() game.UseAction {
 	gameAction := game.UseAction{
 		With:  make([]string, len(ua.With)),
 		IfRaw: ua.If,
-		DoRaw: ua.Do,
+		DoRaw: make([]string, len(ua.Do)),
 	}
 
 	for i := range ua.With {
 		gameAction.With[i] = strings.ToUpper(ua.With[i])
 	}
+
+	copy(gameAction.DoRaw, ua.Do)
 
 	return gameAction
 }

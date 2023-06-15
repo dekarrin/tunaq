@@ -174,6 +174,33 @@ func parseWorldData(tqw topLevelWorldData) (WorldData, error) {
 		gameItem.IfRaw = raw
 		gameItem.If = tsAST
 
+		// run a parse on the tunascript of any and all useActions
+		for i := range gameItem.OnUse {
+			ou := gameItem.OnUse[i]
+
+			// first check the If
+			raw, tsAST, err := parseTunascript(ou.IfRaw, false)
+			if err != nil {
+				return world, fmt.Errorf("items[%q]: on_use[%d]: %w", it.Label, i, err)
+			}
+			ou.IfRaw = raw
+			ou.If = tsAST
+
+			// next, check the Do's
+			var doAST tunascript.AST
+			for j := range ou.DoRaw {
+				stmtRaw, stmtAST, stmtErr := parseTunascript(ou.DoRaw[j], true)
+				if stmtErr != nil {
+					return world, fmt.Errorf("items[%q]: on_use[%d]: do[%d]: %w", it.Label, i, j, stmtErr)
+				}
+				ou.DoRaw[j] = stmtRaw
+				doAST.Nodes = append(doAST.Nodes, stmtAST.Nodes[0])
+			}
+			ou.Do = doAST
+
+			gameItem.OnUse[i] = ou
+		}
+
 		r := world.Rooms[strings.ToUpper(it.Start)]
 		r.Items = append(r.Items, &gameItem)
 	}
