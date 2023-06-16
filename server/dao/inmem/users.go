@@ -3,6 +3,7 @@ package inmem
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/google/uuid"
@@ -32,6 +33,8 @@ func (imur *InMemoryUsersRepository) Create(ctx context.Context, user dao.User) 
 	if _, ok := imur.byUsernameIndex[user.Username]; ok {
 		return dao.User{}, ErrConstraintViolation
 	}
+
+	user.LastLogoutTime = time.Now()
 
 	imur.users[user.ID] = user
 	imur.byUsernameIndex[user.Username] = user.ID

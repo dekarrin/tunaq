@@ -1,16 +1,22 @@
 package server
 
 import (
+	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/mail"
 	"strings"
+	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/dekarrin/tunaq/server/dao/inmem"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -56,17 +62,24 @@ type NetworkJSONCommandReader struct {
 type TunaQuestServer struct {
 	srv *http.ServeMux
 
-	users dao.UserRepository
+	db dao.Store
 }
 
 type LoginResponse struct {
 	Token string `json:"token"`
 }
 
+type LoginRequest struct {
+	User     string `json:"user"`
+	Password string `json:"password"`
+}
+
 func New() TunaQuestServer {
 	tqs := TunaQuestServer{
-		srv:   http.NewServeMux(),
-		users: inmem.NewUsersRepository(),
+		srv: http.NewServeMux(),
+		db: dao.Store{
+			Users: inmem.NewUsersRepository(),
+		},
 	}
 
 	tqs.srv.HandleFunc("/login/", tqs.handlePathLogin)
@@ -81,7 +94,15 @@ func (tqs TunaQuestServer) ServeForever() {
 func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path == "/login/" || req.URL.Path == "/login" {
 		if req.Method == http.MethodPost {
-			tok, err := tqs.Login()
+			loginData := LoginRequest{}
+			err := parseJSON(req, &loginData)
+			if err != nil {
+				log.Printf("ERROR: HTTP-400: %s", err.Error())
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			tok, err := tqs.Login(req.Context(), loginData.User, loginData.Password)
 			if err != nil {
 				if err == ErrBadCredentials {
 					log.Printf("ERROR: HTTP-401: %s", ErrBadCredentials)
@@ -95,11 +116,11 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 				}
 			}
 
-			resp := LoginResponse{Token: tok.Raw}
+			resp := LoginResponse{Token: tok}
 			w.WriteHeader(http.StatusCreated)
 			renderJSON(w, resp)
-
 		} else {
+			log.Printf("ERROR: HTTP-405")
 			http.Error(w, fmt.Sprintf("HTTP %v method is not valid for %s", req.Method, req.URL.Path), http.StatusMethodNotAllowed)
 			return
 		}
@@ -122,6 +143,8 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 				http.Error(w, "An internal server error occurred", http.StatusInternalServerError)
 				return
 			}
+
+			w.WriteHeader(http.StatusNoContent)
 		} else {
 			http.Error(w, fmt.Sprintf("HTTP %v method is not valid for %s", req.Method, req.URL.Path), http.StatusMethodNotAllowed)
 			return
@@ -129,12 +152,98 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 	}
 }
 
-func (tqs TunaQuestServer) Login(username string, password string) (*jwt.Token, error) {
+// Login returns the JWT token after logging in.
+func (tqs TunaQuestServer) Login(ctx context.Context, username string, password string) (string, error) {
+	user, err := tqs.db.Users.GetByUsername(ctx, username)
+	if err != nil {
+		if err == inmem.ErrNotFound {
+			return "", ErrBadCredentials
+		}
+	}
+
+	// verify password
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+	if err == bcrypt.ErrMismatchedHashAndPassword {
+		return "", ErrBadCredentials
+	}
+
+	// password is valid, generate token for user and return it.
+	tok, err := generateJWTForUser(user)
+	if err != nil {
+		return "", fmt.Errorf("could not generate JWT: %w", err)
+	}
+
+	return tok, nil
+}
+
+func (tqs TunaQuestServer) Logout(ctx context.Context, jwtTok string, who uuid.UUID) error {
 
 }
 
-func (tqs TunaQuestServer) Logout(auth *jwt.Token, who uuid.UUID) error {
+func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password string, email string) (dao.User, error) {
+	_, err := tqs.db.Users.GetByUsername(ctx, username)
+	if err != inmem.ErrNotFound {
+		return dao.User{}, fmt.Errorf("user already exists")
+	}
 
+	storedEmail, err := mail.ParseAddress(email)
+	if err != nil {
+		return dao.User{}, fmt.Errorf("email is not valid: %w", err)
+	}
+
+	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 20)
+	if err != nil {
+		if err == bcrypt.ErrPasswordTooLong {
+			return dao.User{}, fmt.Errorf("password is too long")
+		} else {
+			return dao.User{}, fmt.Errorf("password could not be encrypted: %w", err)
+		}
+	}
+
+	storedPass := base64.StdEncoding.EncodeToString(passHash)
+
+	newUser := dao.User{
+		Username: username,
+		Password: storedPass,
+		Email:    storedEmail,
+	}
+
+	user, err := tqs.db.Users.Create(ctx, newUser)
+	if err != nil {
+		if err == inmem.ErrConstraintViolation {
+			return dao.User{}, fmt.Errorf("user already exists")
+		}
+		return dao.User{}, fmt.Errorf("could not create user: %w", err)
+	}
+
+	return user, nil
+}
+
+func verifyJWTForUser(tok string, u dao.User) error {
+	parsed, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
+		return nil, nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}))
+}
+
+func generateJWTForUser(u dao.User) (string, error) {
+	claims := &jwt.MapClaims{
+		"iss":        "tqs",
+		"exp":        time.Now().Add(time.Hour),
+		"sub":        u.ID.String(),
+		"authorized": true,
+	}
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
+
+	var signKey []byte
+	signKey = append(signKey, fakeTestKey...)
+	signKey = append(signKey, []byte(u.Password)...)
+	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogoutTime.Unix()))...)
+
+	tokStr, err := tok.SignedString(signKey)
+	if err != nil {
+		return "", err
+	}
+	return tokStr, nil
 }
 
 func renderJSON(w http.ResponseWriter, v interface{}) {
@@ -145,4 +254,25 @@ func renderJSON(w http.ResponseWriter, v interface{}) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(js)
+}
+
+// v must be a pointer to a type.
+func parseJSON(req *http.Request, v interface{}) error {
+	contentType := req.Header.Get("Content-Type")
+
+	if strings.ToLower(contentType) != "application/json" {
+		return fmt.Errorf("request content-type is not application/json")
+	}
+
+	bodyData, err := io.ReadAll(req.Body)
+	if err != nil {
+		return fmt.Errorf("could not read request body: %w", err)
+	}
+
+	err = json.Unmarshal(bodyData, v)
+	if err != nil {
+		return fmt.Errorf("malformed JSON in request")
+	}
+
+	return nil
 }

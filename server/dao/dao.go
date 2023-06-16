@@ -3,9 +3,16 @@ package dao
 
 import (
 	"context"
+	"net/mail"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+// Store holds all the repositories.
+type Store struct {
+	Users UserRepository
+}
 
 type Command struct {
 }
@@ -26,8 +33,22 @@ type UserRepository interface {
 	Delete(ctx context.Context, id uuid.UUID) (User, error)
 }
 
+type Role int
+
+const (
+	Guest Role = iota
+	Unverified
+	Normal
+
+	Admin Role = 100
+)
+
 type User struct {
-	ID       uuid.UUID
-	Username string
-	Password string
+	ID       uuid.UUID     `json:"id"`
+	Username string        `json:"username"`
+	Password string        `json:"-"`
+	Email    *mail.Address `json:"email"`
+
+	Role           Role `json:"role"`
+	LastLogoutTime time.Time
 }
