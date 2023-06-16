@@ -27,6 +27,7 @@ type Error string
 
 var (
 	ErrBadCredentials Error = "The supplied username/password combo is incorrect"
+	ErrPermissions    Error = "You don't have permission to do that"
 )
 
 func (e Error) Error() string {
@@ -177,7 +178,21 @@ func (tqs TunaQuestServer) Login(ctx context.Context, username string, password 
 }
 
 func (tqs TunaQuestServer) Logout(ctx context.Context, jwtTok string, who uuid.UUID) error {
+	user, err := tqs.verifyJWT(ctx, jwtTok)
+	if err != nil {
+		return fmt.Errorf("invalid JWT: %w", err)
+	}
 
+	// is the user trying to delete someone else?
+	if who != user.ID {
+		// they'd betta be an admin then!
+		if user.Role != dao.Admin {
+			return ErrPermissions
+		}
+
+		// otherwise, go ahead
+
+	}
 }
 
 func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password string, email string) (dao.User, error) {
@@ -219,16 +234,48 @@ func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password st
 	return user, nil
 }
 
-func verifyJWTForUser(tok string, u dao.User) error {
-	parsed, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
-		return nil, nil
-	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}))
+func (tqs TunaQuestServer) verifyJWT(ctx context.Context, tok string) (dao.User, error) {
+	var user dao.User
+
+	_, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
+		// who is the user? we need this for further verification
+		subj, err := t.Claims.GetSubject()
+		if err != nil {
+			return nil, fmt.Errorf("cannot get subject: %w", err)
+		}
+
+		id, err := uuid.Parse(subj)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse subject UUID: %w", err)
+		}
+
+		user, err = tqs.db.Users.GetByID(ctx, id)
+		if err != nil {
+			if err == inmem.ErrNotFound {
+				return nil, fmt.Errorf("subject does not exist")
+			} else {
+				return nil, fmt.Errorf("subject could not be validated")
+			}
+		}
+
+		var signKey []byte
+		signKey = append(signKey, fakeTestKey...)
+		signKey = append(signKey, []byte(user.Password)...)
+		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogoutTime.Unix()))...)
+		return signKey, nil
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}), jwt.WithIssuer("tqs"), jwt.WithLeeway(time.Minute))
+
+	if err != nil {
+		return dao.User{}, err
+	}
+
+	return user, nil
 }
 
 func generateJWTForUser(u dao.User) (string, error) {
 	claims := &jwt.MapClaims{
 		"iss":        "tqs",
-		"exp":        time.Now().Add(time.Hour),
+		"exp":        time.Now().Add(time.Hour).Unix(),
 		"sub":        u.ID.String(),
 		"authorized": true,
 	}
