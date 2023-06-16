@@ -236,7 +236,7 @@ func (gs *State) GetNPCInfo(label string) (string, error) {
 	output := rosed.Edit("NPC Info for "+npc.Label+"\n"+
 		"\n",
 	).
-		InsertDefinitionsTableOpts(math.MaxInt, npcInfo, gs.io.Width+2, tableOpts).
+		InsertDefinitionsTableOpts(math.MaxInt, npcInfo, gs.io.Width()+2, tableOpts).
 		LinesFrom(2).
 		Apply(func(idx int, line string) []string {
 			line = strings.Replace(line[2:], "  -", "  :", 1)

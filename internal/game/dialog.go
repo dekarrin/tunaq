@@ -229,13 +229,13 @@ func (gs *State) RunConversation(npc *NPC) error {
 				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
 					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
-					Wrap(gs.io.Width).
+					Wrap(gs.io.Width()).
 					Insert(rosed.End, "\n")
 				if step.Response != "" {
 					resp := gs.Expand(step.tmplResponse)
 					ed = ed.
 						Insert(rosed.End, "\nYOU:\n").
-						Insert(rosed.End, rosed.Edit("\""+strings.TrimSpace(resp)+"\"").Wrap(gs.io.Width).String()).
+						Insert(rosed.End, rosed.Edit("\""+strings.TrimSpace(resp)+"\"").Wrap(gs.io.Width()).String()).
 						Insert(rosed.End, "\n")
 				}
 				output = ed.String()
@@ -258,7 +258,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 				ed := rosed.Edit("\n"+strings.ToUpper(npc.Name)+":\n").WithOptions(textFormatOptions).
 					CharsFrom(rosed.End).
 					Insert(rosed.End, "\""+strings.TrimSpace(line)+"\"").
-					Wrap(gs.io.Width).
+					Wrap(gs.io.Width()).
 					Insert(rosed.End, "\n\n").
 					CharsFrom(rosed.End)
 
@@ -273,7 +273,7 @@ func (gs *State) RunConversation(npc *NPC) error {
 					ed = ed.Insert(rosed.End, fmt.Sprintf("%d) \"%s\"\n", idx+1, strings.TrimSpace(ch)))
 				}
 				ed = ed.Apply(func(idx int, line string) []string {
-					return []string{rosed.Edit(line).Wrap(gs.io.Width).String()}
+					return []string{rosed.Edit(line).Wrap(gs.io.Width()).String()}
 				})
 
 				var err error

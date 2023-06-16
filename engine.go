@@ -21,11 +21,9 @@ import (
 // Engine contains the things needed to run a game from an interactive shell
 // attached to an input stream and an output stream.
 type Engine struct {
-	state       *game.State
-	in          command.Reader
-	out         *bufio.Writer
-	forceDirect bool
-	running     bool
+	state   *game.State
+	term    *terminalDevice
+	running bool
 }
 
 const consoleOutputWidth = 80
@@ -50,89 +48,31 @@ func New(inputStream io.Reader, outputStream io.Writer, worldFilePath string, fo
 		return nil, err
 	}
 
-	eng := &Engine{
-		out:         bufio.NewWriter(outputStream),
-		running:     false,
+	// terminal for IO output.
+	term := &terminalDevice{
+		width:       consoleOutputWidth,
 		forceDirect: forceDirectInput,
+		out:         bufio.NewWriter(outputStream),
 	}
 
-	useReadline := !forceDirectInput && inputStream == os.Stdin && outputStream == os.Stdout
+	term.useReadline = !forceDirectInput && inputStream == os.Stdin && outputStream == os.Stdout
 
-	if useReadline {
-		eng.in, err = input.NewInteractiveReader()
+	if term.useReadline {
+		term.in, err = input.NewInteractiveReader()
 		if err != nil {
 			return nil, fmt.Errorf("initializing interactive-mode input reader: %w", err)
 		}
 	} else {
-		eng.in = input.NewDirectReader(inputStream)
+		term.in = input.NewDirectReader(inputStream)
 	}
 
-	// create IODevice for use with the game engine
-	outFunc := func(s string, a ...interface{}) error {
-		s = fmt.Sprintf(s, a...)
-		if eng.out.WriteString(s); err != nil {
-			return fmt.Errorf("could not write output: %w", err)
-		}
-		if err := eng.out.Flush(); err != nil {
-			return fmt.Errorf("could not flush output: %w", err)
-		}
-		return nil
-	}
-	inputFunc := func(prompt string) (string, error) {
-		var oldPrompt string
-		var icr *input.InteractiveCommandReader
-		if useReadline {
-			icr = eng.in.(*input.InteractiveCommandReader)
-			oldPrompt = icr.GetPrompt()
-			icr.SetPrompt(prompt)
-		} else {
-			if prompt != "" {
-				if err := outFunc(prompt); err != nil {
-					return "", err
-				}
-			}
-		}
-		eng.in.AllowBlank(true)
-		readInput, err := eng.in.ReadCommand()
-		eng.in.AllowBlank(false)
-		if useReadline {
-			icr = eng.in.(*input.InteractiveCommandReader)
-			icr.SetPrompt(oldPrompt)
-		}
-		return readInput, err
-	}
-	ioDev := game.IODevice{
-		Width:  consoleOutputWidth,
-		Output: outFunc,
-		Input:  inputFunc,
-		InputInt: func(prompt string) (int, error) {
-			var intVal int
-			var valSet bool
-
-			for !valSet {
-				inputVal, err := inputFunc(prompt)
-				if err != nil {
-					return 0, err
-				}
-				intVal, err = strconv.Atoi(inputVal)
-				if err != nil {
-					msg := "Please enter a number\n"
-					if strings.Contains(inputVal, ".") {
-						msg = "Please enter a number without a decimal dot\n"
-					}
-					err := outFunc(msg)
-					if err != nil {
-						return 0, err
-					}
-				} else {
-					valSet = true
-				}
-			}
-			return intVal, nil
-		},
+	// create engine
+	eng := &Engine{
+		term:    term,
+		running: false,
 	}
 
-	state, err := game.New(worldData.Rooms, worldData.Start, worldData.Flags, ioDev)
+	state, err := game.New(worldData.Rooms, worldData.Start, worldData.Flags, eng.term)
 	if err != nil {
 		return nil, fmt.Errorf("initializing game engine: %w", err)
 	}
@@ -151,7 +91,7 @@ func (eng *Engine) Close() error {
 		return fmt.Errorf("cannot close a running game engine")
 	}
 
-	err := eng.in.Close()
+	err := eng.term.in.Close()
 	if err != nil {
 		return fmt.Errorf("close command reader: %w", err)
 	}
@@ -165,17 +105,17 @@ func (eng *Engine) Close() error {
 // startCommands, if non nil, is commands to run as soon as it starts.
 func (eng *Engine) RunUntilQuit(startCommands []string) error {
 	introMsg := "Welcome to TunaQuest Engine\n"
-	if eng.forceDirect {
+	if eng.term.forceDirect {
 		introMsg += "(direct input mode)\n"
 	}
 	introMsg += "===========================\n"
 	introMsg += "\n"
 	introMsg += "You are in " + eng.state.CurrentRoom.Name + "\n"
 
-	if _, err := eng.out.WriteString(introMsg); err != nil {
+	if _, err := eng.term.out.WriteString(introMsg); err != nil {
 		return fmt.Errorf("could not write output: %w", err)
 	}
-	if err := eng.out.Flush(); err != nil {
+	if err := eng.term.out.Flush(); err != nil {
 		return fmt.Errorf("could not flush output: %w", err)
 	}
 
@@ -196,16 +136,16 @@ func (eng *Engine) RunUntilQuit(startCommands []string) error {
 			if err != nil {
 				consoleMessage := tqerrors.GameMessage(err)
 				consoleMessage = rosed.Edit(consoleMessage).Wrap(consoleOutputWidth).String()
-				if _, err := eng.out.WriteString("\n" + consoleMessage + "\n\n"); err != nil {
+				if _, err := eng.term.out.WriteString("\n" + consoleMessage + "\n\n"); err != nil {
 					return fmt.Errorf("could not write output: %w", err)
 				}
-				if err := eng.out.Flush(); err != nil {
+				if err := eng.term.out.Flush(); err != nil {
 					return fmt.Errorf("could not flush output: %w", err)
 				}
 			}
 			startCmdIdx++
 		} else {
-			cmd, err = command.Get(eng.in, eng.out)
+			cmd, err = command.Get(eng.term.in, eng.term.out)
 			if err != nil {
 				return fmt.Errorf("get user command: %w", err)
 			}
@@ -222,21 +162,98 @@ func (eng *Engine) RunUntilQuit(startCommands []string) error {
 		if err != nil {
 			consoleMessage := tqerrors.GameMessage(err)
 			consoleMessage = rosed.Edit(consoleMessage).Wrap(consoleOutputWidth).String()
-			if _, err := eng.out.WriteString("\n" + consoleMessage + "\n\n"); err != nil {
+			if _, err := eng.term.out.WriteString("\n" + consoleMessage + "\n\n"); err != nil {
 				return fmt.Errorf("could not write output: %w", err)
 			}
-			if err := eng.out.Flush(); err != nil {
+			if err := eng.term.out.Flush(); err != nil {
 				return fmt.Errorf("could not flush output: %w", err)
 			}
 		}
 	}
 
-	if _, err := eng.out.WriteString("\nGoodbye\n"); err != nil {
+	if _, err := eng.term.out.WriteString("\nGoodbye\n"); err != nil {
 		return fmt.Errorf("could not write output: %w", err)
 	}
-	if err := eng.out.Flush(); err != nil {
+	if err := eng.term.out.Flush(); err != nil {
 		return fmt.Errorf("could not flush output: %w", err)
 	}
 
 	return nil
+}
+
+type terminalDevice struct {
+	width       int
+	out         *bufio.Writer
+	in          command.Reader
+	forceDirect bool
+	useReadline bool
+}
+
+func (td *terminalDevice) Width() int {
+	return td.width
+}
+
+func (td *terminalDevice) SetWidth(w int) {
+	td.width = w
+}
+
+func (td *terminalDevice) Output(s string, a ...interface{}) error {
+	s = fmt.Sprintf(s, a...)
+	if _, err := td.out.WriteString(s); err != nil {
+		return fmt.Errorf("could not write output: %w", err)
+	}
+	if err := td.out.Flush(); err != nil {
+		return fmt.Errorf("could not flush output: %w", err)
+	}
+	return nil
+}
+
+func (td *terminalDevice) Input(prompt string) (string, error) {
+	var oldPrompt string
+	var icr *input.InteractiveCommandReader
+	if td.useReadline {
+		icr = td.in.(*input.InteractiveCommandReader)
+		oldPrompt = icr.GetPrompt()
+		icr.SetPrompt(prompt)
+	} else {
+		if prompt != "" {
+			if err := td.Output(prompt); err != nil {
+				return "", err
+			}
+		}
+	}
+	td.in.AllowBlank(true)
+	readInput, err := td.in.ReadCommand()
+	td.in.AllowBlank(false)
+	if td.useReadline {
+		icr = td.in.(*input.InteractiveCommandReader)
+		icr.SetPrompt(oldPrompt)
+	}
+	return readInput, err
+}
+
+func (td *terminalDevice) InputInt(prompt string) (int, error) {
+	var intVal int
+	var valSet bool
+
+	for !valSet {
+		inputVal, err := td.Input(prompt)
+		if err != nil {
+			return 0, err
+		}
+		intVal, err = strconv.Atoi(inputVal)
+		if err != nil {
+			msg := "Please enter a number\n"
+			if strings.Contains(inputVal, ".") {
+				msg = "Please enter a number without a decimal dot\n"
+			}
+			err := td.Output(msg)
+			if err != nil {
+				return 0, err
+			}
+		} else {
+			valSet = true
+		}
+	}
+	return intVal, nil
 }
