@@ -2,7 +2,6 @@ package game
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 
@@ -446,24 +445,24 @@ func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
 	// if we didn't find any matches, give an error to the user
 	if len(useMatches) < 1 {
 		if len(useTargets) > 1 {
-			return "", tqerrors.Interpreterf("You can't quite work out how to use those together")
+			return "", tqerrors.Interpreterf("You're pretty sure those don't work together")
 		}
-		return "", tqerrors.Interpreterf("You can't quite work out how to use the %s", useAliases[0])
+		return "", tqerrors.Interpreterf("You aren't sure how to use the %s by itself", useAliases[0])
 	}
 
 	um := selectBestUseMatch(useMatches)
 	// okay, we now have, FINALLY, a single UseAction that we can call
 
 	// first, evaluate the If. We don't exec if it's false
-	log.Printf("WTF\n%s", um.act.If.String())
 	if !gs.scripts.Exec(um.act.If).Bool() {
 		// give the same generic error as if there is no way to use them
 		if len(useMatches) < 1 {
 			if len(useTargets) > 1 {
-				return "", tqerrors.Interpreterf("You can't quite work out how to use those together")
+				others := util.MakeTextList(useAliases[1:], false)
+				return "", tqerrors.Interpreterf("You try to use the %s together with the %s... but nothing happens", useAliases[0], others)
 			}
-			return "", tqerrors.Interpreterf("You can't quite work out how to use the %s", useAliases[0])
 		}
+		return "", tqerrors.Interpreterf("You try to use the %s... but nothing happens", useAliases[0])
 	}
 
 	ed := rosed.Edit("").WithOptions(textFormatOptions)
@@ -471,7 +470,7 @@ func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
 	var withOthersMsg string
 	if len(useTargets) > 1 {
 		others := util.MakeTextList(um.with, false)
-		withOthersMsg += "together with the " + others
+		withOthersMsg += " together with the " + others
 	}
 	ed = ed.Insert(rosed.End, fmt.Sprintf("You use the %s%s...\n\n", um.alias, withOthersMsg))
 

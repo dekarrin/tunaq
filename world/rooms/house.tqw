@@ -23,7 +23,7 @@ many a silly adventure, and you have a feeling it could reveal great secrets if 
 start = "YOUR_ROOM"
 
 [[item.on_use]]
-if = "$FLAG_ENABLED(SECRET_REVEALED)"
+if = "$FLAG_DISABLED(SECRET_REVEALED)"
 do = [
 
 '''
