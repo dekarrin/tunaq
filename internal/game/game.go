@@ -393,17 +393,6 @@ func (gs *State) Advance(cmd command.Command) error {
 	return gs.io.Output("\n" + output + "\n\n")
 }
 
-type useMatch struct {
-	kind     string
-	lbl      string
-	alias    string
-	idx      int
-	main     bool
-	specific int
-	with     []string
-	act      UseAction
-}
-
 // ExecuteCommandUse executes the USE command with the arguments in the provided
 // Command and returns the output.
 func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
@@ -469,10 +458,10 @@ func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
 
 	var withOthersMsg string
 	if len(useTargets) > 1 {
-		others := util.MakeTextList(um.with, false)
+		others := util.MakeTextList(useAliases[1:], false)
 		withOthersMsg += " together with the " + others
 	}
-	ed = ed.Insert(rosed.End, fmt.Sprintf("You use the %s%s...\n\n", um.alias, withOthersMsg))
+	ed = ed.Insert(rosed.End, fmt.Sprintf("You use the %s%s...\n\n", useAliases[0], withOthersMsg))
 
 	// enable buffering so any output doesn't just go directly to gs before we
 	// get a chance to write any other output
@@ -885,6 +874,12 @@ func (gs *State) HasTag(label, tag string) bool {
 	return false
 }
 
+type useMatch struct {
+	main     bool
+	specific int
+	act      UseAction
+}
+
 func (gs *State) findAllUseMatches(targets []Targetable, targetAliases []string) []useMatch {
 	// gather exact labels because we need them for matching
 	targetLabels := make([]string, len(targets))
@@ -917,7 +912,7 @@ func (gs *State) findAllUseMatches(targets []Targetable, targetAliases []string)
 					copy(otherAliases, targetAliases[0:i])
 					copy(otherAliases[i:], targetAliases[i+1:])
 
-					m := useMatch{"ITEM", mainTarget.GetLabel(), targetAliases[i], j, i == 0, specific, otherAliases, item.OnUse[j]}
+					m := useMatch{i == 0, specific, item.OnUse[j]}
 					matches = append(matches, m)
 				}
 			}

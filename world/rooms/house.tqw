@@ -35,6 +35,28 @@ $ENABLE(SECRET_REVEALED)
 ''',
 ]
 
+[[item]]
+label = "SPOON"
+aliases = ["SPOON"]
+name = "spoon"
+description = '''
+It's a spoon, dawg. Like for eating things that you need to scoop.
+'''
+start = "YOUR_ROOM"
+
+[[item]]
+label = "FORK"
+aliases = ["FORK"]
+name = "fork"
+description = '''
+It's a fork, dawg. Like for eating things that you need to stab.
+'''
+start = "HALLWAY"
+
+[[item.on_use]]
+with = ["SPOON"]
+do = ["$OUTPUT(@The two clack together, making a pleasant ringing sound.@)"]
+
 # your_room
 [[room]]
 label = "YOUR_ROOM"
