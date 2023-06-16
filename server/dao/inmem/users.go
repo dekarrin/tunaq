@@ -42,6 +42,25 @@ func (imur *InMemoryUsersRepository) Create(ctx context.Context, user dao.User) 
 	return user, nil
 }
 
+func (imur *InMemoryUsersRepository) Update(ctx context.Context, user dao.User) (dao.User, error) {
+	existing, ok := imur.users[user.ID]
+	if !ok {
+		return dao.User{}, ErrNotFound
+	}
+
+	if user.Username != existing.Username {
+		// that's okay but we need to check it
+		if _, ok := imur.byUsernameIndex[user.Username]; ok {
+			return dao.User{}, ErrConstraintViolation
+		}
+	}
+
+	imur.users[user.ID] = user
+	imur.byUsernameIndex[user.Username] = user.ID
+
+	return user, nil
+}
+
 func (imur *InMemoryUsersRepository) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error) {
 	user, ok := imur.users[id]
 	if !ok {

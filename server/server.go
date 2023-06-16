@@ -28,6 +28,7 @@ type Error string
 var (
 	ErrBadCredentials Error = "The supplied username/password combo is incorrect"
 	ErrPermissions    Error = "You don't have permission to do that"
+	ErrInvalidLogin   Error = "You don't appear to be logged in"
 )
 
 func (e Error) Error() string {
@@ -139,6 +140,10 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 				http.Error(w, "The requested resource was not found", http.StatusNotFound)
 				return
 			}
+
+			// need to: get JWT
+			// get WHO from request
+
 			err = tqs.Logout(nil, id)
 			if err != nil {
 				http.Error(w, "An internal server error occurred", http.StatusInternalServerError)
@@ -180,19 +185,28 @@ func (tqs TunaQuestServer) Login(ctx context.Context, username string, password 
 func (tqs TunaQuestServer) Logout(ctx context.Context, jwtTok string, who uuid.UUID) error {
 	user, err := tqs.verifyJWT(ctx, jwtTok)
 	if err != nil {
-		return fmt.Errorf("invalid JWT: %w", err)
+		return ErrInvalidLogin
 	}
 
-	// is the user trying to delete someone else?
-	if who != user.ID {
-		// they'd betta be an admin then!
-		if user.Role != dao.Admin {
-			return ErrPermissions
-		}
-
-		// otherwise, go ahead
-
+	// is the user trying to delete someone else? they'd betta be the admin if so!
+	if who != user.ID && user.Role != dao.Admin {
+		return ErrPermissions
 	}
+
+	// otherwise, go ahead and log 'em out
+	existing, err := tqs.db.Users.GetByID(ctx, who)
+	if err != nil {
+		return fmt.Errorf("could not retrieve user")
+	}
+
+	existing.LastLogoutTime = time.Now()
+
+	_, err = tqs.db.Users.Update(ctx, existing)
+	if err != nil {
+		return fmt.Errorf("could not update user")
+	}
+
+	return nil
 }
 
 func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password string, email string) (dao.User, error) {
