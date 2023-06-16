@@ -22,6 +22,10 @@ type Detail struct {
 	// the tag @DETAIL, regardless of whether it appears in this slice.
 	Tags []string
 
+	// Label is a unique identifier for the detail. If it is not specified at
+	// start, one is automatically assigned.
+	Label string
+
 	// Aliases is the aliases that the player can use to target the detail.
 	Aliases []string
 
@@ -53,6 +57,14 @@ func (d Detail) GetDescription() *tunascript.Template {
 	return d.tmplDescription
 }
 
+func (d Detail) GetLabel() string {
+	return d.Label
+}
+
+func (d Detail) GetTags() []string {
+	return d.Tags
+}
+
 func (d Detail) String() string {
 	return fmt.Sprintf("Detail<%s>", d.Aliases)
 }
@@ -62,6 +74,7 @@ func (d Detail) Copy() Detail {
 	dCopy := Detail{
 		Aliases:         make([]string, len(d.Aliases)),
 		Tags:            make([]string, len(d.Tags)),
+		Label:           d.Label,
 		Description:     d.Description,
 		IfRaw:           d.IfRaw,
 		If:              d.If,
@@ -77,6 +90,10 @@ func (d Detail) Copy() Detail {
 // Egress is an egress point from a room. It contains both a description and the
 // label it points to.
 type Egress struct {
+	// Label is a unique identifier for the detail. If it is not specified at
+	// start, one is automatically assigned.
+	Label string
+
 	// Tags is a list of all tags that will include this Egress. Each tag
 	// includes the leading @-sign. All egresses are also implicitly included by
 	// the tag @EXIT, regardless of whether it appears in this slice.
@@ -125,6 +142,7 @@ func (egress Egress) String() string {
 // Copy returns a deeply-copied Egress.
 func (egress Egress) Copy() Egress {
 	eCopy := Egress{
+		Label:             egress.Label,
 		DestLabel:         egress.DestLabel,
 		Description:       egress.Description,
 		TravelMessage:     egress.TravelMessage,
@@ -148,6 +166,14 @@ func (egress Egress) GetAliases() []string {
 
 func (egress Egress) GetDescription() *tunascript.Template {
 	return egress.tmplDescription
+}
+
+func (egress Egress) GetLabel() string {
+	return egress.Label
+}
+
+func (egress Egress) GetTags() []string {
+	return egress.Tags
 }
 
 // Room is a scene in the game. It contains a series of exits that lead to other

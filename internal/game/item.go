@@ -76,6 +76,11 @@ type Item struct {
 	// to do so.
 	IfRaw string
 
+	// OnUse is a set of criteria to match when using this item. It includes the
+	// other things it must be used with, as well as any other conditions that
+	// must be true.
+	OnUse []UseAction
+
 	// tmplDescription is the precomputed template AST for the description text.
 	// It must generally be filled in with the game engine, and will not be
 	// present directly when loaded from disk.
@@ -96,12 +101,14 @@ func (item Item) Copy() Item {
 		Tags:        make([]string, len(item.Tags)),
 		If:          item.If,
 		IfRaw:       item.IfRaw,
+		OnUse:       make([]UseAction, len(item.OnUse)),
 
 		tmplDescription: item.tmplDescription,
 	}
 
 	copy(iCopy.Aliases, item.Aliases)
 	copy(iCopy.Tags, item.Tags)
+	copy(iCopy.OnUse, item.OnUse)
 
 	return iCopy
 }
@@ -112,4 +119,12 @@ func (item Item) GetAliases() []string {
 
 func (item Item) GetDescription() *tunascript.Template {
 	return item.tmplDescription
+}
+
+func (item Item) GetLabel() string {
+	return item.Label
+}
+
+func (item Item) GetTags() []string {
+	return item.Tags
 }

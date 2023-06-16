@@ -179,7 +179,7 @@ NORTH into the back of the room.
 '''
 
 [[room.exit]]
-aliases = ["FORKS", "FORK", "EAST", "FORK ROOM"]
+aliases = ["FORKS", "EAST", "FORK ROOM"]
 dest = "SALAMANDER_OFFICE_FORK"
 description = "a doorway with dinner forks covering the ground"
 message = '''
@@ -208,7 +208,7 @@ or EAST, though the way east is paved in spoons.
 '''
 
 [[room.exit]]
-aliases = ["SPOONS", "SPOON", "EAST", "SPOON ROOM"]
+aliases = ["SPOONS", "EAST", "SPOON ROOM"]
 dest = "SALAMANDER_OFFICE_SPOON"
 description = "a doorway with dinner spoons covering the ground"
 message = '''
@@ -266,7 +266,7 @@ go EAST through the treasure door.
 '''
 
 [[room.exit]]
-aliases = ["NORTH", "SPOONS", "SPOON"]
+aliases = ["NORTH", "SPOONS"]
 dest = "SALAMANDER_OFFICE_SPOON"
 description = "a room at the north end of the hall, with the ground covered in spoons"
 message = '''
@@ -274,7 +274,7 @@ You make your way carefully to the north end of the knife hall, and you step int
 '''
 
 [[room.exit]]
-aliases = ["SOUTH", "FORKS", "FORK"]
+aliases = ["SOUTH", "FORKS"]
 dest = "SALAMANDER_OFFICE_FORK"
 description = "a room at the south end of the hall, with the ground covered in forks"
 message = '''

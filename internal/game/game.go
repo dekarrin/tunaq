@@ -64,6 +64,24 @@ type State struct {
 	// currently in. will map to "@INVEN" if it is in the inventory.
 	itemLocations map[string]string
 
+	// exitLocations is a map of exit labels to the label of the room that they
+	// are in. This will never change but is maintained for tracking purposes.
+	exitLocations map[string]string
+
+	// detailLocations is a map of detail labels to the label of the room that
+	// they are in. This will never change but is maintained for tracking
+	// purposes.
+	detailLocations map[string]string
+
+	// tsBufferOutput will send tunascript to tsBuf instead of to the io device
+	// if set to true. methods of *State can call this before executing
+	// tunascript to control exactly when it is output.
+	tsBufferOutput bool
+
+	// output from TunaScript $OUTPUT() functions is sent here instead of to the
+	// io device if tsBufferOutput is set to true.
+	tsBuf *strings.Builder
+
 	// width is how wide to make output
 	io IODevice
 
@@ -86,24 +104,6 @@ type IODevice struct {
 	// sent before the input is read. If invalid input is received, keeps
 	// prompting until a valid one is entered.
 	InputInt func(prompt string) (int, error)
-}
-
-type worldInterface struct {
-	fnInInven func(string) bool
-	fnMove    func(string, string) bool
-	fnOutput  func(string) bool
-}
-
-func (wi worldInterface) InInventory(item string) bool {
-	return wi.fnInInven(item)
-}
-
-func (wi worldInterface) Move(target, dest string) bool {
-	return wi.fnMove(target, dest)
-}
-
-func (wi worldInterface) Output(out string) bool {
-	return wi.fnOutput(out)
 }
 
 // New creates a new State and loads the list of rooms into it. It performs
@@ -131,87 +131,72 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	}
 
 	gs := &State{
-		World:         world,
-		Inventory:     make(Inventory),
-		TagSets:       make(map[string][]Targetable),
-		npcLocations:  make(map[string]string),
-		itemLocations: make(map[string]string),
-		io:            ioDev,
+		World:           world,
+		Inventory:       make(Inventory),
+		TagSets:         make(map[string][]Targetable),
+		npcLocations:    make(map[string]string),
+		itemLocations:   make(map[string]string),
+		exitLocations:   make(map[string]string),
+		detailLocations: make(map[string]string),
+		tsBuf:           &strings.Builder{},
+		io:              ioDev,
 	}
 
-	scriptInterface := worldInterface{
-		fnInInven: func(s string) bool {
-			_, ok := gs.Inventory[strings.ToUpper(s)]
-			return ok
-		},
-		fnMove: func(target, dest string) bool {
-			target = strings.ToUpper(target)
-			dest = strings.ToUpper(dest)
+	// first, go through and track all taggables
+	var taggedNPCs, taggedExits, taggedDetails, taggedItems []Targetable
 
-			if _, ok := gs.World[dest]; !ok {
-				// TODO: don't fail silently
-				return false
+	for roomLabel := range gs.World {
+		r := gs.World[roomLabel]
+		for i := range r.Items {
+			item := r.Items[i]
+			taggedItems = append(taggedItems, item)
+			for _, tag := range item.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, item)
+				gs.TagSets[tag] = tagged
 			}
-			if target == TagPlayer {
-				if gs.CurrentRoom.Label == dest {
-					return false
-				}
-				gs.CurrentRoom = gs.World[dest]
-				return true
-			} else {
-				// item?
-				if roomLabel, ok := gs.itemLocations[target]; ok {
-					if roomLabel == dest {
-						return false
-					}
-
-					var item *Item
-					if roomLabel == "@INVEN" {
-						// it DOES move from backpack
-						item = gs.Inventory[target]
-						delete(gs.Inventory, item.Label)
-					} else {
-						// get the item
-						for _, it := range gs.World[roomLabel].Items {
-							if it.Label == target {
-								item = it
-								break
-							}
-						}
-						gs.World[roomLabel].RemoveItem(target)
-					}
-
-					if dest == "@INVEN" {
-						gs.Inventory[target] = item
-					} else {
-						gs.World[dest].Items = append(gs.World[dest].Items, item)
-					}
-					gs.itemLocations[target] = dest
-
-					return true
-				}
-
-				// npc?
-				roomLabel, ok := gs.npcLocations[target]
-				if !ok {
-					return false
-				}
-				if roomLabel == dest {
-					return false
-				}
-
-				npc := gs.World[roomLabel].NPCs[target]
-				delete(gs.World[roomLabel].NPCs, npc.Label)
-				gs.World[dest].NPCs[npc.Label] = npc
-				gs.npcLocations[target] = dest
-				return true
+			item.Tags = append(item.Tags, "@ITEM")
+			r.Items[i] = item
+		}
+		for i := range r.NPCs {
+			npc := r.NPCs[i]
+			taggedNPCs = append(taggedNPCs, npc)
+			for _, tag := range npc.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, npc)
+				gs.TagSets[tag] = tagged
 			}
-		},
-		fnOutput: func(s string) bool {
-			err := ioDev.Output(s)
-			return err == nil
-		},
+			npc.Tags = append(npc.Tags, "@NPC")
+			r.NPCs[i] = npc
+		}
+		for i := range r.Details {
+			det := r.Details[i]
+			taggedDetails = append(taggedDetails, det)
+			for _, tag := range det.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, det)
+				gs.TagSets[tag] = tagged
+			}
+			det.Tags = append(det.Tags, "@DETAIL")
+			r.Details[i] = det
+		}
+		for i := range r.Exits {
+			egress := r.Exits[i]
+			taggedExits = append(taggedExits, egress)
+			for _, tag := range egress.Tags {
+				tagged := gs.TagSets[tag]
+				tagged = append(tagged, egress)
+				gs.TagSets[tag] = tagged
+			}
+			egress.Tags = append(egress.Tags, "@EXIT")
+			r.Exits[i] = egress
+		}
+		gs.World[roomLabel] = r
 	}
+	gs.TagSets["@NPC"] = taggedNPCs
+	gs.TagSets["@EXIT"] = taggedExits
+	gs.TagSets["@ITEM"] = taggedItems
+	gs.TagSets["@DETAIL"] = taggedDetails
 
 	// now set the current room
 	var startExists bool
@@ -220,7 +205,7 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 		return gs, fmt.Errorf("starting room with label %q does not exist in passed-in rooms", startingRoom)
 	}
 
-	// read current npc locations and prep them for movement
+	// read current targetable entity locations. for NPCs, prep them for movement
 	for _, r := range gs.World {
 		for _, npc := range r.NPCs {
 			npc.ResetRoute()
@@ -229,13 +214,18 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 		for _, item := range r.Items {
 			gs.itemLocations[item.Label] = r.Label
 		}
-
+		for _, det := range r.Details {
+			gs.detailLocations[det.Label] = r.Label
+		}
+		for _, eg := range r.Exits {
+			gs.exitLocations[eg.Label] = r.Label
+		}
 	}
 
 	// start scripting engine
 	gs.scripts = tunascript.Interpreter{
 		File:   "(text)",
-		Target: scriptInterface,
+		Target: scriptBackend{game: gs},
 	}
 
 	for fl := range flags {
@@ -250,53 +240,6 @@ func New(world map[string]*Room, startingRoom string, flags map[string]string, i
 	if err != nil {
 		return gs, err
 	}
-
-	// okay, now go through and track all taggables
-	var taggedNPCs, taggedExits, taggedDetails, taggedItems []Targetable
-
-	for roomLabel := range gs.World {
-		r := gs.World[roomLabel]
-		for i := range r.Items {
-			item := r.Items[i]
-			taggedItems = append(taggedItems, item)
-			for _, tag := range item.Tags {
-				tagged := gs.TagSets[tag]
-				tagged = append(tagged, item)
-				gs.TagSets[tag] = tagged
-			}
-		}
-		for i := range r.NPCs {
-			npc := r.NPCs[i]
-			taggedNPCs = append(taggedNPCs, npc)
-			for _, tag := range npc.Tags {
-				tagged := gs.TagSets[tag]
-				tagged = append(tagged, npc)
-				gs.TagSets[tag] = tagged
-			}
-		}
-		for i := range r.Details {
-			det := r.Details[i]
-			taggedDetails = append(taggedDetails, det)
-			for _, tag := range det.Tags {
-				tagged := gs.TagSets[tag]
-				tagged = append(tagged, det)
-				gs.TagSets[tag] = tagged
-			}
-		}
-		for i := range r.Exits {
-			egress := r.Exits[i]
-			taggedExits = append(taggedExits, egress)
-			for _, tag := range egress.Tags {
-				tagged := gs.TagSets[tag]
-				tagged = append(tagged, egress)
-				gs.TagSets[tag] = tagged
-			}
-		}
-	}
-	gs.TagSets["@NPC"] = taggedNPCs
-	gs.TagSets["@EXIT"] = taggedExits
-	gs.TagSets["@ITEM"] = taggedItems
-	gs.TagSets["@DETAIL"] = taggedDetails
 
 	return gs, nil
 }
@@ -428,6 +371,8 @@ func (gs *State) Advance(cmd command.Command) error {
 		output, err = gs.ExecuteCommandDrop(cmd)
 	case "LOOK":
 		output, err = gs.ExecuteCommandLook(cmd)
+	case "USE":
+		output, err = gs.ExecuteCommandUse(cmd)
 	case "INVENTORY":
 		output, err = gs.ExecuteCommandInventory(cmd)
 	case "TALK":
@@ -446,6 +391,105 @@ func (gs *State) Advance(cmd command.Command) error {
 
 	// IO to give output:
 	return gs.io.Output("\n" + output + "\n\n")
+}
+
+// ExecuteCommandUse executes the USE command with the arguments in the provided
+// Command and returns the output.
+func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
+	// allToBeUsed
+	var useAliases []string
+	useAliases = append(useAliases, cmd.Recipient)
+
+	// TODO: in future when player command parser supports with multiple, bring
+	// in multiple stuff here. For now, just add the one and only other thing if
+	// it is present
+	if cmd.Instrument != "" {
+		useAliases = append(useAliases, cmd.Instrument)
+	}
+
+	// verify that each item requested to use is even a thing in this room (or
+	// in backpack)
+	useTargets := make([]Targetable, len(useAliases))
+	for i := range useAliases {
+		var tgt Targetable
+		tgtItem := gs.Inventory.GetItemByAlias(useAliases[i])
+		if tgtItem == nil {
+			// if not in invent, it could be in the room
+			tgt = gs.CurrentRoom.GetTargetable(useAliases[i], TagPlayer, &gs.scripts)
+			if tgt == nil {
+				return "", tqerrors.Interpreterf("I don't see any %q here or in your inventory", useAliases[i])
+			}
+		} else {
+			tgt = tgtItem
+		}
+
+		useTargets[i] = tgt
+	}
+
+	// all of the things requested to be used together exist in this room (or
+	// inven). Now we must do tricky matching to see if each has a use action
+	// that applies to the other(s)
+	useMatches := gs.findAllUseMatches(useTargets, useAliases)
+
+	// if we didn't find any matches, give an error to the user
+	if len(useMatches) < 1 {
+		if len(useTargets) > 1 {
+			return "", tqerrors.Interpreterf("You're pretty sure those don't work together")
+		}
+		return "", tqerrors.Interpreterf("You aren't sure how to use the %s by itself", useAliases[0])
+	}
+
+	um := selectBestUseMatch(useMatches)
+	// okay, we now have, FINALLY, a single UseAction that we can call
+
+	// first, evaluate the If. We don't exec if it's false
+	if !gs.scripts.Exec(um.act.If).Bool() {
+		// give the same generic error as if there is no way to use them
+		if len(useMatches) < 1 {
+			if len(useTargets) > 1 {
+				others := util.MakeTextList(useAliases[1:], false)
+				return "", tqerrors.Interpreterf("You try to use the %s together with the %s... but nothing happens", useAliases[0], others)
+			}
+		}
+		return "", tqerrors.Interpreterf("You try to use the %s... but nothing happens", useAliases[0])
+	}
+
+	ed := rosed.Edit("").WithOptions(textFormatOptions)
+
+	var withOthersMsg string
+	if len(useTargets) > 1 {
+		others := util.MakeTextList(useAliases[1:], false)
+		withOthersMsg += " together with the " + others
+	}
+	ed = ed.Insert(rosed.End, fmt.Sprintf("You use the %s%s...\n\n", useAliases[0], withOthersMsg))
+
+	// enable buffering so any output doesn't just go directly to gs before we
+	// get a chance to write any other output
+	gs.tsBufferOutput = true
+	defer func() {
+		gs.tsBuf.Reset()
+		gs.tsBufferOutput = false
+	}()
+
+	// execute the use script
+	gs.scripts.Exec(um.act.Do)
+
+	// was an $OUTPUT() func executed?
+	tsOutput := gs.tsBuf.String()
+
+	if tsOutput != "" {
+		// add the $OUTPUT() text to the result
+		ed = ed.Insert(rosed.End, tsOutput)
+	} else {
+		// otherwise, we need to show the user that something has occured
+		ed = ed.Insert(rosed.End, "Something happened!")
+	}
+
+	output := ed.
+		Wrap(gs.io.Width).
+		String()
+
+	return output, nil
 }
 
 // ExecuteCommandGo executes the GO command with the arguments in the provided
@@ -799,4 +843,132 @@ func (gs *State) preParseTemplate(toExpand string) (*tunascript.Template, error)
 	}
 
 	return &preComp, nil
+}
+
+func (gs *State) HasTag(label, tag string) bool {
+	tagged := gs.TagSets[tag]
+
+	for _, tgt := range tagged {
+		if IsDetail(tgt) {
+			det := tgt.(*Detail)
+			if det.Label == label {
+				return true
+			}
+		} else if IsEgress(tgt) {
+			eg := tgt.(*Egress)
+			if eg.Label == label {
+				return true
+			}
+		} else if IsItem(tgt) {
+			item := tgt.(*Item)
+			if item.Label == label {
+				return true
+			}
+		} else if IsNPC(tgt) {
+			npc := tgt.(*NPC)
+			if npc.Label == label {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+type useMatch struct {
+	main     bool
+	specific int
+	act      UseAction
+}
+
+func (gs *State) findAllUseMatches(targets []Targetable, targetAliases []string) []useMatch {
+	// gather exact labels because we need them for matching
+	targetLabels := make([]string, len(targets))
+	for i := range targets {
+		targetLabels[i] = targets[i].GetLabel()
+	}
+
+	matches := []useMatch{}
+
+	otherLabels := make([]string, len(targets)-1)
+	for i := range targets {
+		mainTarget := targets[i]
+		copy(otherLabels, targetLabels[0:i])
+		copy(otherLabels[i:], targetLabels[i+1:])
+
+		if IsItem(mainTarget) {
+			item := mainTarget.(*Item)
+
+			for j := range item.OnUse {
+				withLatags := item.OnUse[j].With
+				if gs.concreteMatchesLatagList(otherLabels, withLatags) {
+					specific := len(otherLabels)
+					for _, latag := range withLatags {
+						if strings.HasPrefix(latag, "@") {
+							specific--
+						}
+					}
+
+					otherAliases := make([]string, len(targets)-1)
+					copy(otherAliases, targetAliases[0:i])
+					copy(otherAliases[i:], targetAliases[i+1:])
+
+					m := useMatch{i == 0, specific, item.OnUse[j]}
+					matches = append(matches, m)
+				}
+			}
+		}
+
+		// otherwise, nothing else currently has actions defined on them, so
+		// move on to the next permutation
+	}
+
+	return matches
+}
+
+// latags is any list of strings where each element could be a label or a
+// tag. Concrete must not contain tags or it will always be false. The lengths
+// of the two lists must match or it will always be false. Concrete must contain
+// only labels.
+func (gs *State) concreteMatchesLatagList(concrete []string, latags []string) bool {
+	// CONSIDER: otherWiths = ["DACHSUND", "ROTTWEILER"]
+	// ACTUAL WITHS: ["@DOGS"], ["DACHSHUND"]
+	// Check DACHSUND =? "@DOGS": TRUE, candidate
+	//	Check ROTWEILDER =? DACHSUND: FALSE, break
+	// CHECK ROTTWIELER =? "@DOGS": TRUE, candidate
+	//  Check DACHSUND =? DACHSUND: TRUE, done
+
+	if len(concrete) != len(latags) {
+		return false
+	}
+
+	if len(concrete) == 0 {
+		return true
+	}
+
+	for i, latag := range latags {
+		conc := concrete[i]
+
+		if strings.HasPrefix(latag, "@") {
+			// is the concrete the label of somefin with that tag?
+			if !gs.HasTag(conc, latag) {
+				continue
+			}
+		} else if conc != latag {
+			continue
+		}
+
+		restConc := make([]string, len(concrete)-1)
+		copy(restConc, concrete[0:i])
+		copy(restConc[i:], concrete[i+1:])
+
+		restLatag := make([]string, len(latags)-1)
+		copy(restLatag, latags[0:i])
+		copy(restLatag[i:], latags[i+1:])
+
+		if gs.concreteMatchesLatagList(restConc, restLatag) {
+			return true
+		}
+	}
+
+	return false
 }

@@ -43,13 +43,11 @@ func (interp *Interpreter) initFuncs() {
 	interp.fn["OR"] = binaryImpl("OR", Value.Or)
 	interp.fn["AND"] = binaryImpl("AND", Value.And)
 	interp.fn["NOT"] = unaryImpl("NOT", Value.Not)
-	interp.fn["FLAG_ENABLED"] = unaryImpl("FLAG_ENABLED", Value.CastToBool)
-	interp.fn["FLAG_DISABLED"] = unaryImpl("FLAG_DISABLED", func(v Value) Value {
-		return v.CastToBool().Negate()
-	})
-	interp.fn["FLAG_IS"] = binaryImpl("FLAG_IS", Value.EqualTo)
-	interp.fn["FLAG_LESS_THAN"] = binaryImpl("FLAG_LESS_THAN", Value.LessThan)
-	interp.fn["FLAG_GREATER_THAN"] = binaryImpl("FLAG_GREATER_THAN", Value.GreaterThan)
+	interp.fn["FLAG_ENABLED"] = unaryImpl("FLAG_ENABLED", interp.flagEnabled)
+	interp.fn["FLAG_DISABLED"] = unaryImpl("FLAG_DISABLED", interp.flagDisabled)
+	interp.fn["FLAG_IS"] = binaryImpl("FLAG_IS", interp.flagIs)
+	interp.fn["FLAG_LESS_THAN"] = binaryImpl("FLAG_LESS_THAN", interp.flagLessThan)
+	interp.fn["FLAG_GREATER_THAN"] = binaryImpl("FLAG_GREATER_THAN", interp.flagGreaterThan)
 	interp.fn["ENABLE"] = unaryImpl("ENABLE", interp.enable)
 	interp.fn["DISABLE"] = unaryImpl("DISABLE", interp.disable)
 	interp.fn["TOGGLE"] = unaryImpl("TOGGLE", interp.toggle)
@@ -77,6 +75,26 @@ func (interp *Interpreter) initFuncs() {
 			return interp.dec(args[0], syntax.ValueOf(1))
 		},
 	}
+}
+
+func (interp *Interpreter) flagEnabled(v Value) Value {
+	return interp.flags[v.String()].CastToBool()
+}
+
+func (interp *Interpreter) flagDisabled(v Value) Value {
+	return interp.flags[v.String()].CastToBool().Not()
+}
+
+func (interp *Interpreter) flagIs(flag Value, v Value) Value {
+	return interp.flags[flag.String()].EqualTo(v)
+}
+
+func (interp *Interpreter) flagLessThan(flag Value, v Value) Value {
+	return interp.flags[flag.String()].LessThan(v)
+}
+
+func (interp *Interpreter) flagGreaterThan(flag Value, v Value) Value {
+	return interp.flags[flag.String()].GreaterThan(v)
 }
 
 func (interp *Interpreter) inInven(v Value) Value {

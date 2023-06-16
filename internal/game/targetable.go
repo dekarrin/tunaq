@@ -13,6 +13,12 @@ type Targetable interface {
 	// show when the player looks at it.
 	GetDescription() *tunascript.Template
 
+	// GetLabel returns the unique label for the targetable.
+	GetLabel() string
+
+	// GetTags returns all tags for the given targetable.
+	GetTags() []string
+
 	/*
 		// CanUse returns whether it is possible to use the Targetable on its own.
 		CanUse() bool
