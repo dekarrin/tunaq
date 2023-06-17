@@ -51,6 +51,7 @@ import (
 
 	"github.com/dekarrin/tunaq/internal/version"
 	"github.com/dekarrin/tunaq/server"
+	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/spf13/pflag"
 )
 
@@ -146,7 +147,7 @@ func main() {
 	log.Printf("DEBUG: Server initialized")
 
 	// immediately create the admin user so we have someone we can log in as.
-	_, err := tqs.CreateUser(context.Background(), "admin", "password", "bogus@example.com")
+	_, err := tqs.CreateUser(context.Background(), "admin", "password", "bogus@example.com", dao.Admin)
 	if err != nil {
 		log.Printf("ERROR: could not create initial admin user: %v", err)
 		os.Exit(2)

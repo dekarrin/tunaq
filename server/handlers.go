@@ -15,6 +15,8 @@ func (tqs *TunaQuestServer) initHandlers() {
 	tqs.srv.HandleFunc("/login/", tqs.handlePathLogin)
 	tqs.srv.HandleFunc("/tokens", tqs.handlePathToken)
 	tqs.srv.HandleFunc("/tokens/", tqs.handlePathToken)
+	tqs.srv.HandleFunc("/users", tqs.handlePathUsers)
+	tqs.srv.HandleFunc("/users/", tqs.handlePathUsers)
 }
 
 func (tqs TunaQuestServer) handlePathRoot(w http.ResponseWriter, req *http.Request) {
@@ -94,6 +96,50 @@ func (tqs TunaQuestServer) handlePathToken(w http.ResponseWriter, req *http.Requ
 		}
 	} else {
 		result = jsonNotFound()
+	}
+}
+
+func (tqs TunaQuestServer) handlePathUsers(w http.ResponseWriter, req *http.Request) {
+	// this must be at the top of every handlePath* method to convert panics to
+	// HTTP-500
+	defer panicTo500(w, req)
+	var result endpointResult
+	defer func() {
+		result.writeResponse(w, req)
+	}()
+
+	if req.URL.Path == "/users/" || req.URL.Path == "/users" {
+
+		// ---------------------------------------------- //
+		// DISPATCH FOR: /users                           //
+		// ---------------------------------------------- //
+		if req.Method == http.MethodPost {
+			result = tqs.doEndpoint_Users_POST(req)
+		} else {
+			result = jsonMethodNotAllowed(req)
+		}
+	} else {
+		// check for /users/{id}
+		pathParts := strings.Split(strings.Trim(req.URL.Path, "/"), "/")
+		if len(pathParts) != 2 {
+			result = jsonNotFound()
+			return
+		}
+
+		id, err := uuid.Parse(pathParts[1])
+		if err != nil {
+			result = jsonNotFound()
+			return
+		}
+
+		// ---------------------------------------------- //
+		// DISPATCH FOR: /users/{id}                      //
+		// ---------------------------------------------- //
+		if req.Method == http.MethodDelete {
+			result = tqs.doEndpoint_UsersID_DELETE(req, id)
+		} else {
+			result = jsonMethodNotAllowed(req)
+		}
 	}
 }
 

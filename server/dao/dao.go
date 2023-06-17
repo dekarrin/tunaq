@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/mail"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,12 +61,27 @@ func (r Role) String() string {
 	}
 }
 
-type User struct {
-	ID       uuid.UUID     `json:"id"`
-	Username string        `json:"username"`
-	Password string        `json:"-"`
-	Email    *mail.Address `json:"email"`
+func ParseRole(s string) (Role, error) {
+	check := strings.ToLower(s)
+	switch check {
+	case "guest":
+		return Guest, nil
+	case "unverified":
+		return Unverified, nil
+	case "normal":
+		return Normal, nil
+	case "admin":
+		return Admin, nil
+	default:
+		return Guest, fmt.Errorf("must be one of 'guest', 'unverified', 'normal', or 'admin'")
+	}
+}
 
-	Role           Role `json:"role"`
+type User struct {
+	ID             uuid.UUID
+	Username       string
+	Password       string
+	Email          *mail.Address
+	Role           Role
 	LastLogoutTime time.Time
 }

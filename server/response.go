@@ -35,7 +35,21 @@ func jsonCreated(respObj interface{}, internalMsg ...interface{}) endpointResult
 	return jsonResponse(http.StatusCreated, respObj, internalMsgFmt, msgArgs...)
 }
 
-// jsonMethodNotAllowed returns an endpointResult containing an HTTP-400 along
+// jsonConflict returns an endpointResult containing an HTTP-409 along
+// with a more detailed message (if desired; if none is provided it defaults to
+// a generic one) that is not displayed to the user.
+func jsonConflict(userMsg string, internalMsg ...interface{}) endpointResult {
+	internalMsgFmt := "conflict"
+	var msgArgs []interface{}
+	if len(internalMsg) >= 1 {
+		internalMsgFmt = internalMsg[0].(string)
+		msgArgs = internalMsg[1:]
+	}
+
+	return jsonErr(http.StatusConflict, userMsg, internalMsgFmt, msgArgs...)
+}
+
+// jsonBadRequest returns an endpointResult containing an HTTP-400 along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
 func jsonBadRequest(userMsg string, internalMsg ...interface{}) endpointResult {
@@ -79,9 +93,9 @@ func jsonNotFound(internalMsg ...interface{}) endpointResult {
 	return jsonErr(http.StatusNotFound, "The requested resource was not found", internalMsgFmt, msgArgs...)
 }
 
-// jsonForbiddin returns an endpointResult containing an HTTP-403 response
-// along with the proper WWW-Authenticate header. internalMsg is a detailed
-// error message  (if desired; if none is provided it defaults to
+// jsonForbidden returns an endpointResult containing an HTTP-403 response.
+// internalMsg is a detailed error message  (if desired; if none is provided it
+// defaults to
 // a generic one) that is not displayed to the user.
 func jsonForbidden(internalMsg ...interface{}) endpointResult {
 	internalMsgFmt := "forbidden"
