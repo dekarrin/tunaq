@@ -88,22 +88,27 @@ type State struct {
 	scripts tunascript.Interpreter
 }
 
-// TODO: this should rly be an interface, not a struct.
-type IODevice struct {
-	// The width of each line of output.
-	Width int
+type IODevice interface {
+	// The width of each line of output. Queryable property only; this has no
+	// effect on the internals of the other methods.
+	Width() int
+
+	// SetWidth sets the width of each line of output. This only changes what
+	// Width() returns, and does not have any effect on the internals of the
+	// other methods.
+	SetWidth(w int)
 
 	// a function to send output. If s is empty, an empty line is sent.
-	Output func(s string, a ...interface{}) error
+	Output(s string, a ...interface{}) error
 
 	// a function to use to get string input. If prompt is blank, no prompt is
 	// sent before the input is read.
-	Input func(prompt string) (string, error)
+	Input(prompt string) (string, error)
 
 	// a function to use to get int input. If prompt is blank, no prompt is
 	// sent before the input is read. If invalid input is received, keeps
 	// prompting until a valid one is entered.
-	InputInt func(prompt string) (int, error)
+	InputInt(prompt string) (int, error)
 }
 
 // New creates a new State and loads the list of rooms into it. It performs
@@ -117,17 +122,11 @@ type IODevice struct {
 // output fit within this width. If not set or < 2, it will be automatically
 // assumed to be 80.
 func New(world map[string]*Room, startingRoom string, flags map[string]string, ioDev IODevice) (*State, error) {
-	if ioDev.Width < 2 {
-		ioDev.Width = 80
+	if ioDev == nil {
+		return nil, fmt.Errorf("io device must not be nil")
 	}
-	if ioDev.Input == nil {
-		return nil, fmt.Errorf("io device must define an Input function")
-	}
-	if ioDev.InputInt == nil {
-		return nil, fmt.Errorf("io device must define an InputInt function")
-	}
-	if ioDev.Output == nil {
-		return nil, fmt.Errorf("io device must define an Output function")
+	if ioDev.Width() < 2 {
+		ioDev.SetWidth(80)
 	}
 
 	gs := &State{
@@ -486,7 +485,7 @@ func (gs *State) ExecuteCommandUse(cmd command.Command) (string, error) {
 	}
 
 	output := ed.
-		Wrap(gs.io.Width).
+		Wrap(gs.io.Width()).
 		String()
 
 	return output, nil
@@ -512,11 +511,11 @@ func (gs *State) ExecuteCommandGo(cmd command.Command) (string, error) {
 	expanded := gs.Expand(egress.tmplTravelMessage)
 
 	output := rosed.Edit(expanded).WithOptions(textFormatOptions).
-		Wrap(gs.io.Width).
+		Wrap(gs.io.Width()).
 		Insert(rosed.End, "\n\n").
 		CharsFrom(rosed.End).
 		Insert(rosed.End, lookText).
-		Wrap(gs.io.Width).
+		Wrap(gs.io.Width()).
 		String()
 
 	return output, nil
@@ -544,7 +543,7 @@ func (gs *State) ExecuteCommandExits(cmd command.Command) (string, error) {
 		// from prior CharsEnd, this should only apply to the list of exits.
 		ed = ed.
 			WithOptions(ed.Options.WithParagraphSeparator("\n")).
-			Wrap(gs.io.Width).
+			Wrap(gs.io.Width()).
 			ApplyParagraphs(func(_ int, para, _, _ string) []string {
 				// set first two chars to spaces
 				newPara := rosed.Edit(para).Overtype(0, "  ").String()
@@ -622,7 +621,7 @@ func (gs *State) ExecuteCommandLook(cmd command.Command) (string, error) {
 
 	output = ed.
 		Insert(rosed.End, output).
-		Wrap(gs.io.Width).
+		Wrap(gs.io.Width()).
 		String()
 
 	return output, nil
@@ -645,7 +644,7 @@ func (gs *State) ExecuteCommandInventory(cmd command.Command) (string, error) {
 		output += util.MakeTextList(itemNames, true) + "."
 	}
 
-	output = rosed.Edit(output).WrapOpts(gs.io.Width, textFormatOptions).String()
+	output = rosed.Edit(output).WrapOpts(gs.io.Width(), textFormatOptions).String()
 	return output, nil
 }
 
@@ -699,7 +698,7 @@ func (gs *State) ExecuteCommandHelp(cmd command.Command) (string, error) {
 			WithParagraphSeparator("\n").
 			WithNoTrailingLineSeparators(true)).
 		Insert(rosed.End, "Here are the commands you can use (WIP commands do not yet work fully):\n").
-		InsertDefinitionsTable(rosed.End, commandHelp, gs.io.Width).String()
+		InsertDefinitionsTable(rosed.End, commandHelp, gs.io.Width()).String()
 
 	return output, nil
 }
@@ -818,13 +817,13 @@ func (gs *State) preParseTemplate(toExpand string) (*tunascript.Template, error)
 		// bizarre because it *should* work on empty input.
 		if anyNonWSChar.MatchString(toExpand) {
 			displayText = "TEMPLATE CONTENT:\n"
-			displayText += strings.Repeat("=", gs.io.Width) + "\n"
+			displayText += strings.Repeat("=", gs.io.Width()) + "\n"
 			displayText += rosed.
 				Edit(strings.TrimSpace(toExpand)).
 				WithOptions(textFormatOptions).
-				Wrap(gs.io.Width).
+				Wrap(gs.io.Width()).
 				String()
-			displayText += "\n" + strings.Repeat("=", gs.io.Width) + "\n"
+			displayText += "\n" + strings.Repeat("=", gs.io.Width()) + "\n"
 		} else {
 			displayText = "(NO CONTENT IN TEMPLATE)\n"
 		}
