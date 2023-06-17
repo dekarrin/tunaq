@@ -3,6 +3,7 @@ package dao
 
 import (
 	"context"
+	"fmt"
 	"net/mail"
 	"time"
 
@@ -43,6 +44,21 @@ const (
 
 	Admin Role = 100
 )
+
+func (r Role) String() string {
+	switch r {
+	case Guest:
+		return "guest"
+	case Unverified:
+		return "unverified"
+	case Normal:
+		return "normal"
+	case Admin:
+		return "admin"
+	default:
+		return fmt.Sprintf("Role(%d)", r)
+	}
+}
 
 type User struct {
 	ID       uuid.UUID     `json:"id"`

@@ -99,31 +99,35 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 			loginData := LoginRequest{}
 			err := parseJSON(req, &loginData)
 			if err != nil {
-				log.Printf("ERROR: HTTP-400: %s", err.Error())
-				http.Error(w, err.Error(), http.StatusBadRequest)
+				terminateWithError(w, req, http.StatusBadRequest, err.Error(), err.Error())
 				return
 			}
 
-			tok, err := tqs.Login(req.Context(), loginData.User, loginData.Password)
+			user, err := tqs.Login(req.Context(), loginData.User, loginData.Password)
 			if err != nil {
 				if err == ErrBadCredentials {
-					log.Printf("ERROR: HTTP-401: %s", ErrBadCredentials)
 					w.Header().Set("WWW-Authenticate", "Basic realm=\"TunaQuest server\", charset=\"utf-8\"")
-					http.Error(w, "Incorrect username or password", http.StatusUnauthorized)
+					terminateWithError(w, req, http.StatusUnauthorized, err.Error(), err.Error())
 					return
 				} else {
-					log.Printf("ERROR: HTTP-500: %s", err.Error())
-					http.Error(w, "An internal server error occurred", http.StatusInternalServerError)
+					terminateWithError(w, req, http.StatusInternalServerError, "An internal server error occurred", err.Error())
 					return
 				}
 			}
 
+			// build the token
+			// password is valid, generate token for user and return it.
+			tok, err := generateJWTForUser(user)
+			if err != nil {
+				terminateWithError(w, req, http.StatusInternalServerError, "An internal server error occurred", "could not generate JWT: "+err.Error())
+				return
+			}
+
 			resp := LoginResponse{Token: tok}
-			w.WriteHeader(http.StatusCreated)
-			renderJSON(w, resp)
+			terminateWithJSON(w, req, http.StatusCreated, resp, "user '"+user.Username+"' successfully logged in")
+			return
 		} else {
-			log.Printf("ERROR: HTTP-405")
-			http.Error(w, fmt.Sprintf("HTTP %v method is not valid for %s", req.Method, req.URL.Path), http.StatusMethodNotAllowed)
+			terminateWithError(w, req, http.StatusMethodNotAllowed, "Method "+req.Method+" is not valid for "+req.URL.Path, "method not allowed")
 			return
 		}
 	} else {
@@ -134,79 +138,91 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 			return
 		}
 
-		if req.Method == http.MethodDelete {
-			id, err := uuid.Parse(pathParts[1])
-			if err != nil {
-				http.Error(w, "The requested resource was not found", http.StatusNotFound)
-				return
-			}
+		id, err := uuid.Parse(pathParts[1])
+		if err != nil {
+			http.Error(w, "The requested resource was not found", http.StatusNotFound)
+			return
+		}
 
+		if req.Method == http.MethodDelete {
 			// need to: get JWT
 			// get WHO from request
 
-			err = tqs.Logout(nil, id)
+			user, err := tqs.requireJWT(req.Context(), req)
 			if err != nil {
-				http.Error(w, "An internal server error occurred", http.StatusInternalServerError)
+				terminateWithError(w, req, http.StatusUnauthorized, "Valid bearer JWT token required", fmt.Sprintf("could not verify JWT: %s", err.Error()))
 				return
 			}
 
-			w.WriteHeader(http.StatusNoContent)
+			// is the user trying to delete someone else? they'd betta be the admin if so!
+			if id != user.ID && user.Role != dao.Admin {
+				var otherUserStr string
+				otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+				// if there was another user, find out now
+				if err != nil {
+					otherUserStr = fmt.Sprintf("%d", id)
+				} else {
+					otherUserStr = "'" + otherUser.Username + "'"
+				}
+
+				terminateWithError(w, req, http.StatusForbidden, "You don't have permission to do that", fmt.Sprintf("user '%s' (role %s) logout of user %s: forbidden", user.Username, user.Role, otherUserStr))
+				return
+			}
+
+			loggedOutUser, err := tqs.Logout(req.Context(), id)
+			if err != nil {
+				terminateWithError(w, req, http.StatusInternalServerError, "An internal server error occurred", "could not log out user: "+err.Error())
+				return
+			}
+
+			var otherStr string
+			if id != user.ID {
+				otherStr = "user '" + loggedOutUser.Username + "'"
+			} else {
+				otherStr = "self"
+			}
+
+			terminateWithJSON(w, req, http.StatusNoContent, nil, fmt.Sprintf("user '%s' successfully logged out %s", user.Username, otherStr))
+			return
 		} else {
-			http.Error(w, fmt.Sprintf("HTTP %v method is not valid for %s", req.Method, req.URL.Path), http.StatusMethodNotAllowed)
+			terminateWithError(w, req, http.StatusMethodNotAllowed, "Method "+req.Method+" is not valid for "+req.URL.Path, "method not allowed")
 			return
 		}
 	}
 }
 
 // Login returns the JWT token after logging in.
-func (tqs TunaQuestServer) Login(ctx context.Context, username string, password string) (string, error) {
+func (tqs TunaQuestServer) Login(ctx context.Context, username string, password string) (dao.User, error) {
 	user, err := tqs.db.Users.GetByUsername(ctx, username)
 	if err != nil {
 		if err == inmem.ErrNotFound {
-			return "", ErrBadCredentials
+			return dao.User{}, ErrBadCredentials
 		}
 	}
 
 	// verify password
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err == bcrypt.ErrMismatchedHashAndPassword {
-		return "", ErrBadCredentials
+		return dao.User{}, ErrBadCredentials
 	}
 
-	// password is valid, generate token for user and return it.
-	tok, err := generateJWTForUser(user)
-	if err != nil {
-		return "", fmt.Errorf("could not generate JWT: %w", err)
-	}
-
-	return tok, nil
+	return user, nil
 }
 
-func (tqs TunaQuestServer) Logout(ctx context.Context, jwtTok string, who uuid.UUID) error {
-	user, err := tqs.verifyJWT(ctx, jwtTok)
-	if err != nil {
-		return ErrInvalidLogin
-	}
-
-	// is the user trying to delete someone else? they'd betta be the admin if so!
-	if who != user.ID && user.Role != dao.Admin {
-		return ErrPermissions
-	}
-
-	// otherwise, go ahead and log 'em out
+func (tqs TunaQuestServer) Logout(ctx context.Context, who uuid.UUID) (dao.User, error) {
 	existing, err := tqs.db.Users.GetByID(ctx, who)
 	if err != nil {
-		return fmt.Errorf("could not retrieve user")
+		return dao.User{}, fmt.Errorf("could not retrieve user")
 	}
 
 	existing.LastLogoutTime = time.Now()
 
-	_, err = tqs.db.Users.Update(ctx, existing)
+	updated, err := tqs.db.Users.Update(ctx, existing)
 	if err != nil {
-		return fmt.Errorf("could not update user")
+		return dao.User{}, fmt.Errorf("could not update user")
 	}
 
-	return nil
+	return updated, nil
 }
 
 func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password string, email string) (dao.User, error) {
@@ -248,10 +264,54 @@ func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password st
 	return user, nil
 }
 
-func (tqs TunaQuestServer) verifyJWT(ctx context.Context, tok string) (dao.User, error) {
+// if status is http.StatusNoContent, respObj will not be read and may be nil. Otherwise, respObj MUST NOT be nil.
+func terminateWithJSON(w http.ResponseWriter, req *http.Request, status int, respObj interface{}, internalMsg string) {
+	var respJSON []byte
+	if status != http.StatusNoContent {
+		var err error
+		respJSON, err = json.Marshal(respObj)
+		if err != nil {
+			terminateWithError(w, req, status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
+			return
+		}
+	}
+
+	logHttpResponse("INFO", req, status, internalMsg)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+
+	if status != http.StatusNoContent {
+		w.Write(respJSON)
+	}
+}
+
+func terminateWithError(w http.ResponseWriter, req *http.Request, status int, userMsg, internalMsg string) {
+	logHttpResponse("ERROR", req, status, internalMsg)
+	http.Error(w, userMsg, status)
+}
+
+func logHttpResponse(level string, req *http.Request, respStatus int, msg string) {
+	if len(level) > 5 {
+		level = level[0:5]
+	}
+
+	for len(level) < 5 {
+		level += " "
+	}
+
+	log.Printf("%s: %s %s: HTTP-%d: %s", level, req.Method, req.URL.Path, respStatus, msg)
+}
+
+func (tqs TunaQuestServer) requireJWT(ctx context.Context, req *http.Request) (dao.User, error) {
 	var user dao.User
 
-	_, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
+	tok, err := getJWT(req)
+	if err != nil {
+		return dao.User{}, err
+	}
+
+	_, err = jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
 		// who is the user? we need this for further verification
 		subj, err := t.Claims.GetSubject()
 		if err != nil {
@@ -286,6 +346,28 @@ func (tqs TunaQuestServer) verifyJWT(ctx context.Context, tok string) (dao.User,
 	return user, nil
 }
 
+func getJWT(req *http.Request) (string, error) {
+	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
+
+	if authHeader == "" {
+		return "", fmt.Errorf("no Authorization header present")
+	}
+
+	authParts := strings.SplitN(authHeader, " ", 2)
+	if len(authParts) != 2 {
+		return "", fmt.Errorf("Authorization header not in Bearer format")
+	}
+
+	scheme := strings.TrimSpace(strings.ToLower(authParts[0]))
+	token := strings.TrimSpace(authParts[1])
+
+	if scheme != "bearer" {
+		return "", fmt.Errorf("Authorization header not in Bearer format")
+	}
+
+	return token, nil
+}
+
 func generateJWTForUser(u dao.User) (string, error) {
 	claims := &jwt.MapClaims{
 		"iss":        "tqs",
@@ -307,14 +389,14 @@ func generateJWTForUser(u dao.User) (string, error) {
 	return tokStr, nil
 }
 
-func renderJSON(w http.ResponseWriter, v interface{}) {
+func renderJSON(w http.ResponseWriter, v interface{}) error {
 	js, err := json.Marshal(v)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(js)
+	return nil
 }
 
 // v must be a pointer to a type.
