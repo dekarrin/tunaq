@@ -13,7 +13,8 @@ import (
 )
 
 type LoginResponse struct {
-	Token string `json:"token"`
+	Token  string `json:"token"`
+	UserID string `json:"user_id"`
 }
 
 type LoginRequest struct {
@@ -33,6 +34,13 @@ func (tqs TunaQuestServer) doEndpointLoginPOST(req *http.Request) endpointResult
 		return jsonErr(http.StatusBadRequest, err.Error(), err.Error())
 	}
 
+	if loginData.User == "" {
+		return jsonErr(http.StatusBadRequest, "Non-empty 'user' property is empty or missing from request", "login request does not give user")
+	}
+	if loginData.Password == "" {
+		return jsonErr(http.StatusBadRequest, "Non-empty 'password' property is empty or missing from request", "login request does not give password")
+	}
+
 	user, err := tqs.Login(req.Context(), loginData.User, loginData.Password)
 	if err != nil {
 		if err == ErrBadCredentials {
@@ -50,14 +58,18 @@ func (tqs TunaQuestServer) doEndpointLoginPOST(req *http.Request) endpointResult
 		return jsonErr(http.StatusInternalServerError, "An internal server error occurred", "could not generate JWT: "+err.Error())
 	}
 
-	resp := LoginResponse{Token: tok}
+	resp := LoginResponse{
+		Token:  tok,
+		UserID: user.ID.String(),
+	}
 	return jsonResponse(http.StatusCreated, resp, "user '"+user.Username+"' successfully logged in")
 }
 
 func (tqs TunaQuestServer) doEndpointLoginDELETE(req *http.Request, id uuid.UUID) endpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
-		return jsonErr(http.StatusUnauthorized, "Valid bearer JWT token required", fmt.Sprintf("could not verify JWT: %s", err.Error()))
+		return jsonErr(http.StatusUnauthorized, "You are not authorized to do that", err.Error()).
+			withHeader("WWW-Authenticate", `Basic realm="TunaQuest server", charset="utf-8"`)
 	}
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
@@ -211,7 +223,7 @@ func logHttpResponse(level string, req *http.Request, respStatus int, msg string
 		level += " "
 	}
 
-	log.Printf("%s: HTTP-%d resonse to %s %s: %s", level, respStatus, req.Method, req.URL.Path, msg)
+	log.Printf("%s: HTTP-%d response to %s %s: %s", level, respStatus, req.Method, req.URL.Path, msg)
 }
 
 // v must be a pointer to a type.
