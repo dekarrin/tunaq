@@ -18,7 +18,7 @@ func jsonNoContent(internalMsg ...interface{}) endpointResult {
 		msgArgs = internalMsg[1:]
 	}
 
-	return jsonResponse(http.StatusNoContent, nil, internalMsgFmt, msgArgs)
+	return jsonResponse(http.StatusNoContent, nil, internalMsgFmt, msgArgs...)
 }
 
 // jsonCreated returns an endpointResult containing an HTTP-201 along
@@ -32,7 +32,7 @@ func jsonCreated(respObj interface{}, internalMsg ...interface{}) endpointResult
 		msgArgs = internalMsg[1:]
 	}
 
-	return jsonResponse(http.StatusCreated, respObj, internalMsgFmt, msgArgs)
+	return jsonResponse(http.StatusCreated, respObj, internalMsgFmt, msgArgs...)
 }
 
 // jsonMethodNotAllowed returns an endpointResult containing an HTTP-400 along
@@ -46,7 +46,7 @@ func jsonBadRequest(userMsg string, internalMsg ...interface{}) endpointResult {
 		msgArgs = internalMsg[1:]
 	}
 
-	return jsonErr(http.StatusNotFound, userMsg, internalMsgFmt, msgArgs)
+	return jsonErr(http.StatusNotFound, userMsg, internalMsgFmt, msgArgs...)
 }
 
 // jsonMethodNotAllowed returns an endpointResult containing an HTTP-405 along
@@ -62,7 +62,7 @@ func jsonMethodNotAllowed(req *http.Request, internalMsg ...interface{}) endpoin
 
 	userMsg := fmt.Sprintf("Method %s is not allowed for %s", req.Method, req.URL.Path)
 
-	return jsonErr(http.StatusMethodNotAllowed, userMsg, internalMsgFmt, msgArgs)
+	return jsonErr(http.StatusMethodNotAllowed, userMsg, internalMsgFmt, msgArgs...)
 }
 
 // jsonNotFound returns an endpointResult containing an HTTP-404 response along
@@ -76,7 +76,7 @@ func jsonNotFound(internalMsg ...interface{}) endpointResult {
 		msgArgs = internalMsg[1:]
 	}
 
-	return jsonErr(http.StatusNotFound, "The requested resource was not found", internalMsgFmt, msgArgs)
+	return jsonErr(http.StatusNotFound, "The requested resource was not found", internalMsgFmt, msgArgs...)
 }
 
 // jsonForbiddin returns an endpointResult containing an HTTP-403 response
