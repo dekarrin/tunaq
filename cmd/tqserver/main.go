@@ -41,6 +41,7 @@ The flags are:
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"log"
@@ -140,10 +141,19 @@ func main() {
 		log.Printf("WARN : Using generated token secret; all tokens issued will become invalid at shutdown")
 	}
 
+	// configuration complete, initialize the server
 	tqs := server.New(tokSecret)
+	log.Printf("DEBUG: Server initialized")
 
 	// immediately create the admin user so we have someone we can log in as.
+	_, err := tqs.CreateUser(context.Background(), "admin", "password", "bogus@example.com")
+	if err != nil {
+		log.Printf("ERROR: could not create initial admin user: %v", err)
+		os.Exit(2)
+	}
+	log.Printf("INFO : Added initial admin user with password 'password'...")
 
+	// okay, now actually launch it
 	log.Printf("INFO : Starting TunaQuest server %s...", version.ServerCurrent)
 	tqs.ServeForever(addr, port)
 }

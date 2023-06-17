@@ -95,19 +95,30 @@ func (tqs TunaQuestServer) ServeForever(address string, port int) {
 // in persistence and returns that user if they match. Returns the user entity
 // from the persistence layer that the username and password are valid for. The
 // returned error will be ErrBadCredentials if either no user with the given
-// username exists or if the provided password is not correct.
+// username exists or if the provided password is not correct. The returned
+// error will be some other non-nil value if there is a problem with the stored
+// password hash.
 func (tqs TunaQuestServer) Login(ctx context.Context, username string, password string) (dao.User, error) {
 	user, err := tqs.db.Users.GetByUsername(ctx, username)
 	if err != nil {
 		if err == inmem.ErrNotFound {
 			return dao.User{}, ErrBadCredentials
 		}
+		return dao.User{}, err
 	}
 
 	// verify password
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
-	if err == bcrypt.ErrMismatchedHashAndPassword {
-		return dao.User{}, ErrBadCredentials
+	bcryptHash, err := base64.StdEncoding.DecodeString(user.Password)
+	if err != nil {
+		return dao.User{}, err
+	}
+
+	err = bcrypt.CompareHashAndPassword(bcryptHash, []byte(password))
+	if err != nil {
+		if err == bcrypt.ErrMismatchedHashAndPassword {
+			return dao.User{}, ErrBadCredentials
+		}
+		return dao.User{}, err
 	}
 
 	return user, nil
@@ -149,7 +160,7 @@ func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password st
 		return dao.User{}, fmt.Errorf("email is not valid: %w", err)
 	}
 
-	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 20)
+	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		if err == bcrypt.ErrPasswordTooLong {
 			return dao.User{}, fmt.Errorf("password is too long")

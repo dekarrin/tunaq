@@ -22,12 +22,86 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type ErrorResponse struct {
+	Error  string `json:"error"`
+	Status int    `json:"status"`
+}
+
+type result struct {
+	isErr  bool
+	isJSON bool
+
+	resp        interface{}
+	status      int
+	internalMsg string
+}
+
+func (r result) write(w http.ResponseWriter, req *http.Request) {
+	// writeRaw
+	if r.isErr {
+		var respJSON []byte
+		if r.isJSON {
+			var err error
+			respJSON, err = json.Marshal(r.resp)
+			if err != nil {
+				respondRawErr(w, req, r.status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
+				return
+			}
+		}
+
+		logHttpResponse("ERROR", req, r.status, r.internalMsg)
+
+		if !r.isJSON {
+			userMsg := fmt.Sprintf("%v", r.resp)
+			http.Error(w, userMsg, r.status)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Write(respJSON)
+		return
+	}
+
+	// not an error, normal response.
+	var respJSON []byte
+	if r.isJSON && r.status != http.StatusNoContent {
+		var err error
+		respJSON, err = json.Marshal(r.resp)
+		if err != nil {
+			respondErr(w, req, r.status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
+			return
+		}
+	}
+
+	logHttpResponse("INFO", req, r.status, r.internalMsg)
+
+	if r.isJSON {
+		w.Header().Set("Content-Type", "application/json")
+	} else {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	}
+	w.WriteHeader(r.status)
+
+	if r.status != http.StatusNoContent {
+		if r.isJSON {
+			w.Write(respJSON)
+		}
+	}
+}
+
 const (
 	EntityLogin = "login"
 )
 
 func (tqs *TunaQuestServer) initHandlers() {
+	tqs.srv.HandleFunc("/", tqs.handlePathRoot)
+	tqs.srv.HandleFunc("/"+EntityLogin, tqs.handlePathLogin)
 	tqs.srv.HandleFunc("/"+EntityLogin+"/", tqs.handlePathLogin)
+}
+
+func (tqs TunaQuestServer) handlePathRoot(w http.ResponseWriter, req *http.Request) {
+	respondErr(w, req, http.StatusNotFound, "The requested resource was not found", "not found")
 }
 
 func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Request) {
@@ -37,39 +111,39 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 
 	if req.URL.Path == "/"+EntityLogin+"/" || req.URL.Path == "/"+EntityLogin {
 		if req.Method == http.MethodPost {
-			tqs.handlePOSTLogin(w, req)
+			tqs.doLoginPOST(w, req)
 		} else {
-			terminateWithError(w, req, http.StatusMethodNotAllowed, "Method "+req.Method+" is not valid for "+req.URL.Path, "method not allowed")
+			respondErr(w, req, http.StatusMethodNotAllowed, "Method "+req.Method+" is not valid for "+req.URL.Path, "method not allowed")
 			return
 		}
 	} else {
 		// check for /login/{id}
 		pathParts := strings.Split(strings.Trim(req.URL.Path, "/"), "/")
 		if len(pathParts) != 2 {
-			terminateWithError(w, req, http.StatusNotFound, "The requested resource was not found", "not found")
+			respondErr(w, req, http.StatusNotFound, "The requested resource was not found", "not found")
 			return
 		}
 
 		id, err := uuid.Parse(pathParts[1])
 		if err != nil {
-			terminateWithError(w, req, http.StatusNotFound, "The requested resource was not found", "not found")
+			respondErr(w, req, http.StatusNotFound, "The requested resource was not found", "not found")
 			return
 		}
 
 		if req.Method == http.MethodDelete {
-			tqs.handleDELETELogin(w, req, id)
+			tqs.doLoginDELETE(w, req, id)
 		} else {
-			terminateWithError(w, req, http.StatusMethodNotAllowed, "Method "+req.Method+" is not valid for "+req.URL.Path, "method not allowed")
+			respondErr(w, req, http.StatusMethodNotAllowed, "Method "+req.Method+" is not valid for "+req.URL.Path, "method not allowed")
 			return
 		}
 	}
 }
 
-func (tqs TunaQuestServer) handlePOSTLogin(w http.ResponseWriter, req *http.Request) {
+func (tqs TunaQuestServer) doLoginPOST(w http.ResponseWriter, req *http.Request) {
 	loginData := LoginRequest{}
 	err := parseJSON(req, &loginData)
 	if err != nil {
-		terminateWithError(w, req, http.StatusBadRequest, err.Error(), err.Error())
+		respondErr(w, req, http.StatusBadRequest, err.Error(), err.Error())
 		return
 	}
 
@@ -77,10 +151,10 @@ func (tqs TunaQuestServer) handlePOSTLogin(w http.ResponseWriter, req *http.Requ
 	if err != nil {
 		if err == ErrBadCredentials {
 			w.Header().Set("WWW-Authenticate", "Basic realm=\"TunaQuest server\", charset=\"utf-8\"")
-			terminateWithError(w, req, http.StatusUnauthorized, err.Error(), err.Error())
+			respondErr(w, req, http.StatusUnauthorized, err.Error(), err.Error())
 			return
 		} else {
-			terminateWithError(w, req, http.StatusInternalServerError, "An internal server error occurred", err.Error())
+			respondErr(w, req, http.StatusInternalServerError, "An internal server error occurred", err.Error())
 			return
 		}
 	}
@@ -89,18 +163,18 @@ func (tqs TunaQuestServer) handlePOSTLogin(w http.ResponseWriter, req *http.Requ
 	// password is valid, generate token for user and return it.
 	tok, err := tqs.generateJWT(user)
 	if err != nil {
-		terminateWithError(w, req, http.StatusInternalServerError, "An internal server error occurred", "could not generate JWT: "+err.Error())
+		respondErr(w, req, http.StatusInternalServerError, "An internal server error occurred", "could not generate JWT: "+err.Error())
 		return
 	}
 
 	resp := LoginResponse{Token: tok}
-	terminateWithJSON(w, req, http.StatusCreated, resp, "user '"+user.Username+"' successfully logged in")
+	respond(w, req, http.StatusCreated, resp, "user '"+user.Username+"' successfully logged in")
 }
 
-func (tqs TunaQuestServer) handleDELETELogin(w http.ResponseWriter, req *http.Request, id uuid.UUID) {
+func (tqs TunaQuestServer) doLoginDELETE(w http.ResponseWriter, req *http.Request, id uuid.UUID) {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
-		terminateWithError(w, req, http.StatusUnauthorized, "Valid bearer JWT token required", fmt.Sprintf("could not verify JWT: %s", err.Error()))
+		respondErr(w, req, http.StatusUnauthorized, "Valid bearer JWT token required", fmt.Sprintf("could not verify JWT: %s", err.Error()))
 		return
 	}
 
@@ -115,13 +189,17 @@ func (tqs TunaQuestServer) handleDELETELogin(w http.ResponseWriter, req *http.Re
 			otherUserStr = "'" + otherUser.Username + "'"
 		}
 
-		terminateWithError(w, req, http.StatusForbidden, "You don't have permission to do that", fmt.Sprintf("user '%s' (role %s) logout of user %s: forbidden", user.Username, user.Role, otherUserStr))
+		respondErr(w, req, http.StatusForbidden, "You don't have permission to do that", fmt.Sprintf("user '%s' (role %s) logout of user %s: forbidden", user.Username, user.Role, otherUserStr))
 		return
 	}
 
 	loggedOutUser, err := tqs.Logout(req.Context(), id)
 	if err != nil {
-		terminateWithError(w, req, http.StatusInternalServerError, "An internal server error occurred", "could not log out user: "+err.Error())
+		if err == ErrNotFound {
+			respondErr(w, req, http.StatusNotFound, "The requested resource was not found", "not found")
+			return
+		}
+		respondErr(w, req, http.StatusInternalServerError, "An internal server error occurred", "could not log out user: "+err.Error())
 		return
 	}
 
@@ -132,18 +210,18 @@ func (tqs TunaQuestServer) handleDELETELogin(w http.ResponseWriter, req *http.Re
 		otherStr = "self"
 	}
 
-	terminateWithJSON(w, req, http.StatusNoContent, nil, fmt.Sprintf("user '%s' successfully logged out %s", user.Username, otherStr))
+	respond(w, req, http.StatusNoContent, nil, fmt.Sprintf("user '%s' successfully logged out %s", user.Username, otherStr))
 }
 
 // if status is http.StatusNoContent, respObj will not be read and may be nil.
 // Otherwise, respObj MUST NOT be nil.
-func terminateWithJSON(w http.ResponseWriter, req *http.Request, status int, respObj interface{}, internalMsg string) {
+func respond(w http.ResponseWriter, req *http.Request, status int, respObj interface{}, internalMsg string) {
 	var respJSON []byte
 	if status != http.StatusNoContent {
 		var err error
 		respJSON, err = json.Marshal(respObj)
 		if err != nil {
-			terminateWithError(w, req, status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
+			respondErr(w, req, status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
 			return
 		}
 	}
@@ -158,7 +236,26 @@ func terminateWithJSON(w http.ResponseWriter, req *http.Request, status int, res
 	}
 }
 
-func terminateWithError(w http.ResponseWriter, req *http.Request, status int, userMsg, internalMsg string) {
+func respondErr(w http.ResponseWriter, req *http.Request, status int, userMsg, internalMsg string) {
+	respErr := ErrorResponse{
+		Error:  userMsg,
+		Status: status,
+	}
+	respJSON, err := json.Marshal(respErr)
+	if err != nil {
+		respondRawErr(w, req, status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
+		return
+	}
+
+	logHttpResponse("ERROR", req, status, internalMsg)
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Write(respJSON)
+}
+
+// respondRawErr is like respondErr but it avoids JSON encoding
+// of any kind and writes the output as plain text.
+func respondRawErr(w http.ResponseWriter, req *http.Request, status int, userMsg, internalMsg string) {
 	logHttpResponse("ERROR", req, status, internalMsg)
 	http.Error(w, userMsg, status)
 }
@@ -172,7 +269,7 @@ func logHttpResponse(level string, req *http.Request, respStatus int, msg string
 		level += " "
 	}
 
-	log.Printf("%s: %s %s: HTTP-%d: %s", level, req.Method, req.URL.Path, respStatus, msg)
+	log.Printf("%s: HTTP-%d resonse to %s %s: %s", level, respStatus, req.Method, req.URL.Path, msg)
 }
 
 // v must be a pointer to a type.
@@ -198,7 +295,7 @@ func parseJSON(req *http.Request, v interface{}) error {
 
 func panicTo500(w http.ResponseWriter, req *http.Request) {
 	if panicErr := recover(); panicErr != nil {
-		terminateWithError(
+		respondRawErr(
 			w, req, http.StatusInternalServerError,
 			"An internal server error occurred",
 			fmt.Sprintf("panic: %v\n%s", panicErr, string(debug.Stack())),
