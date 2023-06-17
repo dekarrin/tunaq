@@ -13,19 +13,19 @@ Usage:
 
 The flags are:
 
-	-version
+	-v, --version
 		Give the current version of TunaQuest and then exit.
 
-	-w/-world [FILE]
+	-w, --world FILE
 		Use the provided TQW resource file for the world. Defaults to the file
 		"world.tqw" in the current working directory.
 
-	-d/--direct
+	-d, --direct
 	    Force reading directly from the console as opposed to using GNU readline
 		based routines for reading command input even if launched in a tty with
 		stdin and stdout.
 
-	-c/--command
+	-c, --command COMMANDS
 		Immediately run the given command(s) at start. Can be multiple commands
 		separated by the ";" character.
 
@@ -61,7 +61,7 @@ const (
 
 var (
 	returnCode   int     = ExitSuccess
-	flagVersion  *bool   = pflag.Bool("version", false, "Gives the version info")
+	flagVersion  *bool   = pflag.BoolP("version", "v", false, "Gives the version info")
 	worldFile    *string = pflag.StringP("world", "w", "world.tqw", "The TQW world data or manifest file that contains the definition of the world")
 	forceDirect  *bool   = pflag.BoolP("direct", "d", false, "Force reading directly from stdin instead of going through GNU readline where possible")
 	startCommand *string = pflag.StringP("command", "c", "", "Execute the given player commands immediately at start and leave the interpreter open")
