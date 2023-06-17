@@ -9,17 +9,12 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	EntityLogin = "login"
-	EntityToken = "tokens"
-)
-
 func (tqs *TunaQuestServer) initHandlers() {
 	tqs.srv.HandleFunc("/", tqs.handlePathRoot)
-	tqs.srv.HandleFunc("/"+EntityLogin, tqs.handlePathLogin)
-	tqs.srv.HandleFunc("/"+EntityLogin+"/", tqs.handlePathLogin)
-	tqs.srv.HandleFunc("/"+EntityToken, tqs.handlePathToken)
-	tqs.srv.HandleFunc("/"+EntityToken+"/", tqs.handlePathToken)
+	tqs.srv.HandleFunc("/login", tqs.handlePathLogin)
+	tqs.srv.HandleFunc("/login/", tqs.handlePathLogin)
+	tqs.srv.HandleFunc("/tokens", tqs.handlePathToken)
+	tqs.srv.HandleFunc("/tokens/", tqs.handlePathToken)
 }
 
 func (tqs TunaQuestServer) handlePathRoot(w http.ResponseWriter, req *http.Request) {
@@ -43,7 +38,7 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 		result.writeResponse(w, req)
 	}()
 
-	if req.URL.Path == "/"+EntityLogin+"/" || req.URL.Path == "/"+EntityLogin {
+	if req.URL.Path == "/login/" || req.URL.Path == "/login" {
 
 		// ---------------------------------------------- //
 		// DISPATCH FOR: /login                           //
@@ -87,7 +82,7 @@ func (tqs TunaQuestServer) handlePathToken(w http.ResponseWriter, req *http.Requ
 		result.writeResponse(w, req)
 	}()
 
-	if req.URL.Path == "/"+EntityToken+"/" || req.URL.Path == "/"+EntityToken {
+	if req.URL.Path == "/tokens/" || req.URL.Path == "/tokens" {
 
 		// ---------------------------------------------- //
 		// DISPATCH FOR: /tokens                          //
