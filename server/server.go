@@ -62,9 +62,10 @@ type NetworkJSONCommandReader struct {
 //
 
 type TunaQuestServer struct {
-	srv *http.ServeMux
-
-	db dao.Store
+	srv         *http.ServeMux
+	db          dao.Store
+	bindAddress string
+	port        int
 }
 
 type LoginResponse struct {
@@ -76,12 +77,24 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
-func New() TunaQuestServer {
+// New creates a new TunaQuestServer that will listen on the given address and
+// port. If address is kept as "", it will default to "localhost". If port is
+// less than 1, it will default 8080.
+func New(address string, port int) TunaQuestServer {
+	if address == "" {
+		address = "localhost"
+	}
+	if port < 1 {
+		port = 8080
+	}
+
 	tqs := TunaQuestServer{
 		srv: http.NewServeMux(),
 		db: dao.Store{
 			Users: inmem.NewUsersRepository(),
 		},
+		bindAddress: address,
+		port:        port,
 	}
 
 	tqs.srv.HandleFunc("/login/", tqs.handlePathLogin)
@@ -89,8 +102,14 @@ func New() TunaQuestServer {
 	return tqs
 }
 
-func (tqs TunaQuestServer) ServeForever() {
+// ListenAddress returns the address that the server will listen on, as a string
+// containg both the bind address and port.
+func (tqs TunaQuestServer) ListenAddress() string {
+	return fmt.Sprintf("%s:%d", tqs.bindAddress, tqs.port)
+}
 
+func (tqs TunaQuestServer) ServeForever() {
+	log.Fatal(http.ListenAndServe(tqs.ListenAddress(), tqs.srv))
 }
 
 func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Request) {
@@ -191,7 +210,7 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 	}
 }
 
-// Login returns the JWT token after logging in.
+// Login returns the user that was logged in.
 func (tqs TunaQuestServer) Login(ctx context.Context, username string, password string) (dao.User, error) {
 	user, err := tqs.db.Users.GetByUsername(ctx, username)
 	if err != nil {
@@ -209,6 +228,8 @@ func (tqs TunaQuestServer) Login(ctx context.Context, username string, password 
 	return user, nil
 }
 
+// Logout requires the ID of the user to log out, and returns the user that was
+// successfully logged out.
 func (tqs TunaQuestServer) Logout(ctx context.Context, who uuid.UUID) (dao.User, error) {
 	existing, err := tqs.db.Users.GetByID(ctx, who)
 	if err != nil {
@@ -225,6 +246,8 @@ func (tqs TunaQuestServer) Logout(ctx context.Context, who uuid.UUID) (dao.User,
 	return updated, nil
 }
 
+// CreateUser creates a new user with the given username, password, and email
+// combo and returns the newly-created user.
 func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password string, email string) (dao.User, error) {
 	_, err := tqs.db.Users.GetByUsername(ctx, username)
 	if err != inmem.ErrNotFound {
