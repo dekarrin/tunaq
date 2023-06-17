@@ -3,24 +3,16 @@ package server
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/mail"
-	"strings"
 	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/dekarrin/tunaq/server/dao/inmem"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-)
-
-var (
-	fakeTestKey = []byte("TODO: DO NOT USE IN PROD, CHANGE ME")
 )
 
 type Error string
@@ -29,14 +21,11 @@ var (
 	ErrBadCredentials Error = "The supplied username/password combo is incorrect"
 	ErrPermissions    Error = "You don't have permission to do that"
 	ErrInvalidLogin   Error = "You don't appear to be logged in"
+	ErrNotFound       Error = "The requested entity could not be found"
 )
 
 func (e Error) Error() string {
 	return string(e)
-}
-
-// NetworkJSONCommandReader reads commands
-type NetworkJSONCommandReader struct {
 }
 
 // js site interface -> {"input": "TAKE SPOON", "session": "alkdf803=="} -> server
@@ -61,137 +50,52 @@ type NetworkJSONCommandReader struct {
 //  - GET    /info           - get version info on the game and engine itself.
 //
 
+// TunaQuestServer is an HTTP REST server that provides TunaQuest games and
+// associated resources. The zero-value of a TunaQuestServer should not be used
+// directly; call New() to get one ready for use.
 type TunaQuestServer struct {
-	srv *http.ServeMux
-
-	db dao.Store
+	srv       *http.ServeMux
+	db        dao.Store
+	jwtSecret []byte
 }
 
-type LoginResponse struct {
-	Token string `json:"token"`
-}
-
-type LoginRequest struct {
-	User     string `json:"user"`
-	Password string `json:"password"`
-}
-
-func New() TunaQuestServer {
+// New creates a new TunaQuestServer that uses the given JWT secret for securing
+// logins.
+func New(tokenSecret []byte) TunaQuestServer {
 	tqs := TunaQuestServer{
 		srv: http.NewServeMux(),
 		db: dao.Store{
 			Users: inmem.NewUsersRepository(),
 		},
+		jwtSecret: tokenSecret,
 	}
 
-	tqs.srv.HandleFunc("/login/", tqs.handlePathLogin)
+	tqs.initHandlers()
 
 	return tqs
 }
 
-func (tqs TunaQuestServer) ServeForever() {
-
-}
-
-func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Request) {
-	if req.URL.Path == "/login/" || req.URL.Path == "/login" {
-		if req.Method == http.MethodPost {
-			loginData := LoginRequest{}
-			err := parseJSON(req, &loginData)
-			if err != nil {
-				terminateWithError(w, req, http.StatusBadRequest, err.Error(), err.Error())
-				return
-			}
-
-			user, err := tqs.Login(req.Context(), loginData.User, loginData.Password)
-			if err != nil {
-				if err == ErrBadCredentials {
-					w.Header().Set("WWW-Authenticate", "Basic realm=\"TunaQuest server\", charset=\"utf-8\"")
-					terminateWithError(w, req, http.StatusUnauthorized, err.Error(), err.Error())
-					return
-				} else {
-					terminateWithError(w, req, http.StatusInternalServerError, "An internal server error occurred", err.Error())
-					return
-				}
-			}
-
-			// build the token
-			// password is valid, generate token for user and return it.
-			tok, err := generateJWTForUser(user)
-			if err != nil {
-				terminateWithError(w, req, http.StatusInternalServerError, "An internal server error occurred", "could not generate JWT: "+err.Error())
-				return
-			}
-
-			resp := LoginResponse{Token: tok}
-			terminateWithJSON(w, req, http.StatusCreated, resp, "user '"+user.Username+"' successfully logged in")
-			return
-		} else {
-			terminateWithError(w, req, http.StatusMethodNotAllowed, "Method "+req.Method+" is not valid for "+req.URL.Path, "method not allowed")
-			return
-		}
-	} else {
-		// check for /login/{id}
-		pathParts := strings.Split(strings.Trim(req.URL.Path, "/"), "/")
-		if len(pathParts) != 2 {
-			http.Error(w, "The requested resource was not found", http.StatusNotFound)
-			return
-		}
-
-		id, err := uuid.Parse(pathParts[1])
-		if err != nil {
-			http.Error(w, "The requested resource was not found", http.StatusNotFound)
-			return
-		}
-
-		if req.Method == http.MethodDelete {
-			// need to: get JWT
-			// get WHO from request
-
-			user, err := tqs.requireJWT(req.Context(), req)
-			if err != nil {
-				terminateWithError(w, req, http.StatusUnauthorized, "Valid bearer JWT token required", fmt.Sprintf("could not verify JWT: %s", err.Error()))
-				return
-			}
-
-			// is the user trying to delete someone else? they'd betta be the admin if so!
-			if id != user.ID && user.Role != dao.Admin {
-				var otherUserStr string
-				otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
-				// if there was another user, find out now
-				if err != nil {
-					otherUserStr = fmt.Sprintf("%d", id)
-				} else {
-					otherUserStr = "'" + otherUser.Username + "'"
-				}
-
-				terminateWithError(w, req, http.StatusForbidden, "You don't have permission to do that", fmt.Sprintf("user '%s' (role %s) logout of user %s: forbidden", user.Username, user.Role, otherUserStr))
-				return
-			}
-
-			loggedOutUser, err := tqs.Logout(req.Context(), id)
-			if err != nil {
-				terminateWithError(w, req, http.StatusInternalServerError, "An internal server error occurred", "could not log out user: "+err.Error())
-				return
-			}
-
-			var otherStr string
-			if id != user.ID {
-				otherStr = "user '" + loggedOutUser.Username + "'"
-			} else {
-				otherStr = "self"
-			}
-
-			terminateWithJSON(w, req, http.StatusNoContent, nil, fmt.Sprintf("user '%s' successfully logged out %s", user.Username, otherStr))
-			return
-		} else {
-			terminateWithError(w, req, http.StatusMethodNotAllowed, "Method "+req.Method+" is not valid for "+req.URL.Path, "method not allowed")
-			return
-		}
+// ServeForever begins listening on the given address and port for HTTP REST
+// client requests. If address is kept as "", it will default to "localhost". If
+// port is less than 1, it will default to 8080.
+func (tqs TunaQuestServer) ServeForever(address string, port int) {
+	if address == "" {
+		address = "localhost"
 	}
+	if port < 1 {
+		port = 8080
+	}
+
+	listenAddress := fmt.Sprintf("%s:%d", address, port)
+	log.Printf("INFO : Listening on %s", listenAddress)
+	log.Fatalf("FATAL: %v", http.ListenAndServe(listenAddress, tqs.srv))
 }
 
-// Login returns the JWT token after logging in.
+// Login verifies the provided username and password against the existing user
+// in persistence and returns that user if they match. Returns the user entity
+// from the persistence layer that the username and password are valid for. The
+// returned error will be ErrBadCredentials if either no user with the given
+// username exists or if the provided password is not correct.
 func (tqs TunaQuestServer) Login(ctx context.Context, username string, password string) (dao.User, error) {
 	user, err := tqs.db.Users.GetByUsername(ctx, username)
 	if err != nil {
@@ -209,22 +113,31 @@ func (tqs TunaQuestServer) Login(ctx context.Context, username string, password 
 	return user, nil
 }
 
+// Logout marks the user with the given ID as having logged out, invalidating
+// any login that may be active. Returns the user entity that was logged out.
+// The returned error will be ErrNotFound if the user doesn't exist, or some
+// other non-nil error if there is a problem retrieving or updating the user.
 func (tqs TunaQuestServer) Logout(ctx context.Context, who uuid.UUID) (dao.User, error) {
 	existing, err := tqs.db.Users.GetByID(ctx, who)
 	if err != nil {
-		return dao.User{}, fmt.Errorf("could not retrieve user")
+		if err == inmem.ErrNotFound {
+			return dao.User{}, ErrNotFound
+		}
+		return dao.User{}, fmt.Errorf("could not retrieve user: %w", err)
 	}
 
 	existing.LastLogoutTime = time.Now()
 
 	updated, err := tqs.db.Users.Update(ctx, existing)
 	if err != nil {
-		return dao.User{}, fmt.Errorf("could not update user")
+		return dao.User{}, fmt.Errorf("could not update user: %w", err)
 	}
 
 	return updated, nil
 }
 
+// CreateUser creates a new user with the given username, password, and email
+// combo. Returns the newly-created user as it exists after creation.
 func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password string, email string) (dao.User, error) {
 	_, err := tqs.db.Users.GetByUsername(ctx, username)
 	if err != inmem.ErrNotFound {
@@ -262,160 +175,4 @@ func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password st
 	}
 
 	return user, nil
-}
-
-// if status is http.StatusNoContent, respObj will not be read and may be nil. Otherwise, respObj MUST NOT be nil.
-func terminateWithJSON(w http.ResponseWriter, req *http.Request, status int, respObj interface{}, internalMsg string) {
-	var respJSON []byte
-	if status != http.StatusNoContent {
-		var err error
-		respJSON, err = json.Marshal(respObj)
-		if err != nil {
-			terminateWithError(w, req, status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
-			return
-		}
-	}
-
-	logHttpResponse("INFO", req, status, internalMsg)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	if status != http.StatusNoContent {
-		w.Write(respJSON)
-	}
-}
-
-func terminateWithError(w http.ResponseWriter, req *http.Request, status int, userMsg, internalMsg string) {
-	logHttpResponse("ERROR", req, status, internalMsg)
-	http.Error(w, userMsg, status)
-}
-
-func logHttpResponse(level string, req *http.Request, respStatus int, msg string) {
-	if len(level) > 5 {
-		level = level[0:5]
-	}
-
-	for len(level) < 5 {
-		level += " "
-	}
-
-	log.Printf("%s: %s %s: HTTP-%d: %s", level, req.Method, req.URL.Path, respStatus, msg)
-}
-
-func (tqs TunaQuestServer) requireJWT(ctx context.Context, req *http.Request) (dao.User, error) {
-	var user dao.User
-
-	tok, err := getJWT(req)
-	if err != nil {
-		return dao.User{}, err
-	}
-
-	_, err = jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
-		// who is the user? we need this for further verification
-		subj, err := t.Claims.GetSubject()
-		if err != nil {
-			return nil, fmt.Errorf("cannot get subject: %w", err)
-		}
-
-		id, err := uuid.Parse(subj)
-		if err != nil {
-			return nil, fmt.Errorf("cannot parse subject UUID: %w", err)
-		}
-
-		user, err = tqs.db.Users.GetByID(ctx, id)
-		if err != nil {
-			if err == inmem.ErrNotFound {
-				return nil, fmt.Errorf("subject does not exist")
-			} else {
-				return nil, fmt.Errorf("subject could not be validated")
-			}
-		}
-
-		var signKey []byte
-		signKey = append(signKey, fakeTestKey...)
-		signKey = append(signKey, []byte(user.Password)...)
-		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogoutTime.Unix()))...)
-		return signKey, nil
-	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS512.Alg()}), jwt.WithIssuer("tqs"), jwt.WithLeeway(time.Minute))
-
-	if err != nil {
-		return dao.User{}, err
-	}
-
-	return user, nil
-}
-
-func getJWT(req *http.Request) (string, error) {
-	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
-
-	if authHeader == "" {
-		return "", fmt.Errorf("no Authorization header present")
-	}
-
-	authParts := strings.SplitN(authHeader, " ", 2)
-	if len(authParts) != 2 {
-		return "", fmt.Errorf("Authorization header not in Bearer format")
-	}
-
-	scheme := strings.TrimSpace(strings.ToLower(authParts[0]))
-	token := strings.TrimSpace(authParts[1])
-
-	if scheme != "bearer" {
-		return "", fmt.Errorf("Authorization header not in Bearer format")
-	}
-
-	return token, nil
-}
-
-func generateJWTForUser(u dao.User) (string, error) {
-	claims := &jwt.MapClaims{
-		"iss":        "tqs",
-		"exp":        time.Now().Add(time.Hour).Unix(),
-		"sub":        u.ID.String(),
-		"authorized": true,
-	}
-	tok := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-
-	var signKey []byte
-	signKey = append(signKey, fakeTestKey...)
-	signKey = append(signKey, []byte(u.Password)...)
-	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogoutTime.Unix()))...)
-
-	tokStr, err := tok.SignedString(signKey)
-	if err != nil {
-		return "", err
-	}
-	return tokStr, nil
-}
-
-func renderJSON(w http.ResponseWriter, v interface{}) error {
-	js, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(js)
-	return nil
-}
-
-// v must be a pointer to a type.
-func parseJSON(req *http.Request, v interface{}) error {
-	contentType := req.Header.Get("Content-Type")
-
-	if strings.ToLower(contentType) != "application/json" {
-		return fmt.Errorf("request content-type is not application/json")
-	}
-
-	bodyData, err := io.ReadAll(req.Body)
-	if err != nil {
-		return fmt.Errorf("could not read request body: %w", err)
-	}
-
-	err = json.Unmarshal(bodyData, v)
-	if err != nil {
-		return fmt.Errorf("malformed JSON in request")
-	}
-
-	return nil
 }

@@ -16,6 +16,7 @@ for_windows=
 [ "$(go env GOOS)" = "windows" ] && for_windows=1 && ext=".exe"
 
 env GOFLAGS=-mod=mod go build -o tqi$ext cmd/tqi/main.go
+env GOFLAGS=-mod=mod go build -o tqserver$ext cmd/tqserver/main.go
 
 if [ -n "$for_windows" ]
 then

@@ -17,6 +17,9 @@
 /tqi.bat
 /source-*
 /tunaquest-*
+/tqserver.exe
+/tqserver.exe~
+/tqserver
 
 # we are a go mod household tyvm
 /vendor
