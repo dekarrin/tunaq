@@ -28,7 +28,7 @@ func (tqs TunaQuestServer) handlePathRoot(w http.ResponseWriter, req *http.Reque
 		result.writeResponse(w, req)
 	}()
 
-	result = jsonErr(http.StatusNotFound, "The requested resource was not found", "not found")
+	result = jsonNotFound()
 }
 
 func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Request) {
@@ -44,26 +44,26 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 		if req.Method == http.MethodPost {
 			result = tqs.doEndpointLoginPOST(req)
 		} else {
-			result = jsonErr(http.StatusMethodNotAllowed, "Method "+req.Method+" is not valid for "+req.URL.Path, "method not allowed")
+			result = jsonMethodNotAllowed(req)
 		}
 	} else {
 		// check for /login/{id}
 		pathParts := strings.Split(strings.Trim(req.URL.Path, "/"), "/")
 		if len(pathParts) != 2 {
-			result = jsonErr(http.StatusNotFound, "The requested resource was not found", "not found")
+			result = jsonNotFound()
 			return
 		}
 
 		id, err := uuid.Parse(pathParts[1])
 		if err != nil {
-			result = jsonErr(http.StatusNotFound, "The requested resource was not found", "not found")
+			result = jsonNotFound()
 			return
 		}
 
 		if req.Method == http.MethodDelete {
 			result = tqs.doEndpointLoginDELETE(req, id)
 		} else {
-			result = jsonErr(http.StatusMethodNotAllowed, "Method "+req.Method+" is not valid for "+req.URL.Path, "method not allowed")
+			result = jsonMethodNotAllowed(req)
 		}
 	}
 }
