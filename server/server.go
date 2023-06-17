@@ -350,19 +350,19 @@ func getJWT(req *http.Request) (string, error) {
 	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
 
 	if authHeader == "" {
-		return "", fmt.Errorf("no Authorization header present")
+		return "", fmt.Errorf("no authorization header present")
 	}
 
 	authParts := strings.SplitN(authHeader, " ", 2)
 	if len(authParts) != 2 {
-		return "", fmt.Errorf("Authorization header not in Bearer format")
+		return "", fmt.Errorf("authorization header not in Bearer format")
 	}
 
 	scheme := strings.TrimSpace(strings.ToLower(authParts[0]))
 	token := strings.TrimSpace(authParts[1])
 
 	if scheme != "bearer" {
-		return "", fmt.Errorf("Authorization header not in Bearer format")
+		return "", fmt.Errorf("authorization header not in Bearer format")
 	}
 
 	return token, nil
@@ -387,16 +387,6 @@ func generateJWTForUser(u dao.User) (string, error) {
 		return "", err
 	}
 	return tokStr, nil
-}
-
-func renderJSON(w http.ResponseWriter, v interface{}) error {
-	js, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(js)
-	return nil
 }
 
 // v must be a pointer to a type.
