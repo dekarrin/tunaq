@@ -26,7 +26,8 @@ type ErrorResponse struct {
 	Status int    `json:"status"`
 }
 
-func (tqs TunaQuestServer) doEndpointLoginPOST(req *http.Request) endpointResult {
+// POST /login: create a new login with token
+func (tqs TunaQuestServer) doEndpoint_Login_POST(req *http.Request) endpointResult {
 	loginData := LoginRequest{}
 	err := parseJSON(req, &loginData)
 	if err != nil {
@@ -63,7 +64,27 @@ func (tqs TunaQuestServer) doEndpointLoginPOST(req *http.Request) endpointResult
 	return jsonCreated(resp, "user '"+user.Username+"' successfully logged in")
 }
 
-func (tqs TunaQuestServer) doEndpointLoginDELETE(req *http.Request, id uuid.UUID) endpointResult {
+// POST /tokens: create a new token for self (auth required)
+func (tqs TunaQuestServer) doEndpoint_Token_POST(req *http.Request) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		return jsonUnauthorized(err.Error())
+	}
+
+	tok, err := tqs.generateJWT(user)
+	if err != nil {
+		return jsonInternalServerError("could not generate JWT: " + err.Error())
+	}
+
+	resp := LoginResponse{
+		Token:  tok,
+		UserID: user.ID.String(),
+	}
+	return jsonCreated(resp, "user '"+user.Username+"' successfully created new token")
+}
+
+// POST /login/{id}: create a new token for self (auth required)
+func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.UUID) endpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
 		return jsonUnauthorized(err.Error())
@@ -86,7 +107,7 @@ func (tqs TunaQuestServer) doEndpointLoginDELETE(req *http.Request, id uuid.UUID
 	loggedOutUser, err := tqs.Logout(req.Context(), id)
 	if err != nil {
 		if err == ErrNotFound {
-			return jsonNotFound("not found")
+			return jsonNotFound()
 		}
 		return jsonInternalServerError("could not log out user: " + err.Error())
 	}

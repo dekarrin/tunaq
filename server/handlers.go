@@ -11,12 +11,15 @@ import (
 
 const (
 	EntityLogin = "login"
+	EntityToken = "tokens"
 )
 
 func (tqs *TunaQuestServer) initHandlers() {
 	tqs.srv.HandleFunc("/", tqs.handlePathRoot)
 	tqs.srv.HandleFunc("/"+EntityLogin, tqs.handlePathLogin)
 	tqs.srv.HandleFunc("/"+EntityLogin+"/", tqs.handlePathLogin)
+	tqs.srv.HandleFunc("/"+EntityToken, tqs.handlePathToken)
+	tqs.srv.HandleFunc("/"+EntityToken+"/", tqs.handlePathToken)
 }
 
 func (tqs TunaQuestServer) handlePathRoot(w http.ResponseWriter, req *http.Request) {
@@ -41,8 +44,12 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 	}()
 
 	if req.URL.Path == "/"+EntityLogin+"/" || req.URL.Path == "/"+EntityLogin {
+
+		// ---------------------------------------------- //
+		// DISPATCH FOR: /login                           //
+		// ---------------------------------------------- //
 		if req.Method == http.MethodPost {
-			result = tqs.doEndpointLoginPOST(req)
+			result = tqs.doEndpoint_Login_POST(req)
 		} else {
 			result = jsonMethodNotAllowed(req)
 		}
@@ -60,11 +67,38 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 			return
 		}
 
+		// ---------------------------------------------- //
+		// DISPATCH FOR: /login/{id}                      //
+		// ---------------------------------------------- //
 		if req.Method == http.MethodDelete {
-			result = tqs.doEndpointLoginDELETE(req, id)
+			result = tqs.doEndpoint_LoginID_DELETE(req, id)
 		} else {
 			result = jsonMethodNotAllowed(req)
 		}
+	}
+}
+
+func (tqs TunaQuestServer) handlePathToken(w http.ResponseWriter, req *http.Request) {
+	// this must be at the top of every handlePath* method to convert panics to
+	// HTTP-500
+	defer panicTo500(w, req)
+	var result endpointResult
+	defer func() {
+		result.writeResponse(w, req)
+	}()
+
+	if req.URL.Path == "/"+EntityToken+"/" || req.URL.Path == "/"+EntityToken {
+
+		// ---------------------------------------------- //
+		// DISPATCH FOR: /tokens                          //
+		// ---------------------------------------------- //
+		if req.Method == http.MethodPost {
+			result = tqs.doEndpoint_Token_POST(req)
+		} else {
+			result = jsonMethodNotAllowed(req)
+		}
+	} else {
+		result = jsonNotFound()
 	}
 }
 

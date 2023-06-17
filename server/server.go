@@ -32,8 +32,9 @@ func (e Error) Error() string {
 // server -> {"output": "You take the spoon"} -> js site interface
 //
 // server:
-//  - POST   /login          - accepts user and password and returns a jwt.
-//  - DELETE /login/{id}     - ends user authentication session and destroyes the jwt.
+//  X POST   /login          - accepts user and password and returns a jwt.
+//  X DELETE /login/{id}     - ends user authentication session and destroyes the jwt.
+//  X POST   /tokens         - refreshes the token without requiring credentials (requires auth)
 //	- POST   /commands       - accepts command input from user, requires session token
 //  - GET    /commands       - return command history, requires session token
 //  - GET    /commands/{id}  - gets a particular command from history
@@ -46,6 +47,7 @@ func (e Error) Error() string {
 //  - POST   /users          - create a new account (auth not required)
 //  - GET    /users/{id}     - get info on a user (auth required)
 //  - GET    /users          - get all users (auth required)
+//  - PUT    /users/{id}     - Update a user
 //  - DELETE /users/{id}     - delete a user (auth required)
 //  - GET    /info           - get version info on the game and engine itself.
 //
