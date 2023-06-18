@@ -37,12 +37,21 @@ The flags are:
 		secret is given, a random secret will be automatically generated. Note
 		that any tokens issued with a random secret will become invalid as soon
 		as the server shuts down.
+
+	--db DRIVER[:PARAMS]
+		Use the given DB connection string. DRIVER must be one of the following:
+		inmem, sqlite. inmem has no further params. sqlite needs the path to the
+		data director such as sqlite:path/to/db_dir. If not given, will default
+		to the value of environment variable TUNAQUEST_DATABASE. If no DB driver
+		is specified or an empty is given, an in-memory database is
+		automatically selected.
 */
 package main
 
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -58,12 +67,14 @@ import (
 const (
 	EnvListen = "TUNAQUEST_LISTEN_ADDRESS"
 	EnvSecret = "TUNAQUEST_TOKEN_SECRET"
+	EnvDB     = "TUNAQUEST_DATABASE"
 )
 
 var (
 	flagVersion = pflag.BoolP("version", "v", false, "Give the current version of TunaQuest server and then exit.")
 	flagListen  = pflag.StringP("listen", "l", "", "Listen on the given address.")
 	flagSecret  = pflag.StringP("secret", "s", "", "Use the given secret for token generation.")
+	flagDB      = pflag.String("db", "", "Use the given secret for token generation.")
 )
 
 func main() {
@@ -79,6 +90,38 @@ func main() {
 	if len(args) > 0 {
 		fmt.Fprintf(os.Stderr, "Too many arguments\nDo -h for help.\n")
 		os.Exit(1)
+	}
+
+	// look at db connection string
+	dbPath := ""
+	dbConnStr := os.Getenv(EnvDB)
+	if pflag.Lookup("db").Changed {
+		dbConnStr = *flagDB
+	}
+	if dbConnStr != "" {
+		dbParts := strings.SplitN(*flagDB, ":", 2)
+		if len(dbParts) != 2 && *flagDB != "inmem" {
+			fmt.Fprintf(os.Stderr, "Not a valid DB string: %q\nDo -h for help.\n", *flagDB)
+			os.Exit(1)
+		}
+		if len(dbParts) != 2 {
+			dbParts = []string{"inmem", ""}
+		}
+
+		switch strings.ToLower(dbParts[0]) {
+		case "inmem":
+			dbPath = ""
+		case "sqlite":
+			dbPath = dbParts[1]
+			err := os.MkdirAll(dbPath, 0644)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Could not build data directory: %s\n", err)
+				os.Exit(1)
+			}
+		default:
+			fmt.Fprintf(os.Stderr, "unsupported DB engine: %q\n", dbParts[0])
+			os.Exit(1)
+		}
 	}
 
 	// get address info
@@ -143,16 +186,21 @@ func main() {
 	}
 
 	// configuration complete, initialize the server
-	tqs := server.New(tokSecret)
+	tqs, err := server.New(tokSecret, dbPath)
+	if err != nil {
+		log.Fatalf("FATAL could not start server: %s", err.Error())
+	}
 	log.Printf("DEBUG Server initialized")
 
 	// immediately create the admin user so we have someone we can log in as.
-	_, err := tqs.CreateUser(context.Background(), "admin", "password", "bogus@example.com", dao.Admin)
-	if err != nil {
+	_, err = tqs.CreateUser(context.Background(), "admin", "password", "bogus@example.com", dao.Admin)
+	if err != nil && !errors.Is(err, server.ErrAlreadyExists) {
 		log.Printf("ERROR could not create initial admin user: %v", err)
 		os.Exit(2)
 	}
-	log.Printf("INFO  Added initial admin user with password 'password'...")
+	if !errors.Is(err, server.ErrAlreadyExists) {
+		log.Printf("INFO  Added initial admin user with password 'password'...")
+	}
 
 	// okay, now actually launch it
 	log.Printf("INFO  Starting TunaQuest server %s...", version.ServerCurrent)

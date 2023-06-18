@@ -8,21 +8,93 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dekarrin/tunaq/internal/game"
 	"github.com/google/uuid"
 )
 
 // Store holds all the repositories.
 type Store struct {
-	Users UserRepository
+	Users         UserRepository
+	Registrations RegistrationRepository
+	Commands      CommnadRepository
+	Games         GameRepository
+	Sessions      SessionRepository
+}
+
+func (s Store) Close() []error {
+	errs := []error{}
+
+	errs = append(errs, s.Users.Close())
+
+	return errs
+}
+
+type CommnadRepository interface {
+	Create(ctx context.Context, reg Command) (Command, error)
+	GetByID(ctx context.Context, id uuid.UUID) (Command, error)
+	GetAll(ctx context.Context) ([]Command, error)
+	GetAllByUser(ctx context.Context, userID uuid.UUID) ([]Command, error)
+	GetAllByDateRange(ctx context.Context, notBefore, notAfter time.Time) ([]Command, error)
+	Update(ctx context.Context, id uuid.UUID, reg Command) (Command, error)
+	Delete(ctx context.Context, id uuid.UUID) (Command, error)
 }
 
 type Command struct {
+	ID      uuid.UUID
+	UserID  uuid.UUID
+	Created time.Time
+	Command string
+}
+
+type GameRepository interface {
+	Create(ctx context.Context, game Game) (Game, error)
+	GetByID(ctx context.Context, id uuid.UUID) (Game, error)
+	GetAllByUser(ctx context.Context, userID uuid.UUID) ([]Game, error)
+	GetAll(ctx context.Context) ([]Game, error)
+	Update(ctx context.Context, id uuid.UUID, sesh Game) (Game, error)
+	Delete(ctx context.Context, id uuid.UUID) (Game, error)
 }
 
 type Game struct {
+	ID      uuid.UUID
+	UserID  uuid.UUID
+	Created time.Time
+	Storage string
+}
+
+type SessionRepository interface {
+	Create(ctx context.Context, sesh Session) (Session, error)
+	GetByID(ctx context.Context, id uuid.UUID) (Session, error)
+	GetAllByUser(ctx context.Context, userID uuid.UUID) ([]Session, error)
+	GetAllByGame(ctx context.Context, gameID uuid.UUID) ([]Session, error)
+	GetAll(ctx context.Context) ([]Session, error)
+	Update(ctx context.Context, id uuid.UUID, sesh Session) (Session, error)
+	Delete(ctx context.Context, id uuid.UUID) (Session, error)
 }
 
 type Session struct {
+	ID      uuid.UUID
+	UserID  uuid.UUID
+	GameID  uuid.UUID
+	Created time.Time
+	State   *game.State
+}
+
+type RegistrationRepository interface {
+	Create(ctx context.Context, reg Registration) (Registration, error)
+	GetByID(ctx context.Context, id uuid.UUID) (Registration, error)
+	GetByUserID(ctx context.Context, userID uuid.UUID) (Registration, error)
+	GetAll(ctx context.Context) ([]Registration, error)
+	Update(ctx context.Context, id uuid.UUID, reg Registration) (Registration, error)
+	Delete(ctx context.Context, id uuid.UUID) (Registration, error)
+}
+
+type Registration struct {
+	ID      uuid.UUID
+	UserID  uuid.UUID
+	Code    []byte
+	Created time.Time
+	Expires time.Time
 }
 
 type UserRepository interface {
@@ -35,6 +107,9 @@ type UserRepository interface {
 	GetAll(ctx context.Context) ([]User, error)
 	Update(ctx context.Context, id uuid.UUID, user User) (User, error)
 	Delete(ctx context.Context, id uuid.UUID) (User, error)
+
+	// Close closes the connection.
+	Close() error
 }
 
 type Role int

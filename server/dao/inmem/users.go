@@ -22,6 +22,10 @@ type InMemoryUsersRepository struct {
 	byUsernameIndex map[string]uuid.UUID
 }
 
+func (imur *InMemoryUsersRepository) Close() error {
+	return nil
+}
+
 func (imur *InMemoryUsersRepository) Create(ctx context.Context, user dao.User) (dao.User, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {

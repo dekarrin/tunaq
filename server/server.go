@@ -8,10 +8,12 @@ import (
 	"log"
 	"net/http"
 	"net/mail"
+	"path/filepath"
 	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/dekarrin/tunaq/server/dao/inmem"
+	"github.com/dekarrin/tunaq/server/dao/sqlite"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -43,7 +45,7 @@ var (
 //  - DELETE /games/{id}     - delete a game (auth required)
 //  - POST   /registrations  - request a new user account (auth not required)
 //  X POST   /users          - create a new user account (auth required)
-//  - GET    /users          - get all users (auth required, with filter)
+//  X GET    /users          - get all users (auth required, with filter)
 //  X GET    /users/{id}     - get info on a user (auth required)
 //  X PUT    /users/{id}     - create an existing user
 //  X PATCH  /users/{id}     - Update a user
@@ -63,19 +65,31 @@ type TunaQuestServer struct {
 
 // New creates a new TunaQuestServer that uses the given JWT secret for securing
 // logins.
-func New(tokenSecret []byte) TunaQuestServer {
+func New(tokenSecret []byte, dbPath string) (TunaQuestServer, error) {
 	tqs := TunaQuestServer{
-		srv: http.NewServeMux(),
-		db: dao.Store{
-			Users: inmem.NewUsersRepository(),
-		},
+		srv:           http.NewServeMux(),
 		jwtSecret:     tokenSecret,
 		unauthedDelay: time.Second,
 	}
 
+	if dbPath != "" {
+		dbUsers, err := sqlite.NewUsersDBConn(filepath.Join(dbPath, "users.sqlite"))
+		if err != nil {
+			return tqs, err
+		}
+
+		tqs.db = dao.Store{
+			Users: dbUsers,
+		}
+	} else {
+		tqs.db = dao.Store{
+			Users: inmem.NewUsersRepository(),
+		}
+	}
+
 	tqs.initHandlers()
 
-	return tqs
+	return tqs, nil
 }
 
 // ServeForever begins listening on the given address and port for HTTP REST

@@ -20,6 +20,7 @@
 /tqserver.exe
 /tqserver.exe~
 /tqserver
+/db
 
 # we are a go mod household tyvm
 /vendor
