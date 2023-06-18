@@ -5,7 +5,22 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
+
+// jsonOK returns an endpointResult containing an HTTP-200 along with a more
+// detailed message (if desired; if none is provided it defaults to a generic
+// one) that is not displayed to the user.
+func jsonOK(respObj interface{}, internalMsg ...interface{}) endpointResult {
+	internalMsgFmt := "OK"
+	var msgArgs []interface{}
+	if len(internalMsg) >= 1 {
+		internalMsgFmt = internalMsg[0].(string)
+		msgArgs = internalMsg[1:]
+	}
+
+	return jsonResponse(http.StatusOK, respObj, internalMsgFmt, msgArgs...)
+}
 
 // jsonNoContent returns an endpointResult containing an HTTP-204 along
 // with a more detailed message (if desired; if none is provided it defaults to
@@ -112,7 +127,7 @@ func jsonForbidden(internalMsg ...interface{}) endpointResult {
 // along with the proper WWW-Authenticate header. internalMsg is a detailed
 // error message  (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func jsonUnauthorized(internalMsg ...interface{}) endpointResult {
+func jsonUnauthorized(userMsg string, internalMsg ...interface{}) endpointResult {
 	internalMsgFmt := "unauthorized"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -120,7 +135,11 @@ func jsonUnauthorized(internalMsg ...interface{}) endpointResult {
 		msgArgs = internalMsg[1:]
 	}
 
-	return jsonErr(http.StatusUnauthorized, "You are not authorized to do that", internalMsgFmt, msgArgs...).
+	if userMsg == "" {
+		userMsg = "You are not authorized to do that"
+	}
+
+	return jsonErr(http.StatusUnauthorized, userMsg, internalMsgFmt, msgArgs...).
 		withHeader("WWW-Authenticate", `Basic realm="TunaQuest server", charset="utf-8"`)
 }
 
@@ -266,5 +285,9 @@ func logHttpResponse(level string, req *http.Request, respStatus int, msg string
 		level += " "
 	}
 
-	log.Printf("%s: HTTP-%d response to %s %s: %s", level, respStatus, req.Method, req.URL.Path, msg)
+	// we don't really care about the ephemeral port from the client end
+	remoteAddrParts := strings.SplitN(req.RemoteAddr, ":", 2)
+	remoteIP := remoteAddrParts[0]
+
+	log.Printf("%s %s %s %s: HTTP-%d %s", level, remoteIP, req.Method, req.URL.Path, respStatus, msg)
 }

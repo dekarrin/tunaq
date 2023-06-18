@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	ErrBadCredentials = errors.New("the supplied username/password combo is incorrect")
+	ErrBadCredentials = errors.New("the supplied username/password combination is incorrect")
 	ErrPermissions    = errors.New("you don't have permission to do that")
 	ErrNotFound       = errors.New("the requested entity could not be found")
 	ErrAlreadyExists  = errors.New("resource with same identifying information already exists")
@@ -42,12 +42,12 @@ var (
 //	- GET    /games          - get info on all games (auth not required)
 //  - DELETE /games/{id}     - delete a game (auth required)
 //  - POST   /registrations  - request a new user account (auth not required)
-//  - POST   /users          - create a new user account (auth required)
-//  - GET    /users          - get all users (auth required)
+//  X POST   /users          - create a new user account (auth required)
+//  X GET    /users          - get all users (auth required, with filter)
 //  - GET    /users/{id}     - get info on a user (auth required)
 //  - PUT    /users/{id}     - Update a user
 //  - PATCH  /users/{id}     - Update a user
-//  - DELETE /users/{id}     - delete a user (auth required)
+//  X DELETE /users/{id}     - delete a user (auth required)
 //  - GET    /info           - get version info on the game and engine itself.
 //
 
@@ -55,9 +55,10 @@ var (
 // associated resources. The zero-value of a TunaQuestServer should not be used
 // directly; call New() to get one ready for use.
 type TunaQuestServer struct {
-	srv       *http.ServeMux
-	db        dao.Store
-	jwtSecret []byte
+	srv           *http.ServeMux
+	db            dao.Store
+	unauthedDelay time.Duration
+	jwtSecret     []byte
 }
 
 // New creates a new TunaQuestServer that uses the given JWT secret for securing
@@ -68,7 +69,8 @@ func New(tokenSecret []byte) TunaQuestServer {
 		db: dao.Store{
 			Users: inmem.NewUsersRepository(),
 		},
-		jwtSecret: tokenSecret,
+		jwtSecret:     tokenSecret,
+		unauthedDelay: time.Second,
 	}
 
 	tqs.initHandlers()
@@ -88,8 +90,8 @@ func (tqs TunaQuestServer) ServeForever(address string, port int) {
 	}
 
 	listenAddress := fmt.Sprintf("%s:%d", address, port)
-	log.Printf("INFO : Listening on %s", listenAddress)
-	log.Fatalf("FATAL: %v", http.ListenAndServe(listenAddress, tqs.srv))
+	log.Printf("INFO  Listening on %s", listenAddress)
+	log.Fatalf("FATAL %v", http.ListenAndServe(listenAddress, tqs.srv))
 }
 
 // Login verifies the provided username and password against the existing user
@@ -155,7 +157,7 @@ func (tqs TunaQuestServer) Logout(ctx context.Context, who uuid.UUID) (dao.User,
 
 // DeleteUser deletes the user with the given ID. It returns the deleted user
 // just after they were deleted.
-
+//
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If no user with that username
 // exists, it will match ErrNotFound. If the error occured due to an unexpected
@@ -173,6 +175,30 @@ func (tqs TunaQuestServer) DeleteUser(ctx context.Context, id string) (dao.User,
 			return dao.User{}, ErrNotFound
 		}
 		return dao.User{}, newError("could not delete user", err, ErrDB)
+	}
+
+	return user, nil
+}
+
+// GetUser returns the user with the given ID.
+//
+// The returned error, if non-nil, will return true for various calls to
+// errors.Is depending on what caused the error. If no user with that ID exists,
+// it will match ErrNotFound. If the error occured due to an unexpected problem
+// with the DB, it will match ErrDB. Finally, if there is an issue with one of
+// the arguments, it will match ErrBadArgument.
+func (tqs TunaQuestServer) GetUser(ctx context.Context, id string) (dao.User, error) {
+	uuidID, err := uuid.Parse(id)
+	if err != nil {
+		return dao.User{}, newError("ID is not valid", ErrBadArgument)
+	}
+
+	user, err := tqs.db.Users.GetByID(ctx, uuidID)
+	if err != nil {
+		if err == inmem.ErrNotFound {
+			return dao.User{}, ErrNotFound
+		}
+		return dao.User{}, newError("could not get user", err, ErrDB)
 	}
 
 	return user, nil
@@ -215,6 +241,7 @@ func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password, e
 		Username: username,
 		Password: storedPass,
 		Email:    storedEmail,
+		Role:     role,
 	}
 
 	user, err := tqs.db.Users.Create(ctx, newUser)
@@ -253,24 +280,22 @@ func (e Error) Unwrap() []error {
 	return nil
 }
 
-func wrapDBError(err error) error {
+func (e Error) Is(target error) bool {
+	for i := range e.cause {
+		if e.cause[i] == target {
+			return true
+		}
+	}
+	return false
+}
+
+func wrapDBError(err error) Error {
 	return Error{
 		cause: []error{err, ErrDB},
 	}
 }
 
-func wrapError(err error, others ...error) error {
-	errObj := Error{}
-	if len(others) > 0 {
-		errObj.cause = make([]error, len(others)+1)
-		copy(errObj.cause[1:], others)
-	} else {
-		errObj.cause = []error{err}
-	}
-	return errObj
-}
-
-func newError(msg string, causes ...error) error {
+func newError(msg string, causes ...error) Error {
 	err := Error{msg: msg}
 	if len(causes) > 0 {
 		err.cause = make([]error, len(causes))

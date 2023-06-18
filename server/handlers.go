@@ -45,9 +45,10 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 		// ---------------------------------------------- //
 		// DISPATCH FOR: /login                           //
 		// ---------------------------------------------- //
-		if req.Method == http.MethodPost {
+		switch req.Method {
+		case http.MethodPost:
 			result = tqs.doEndpoint_Login_POST(req)
-		} else {
+		default:
 			result = jsonMethodNotAllowed(req)
 		}
 	} else {
@@ -67,9 +68,10 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 		// ---------------------------------------------- //
 		// DISPATCH FOR: /login/{id}                      //
 		// ---------------------------------------------- //
-		if req.Method == http.MethodDelete {
+		switch req.Method {
+		case http.MethodDelete:
 			result = tqs.doEndpoint_LoginID_DELETE(req, id)
-		} else {
+		default:
 			result = jsonMethodNotAllowed(req)
 		}
 	}
@@ -89,9 +91,10 @@ func (tqs TunaQuestServer) handlePathToken(w http.ResponseWriter, req *http.Requ
 		// ---------------------------------------------- //
 		// DISPATCH FOR: /tokens                          //
 		// ---------------------------------------------- //
-		if req.Method == http.MethodPost {
-			result = tqs.doEndpoint_Token_POST(req)
-		} else {
+		switch req.Method {
+		case http.MethodPost:
+			result = tqs.doEndpoint_Tokens_POST(req)
+		default:
 			result = jsonMethodNotAllowed(req)
 		}
 	} else {
@@ -113,9 +116,10 @@ func (tqs TunaQuestServer) handlePathUsers(w http.ResponseWriter, req *http.Requ
 		// ---------------------------------------------- //
 		// DISPATCH FOR: /users                           //
 		// ---------------------------------------------- //
-		if req.Method == http.MethodPost {
+		switch req.Method {
+		case http.MethodPost:
 			result = tqs.doEndpoint_Users_POST(req)
-		} else {
+		default:
 			result = jsonMethodNotAllowed(req)
 		}
 	} else {
@@ -135,9 +139,12 @@ func (tqs TunaQuestServer) handlePathUsers(w http.ResponseWriter, req *http.Requ
 		// ---------------------------------------------- //
 		// DISPATCH FOR: /users/{id}                      //
 		// ---------------------------------------------- //
-		if req.Method == http.MethodDelete {
+		switch req.Method {
+		case http.MethodGet:
+			result = tqs.doEndpoint_UsersID_GET(req, id)
+		case http.MethodDelete:
 			result = tqs.doEndpoint_UsersID_DELETE(req, id)
-		} else {
+		default:
 			result = jsonMethodNotAllowed(req)
 		}
 	}
