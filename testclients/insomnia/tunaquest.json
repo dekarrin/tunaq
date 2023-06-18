@@ -1,0 +1,221 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2023-06-18T16:40:43.838Z",
+  "__export_source": "insomnia.desktop.app:v2023.2.2",
+  "resources": [
+    {
+      "_id": "req_6327108af49948f9b4b23548c318fe39",
+      "parentId": "fld_aec6e80d6dee4088b423660340ef43da",
+      "modified": 1687106308171,
+      "created": 1687106062885,
+      "url": "{{ _.tqhost }}/users",
+      "name": "New User",
+      "description": "",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"username\": \"newUser\",\n\t\"password\": \"aNewPassword\",\n\t\"email\": \"myemail@email.com\",\n\t\"role\": \"normal\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% variable 'cur_token' %}"
+      },
+      "metaSortKey": -1687102793018.5,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global",
+      "_type": "request"
+    },
+    {
+      "_id": "fld_aec6e80d6dee4088b423660340ef43da",
+      "parentId": "wrk_243dd46e871e40f5ac22a78f9887798f",
+      "modified": 1687102545637,
+      "created": 1687102545637,
+      "name": "Users",
+      "description": "",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1687102545637,
+      "_type": "request_group"
+    },
+    {
+      "_id": "wrk_243dd46e871e40f5ac22a78f9887798f",
+      "parentId": null,
+      "modified": 1687102435488,
+      "created": 1687102435488,
+      "name": "TunaQuest",
+      "description": "",
+      "scope": "collection",
+      "_type": "workspace"
+    },
+    {
+      "_id": "req_35160090e19b4b9b9a441b96505e62ba",
+      "parentId": "fld_f3f519c921df44fa9770038c778e1134",
+      "modified": 1687105995116,
+      "created": 1687102871549,
+      "url": "{{ _.tqhost }}/login/{% variable 'cur_user_id' %}",
+      "name": "Logout (self)",
+      "description": "",
+      "method": "DELETE",
+      "body": {},
+      "parameters": [],
+      "headers": [],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% variable 'cur_token' %}"
+      },
+      "metaSortKey": -1687102871549,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global",
+      "_type": "request"
+    },
+    {
+      "_id": "fld_f3f519c921df44fa9770038c778e1134",
+      "parentId": "wrk_243dd46e871e40f5ac22a78f9887798f",
+      "modified": 1687102495023,
+      "created": 1687102495023,
+      "name": "Auth",
+      "description": "",
+      "environment": {},
+      "environmentPropertyOrder": null,
+      "metaSortKey": -1687102495023,
+      "_type": "request_group"
+    },
+    {
+      "_id": "req_33dd6620a18d4679ad5320947ac48f85",
+      "parentId": "fld_f3f519c921df44fa9770038c778e1134",
+      "modified": 1687106001790,
+      "created": 1687105792011,
+      "url": "{{ _.tqhost }}/tokens",
+      "name": "Refresh Token (self)",
+      "description": "",
+      "method": "POST",
+      "body": {},
+      "parameters": [],
+      "headers": [
+        {
+          "id": "pair_f12456a846e040618401cb1ab65c5d2d",
+          "name": "{% savevariable 'cur_token', 'responseBody', '', 'jsonPath', '$.token' %}",
+          "value": "",
+          "description": ""
+        }
+      ],
+      "authentication": {
+        "type": "bearer",
+        "token": "{% variable 'cur_token' %}"
+      },
+      "metaSortKey": -1687102714488,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global",
+      "_type": "request"
+    },
+    {
+      "_id": "req_b5211d22c1154d98a18bea4bcff68a4a",
+      "parentId": "fld_f3f519c921df44fa9770038c778e1134",
+      "modified": 1687105446774,
+      "created": 1687102557427,
+      "url": "{{ _.tqhost }}/login",
+      "name": "Login",
+      "description": "",
+      "method": "POST",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n\t\"username\": \"{{ _.adminUser }}\",\n\t\"password\": \"{{ _.adminPass }}\"\n}"
+      },
+      "parameters": [],
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json",
+          "id": "pair_a559439d574d4e56ad6b0c818187964c"
+        },
+        {
+          "id": "pair_700480a833344b64adf4d81051006fba",
+          "name": "{% savevariable 'cur_user_id', 'responseBody', '', 'jsonPath', '$.user_id' %}",
+          "value": "",
+          "description": ""
+        },
+        {
+          "id": "pair_b51d7e80961340ebba4e3b3839920137",
+          "name": "{% savevariable 'cur_token', 'responseBody', '', 'jsonPath', '$.token' %}",
+          "value": "",
+          "description": ""
+        }
+      ],
+      "authentication": {},
+      "metaSortKey": -1687102557427,
+      "isPrivate": false,
+      "settingStoreCookies": true,
+      "settingSendCookies": true,
+      "settingDisableRenderRequestBody": false,
+      "settingEncodeUrl": true,
+      "settingRebuildPath": true,
+      "settingFollowRedirects": "global",
+      "_type": "request"
+    },
+    {
+      "_id": "env_f81f96ed75c97e1de891c526de29794e9eb095d5",
+      "parentId": "wrk_243dd46e871e40f5ac22a78f9887798f",
+      "modified": 1687102750788,
+      "created": 1687102435493,
+      "name": "Base Environment",
+      "data": {
+        "tqhost": "http://localhost:8080",
+        "adminUser": "admin",
+        "adminPass": "password"
+      },
+      "dataPropertyOrder": {
+        "&": [
+          "tqhost",
+          "adminUser",
+          "adminPass"
+        ]
+      },
+      "color": null,
+      "isPrivate": false,
+      "metaSortKey": 1687102435493,
+      "_type": "environment"
+    },
+    {
+      "_id": "jar_f81f96ed75c97e1de891c526de29794e9eb095d5",
+      "parentId": "wrk_243dd46e871e40f5ac22a78f9887798f",
+      "modified": 1687102435495,
+      "created": 1687102435495,
+      "name": "Default Jar",
+      "cookies": [],
+      "_type": "cookie_jar"
+    },
+    {
+      "_id": "spc_27162c86d53f4b72aa73fe60fea3656c",
+      "parentId": "wrk_243dd46e871e40f5ac22a78f9887798f",
+      "modified": 1687102435489,
+      "created": 1687102435489,
+      "fileName": "TunaQuest",
+      "contents": "",
+      "contentType": "yaml",
+      "_type": "api_spec"
+    }
+  ]
+}
