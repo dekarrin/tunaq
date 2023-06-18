@@ -75,7 +75,7 @@ func jsonBadRequest(userMsg string, internalMsg ...interface{}) endpointResult {
 		msgArgs = internalMsg[1:]
 	}
 
-	return jsonErr(http.StatusNotFound, userMsg, internalMsgFmt, msgArgs...)
+	return jsonErr(http.StatusBadRequest, userMsg, internalMsgFmt, msgArgs...)
 }
 
 // jsonMethodNotAllowed returns an endpointResult containing an HTTP-405 along

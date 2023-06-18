@@ -142,6 +142,10 @@ func (tqs TunaQuestServer) handlePathUsers(w http.ResponseWriter, req *http.Requ
 		switch req.Method {
 		case http.MethodGet:
 			result = tqs.doEndpoint_UsersID_GET(req, id)
+		case http.MethodPut:
+			result = tqs.doEndpoint_UsersID_PUT(req, id)
+		case http.MethodPatch:
+			result = tqs.doEndpoint_UsersID_PATCH(req, id)
 		case http.MethodDelete:
 			result = tqs.doEndpoint_UsersID_DELETE(req, id)
 		default:

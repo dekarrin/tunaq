@@ -43,10 +43,10 @@ var (
 //  - DELETE /games/{id}     - delete a game (auth required)
 //  - POST   /registrations  - request a new user account (auth not required)
 //  X POST   /users          - create a new user account (auth required)
-//  X GET    /users          - get all users (auth required, with filter)
-//  - GET    /users/{id}     - get info on a user (auth required)
-//  - PUT    /users/{id}     - Update a user
-//  - PATCH  /users/{id}     - Update a user
+//  - GET    /users          - get all users (auth required, with filter)
+//  X GET    /users/{id}     - get info on a user (auth required)
+//  X PUT    /users/{id}     - create an existing user
+//  X PATCH  /users/{id}     - Update a user
 //  X DELETE /users/{id}     - delete a user (auth required)
 //  - GET    /info           - get version info on the game and engine itself.
 //
@@ -106,7 +106,7 @@ func (tqs TunaQuestServer) ServeForever(address string, port int) {
 func (tqs TunaQuestServer) Login(ctx context.Context, username string, password string) (dao.User, error) {
 	user, err := tqs.db.Users.GetByUsername(ctx, username)
 	if err != nil {
-		if err == inmem.ErrNotFound {
+		if err == dao.ErrNotFound {
 			return dao.User{}, ErrBadCredentials
 		}
 		return dao.User{}, wrapDBError(err)
@@ -139,7 +139,7 @@ func (tqs TunaQuestServer) Login(ctx context.Context, username string, password 
 func (tqs TunaQuestServer) Logout(ctx context.Context, who uuid.UUID) (dao.User, error) {
 	existing, err := tqs.db.Users.GetByID(ctx, who)
 	if err != nil {
-		if err == inmem.ErrNotFound {
+		if err == dao.ErrNotFound {
 			return dao.User{}, ErrNotFound
 		}
 		return dao.User{}, newError("could not retrieve user", err, ErrDB)
@@ -147,7 +147,7 @@ func (tqs TunaQuestServer) Logout(ctx context.Context, who uuid.UUID) (dao.User,
 
 	existing.LastLogoutTime = time.Now()
 
-	updated, err := tqs.db.Users.Update(ctx, existing)
+	updated, err := tqs.db.Users.Update(ctx, existing.ID, existing)
 	if err != nil {
 		return dao.User{}, newError("could not update user", err, ErrDB)
 	}
@@ -171,7 +171,7 @@ func (tqs TunaQuestServer) DeleteUser(ctx context.Context, id string) (dao.User,
 
 	user, err := tqs.db.Users.Delete(ctx, uuidID)
 	if err != nil {
-		if err == inmem.ErrNotFound {
+		if err == dao.ErrNotFound {
 			return dao.User{}, ErrNotFound
 		}
 		return dao.User{}, newError("could not delete user", err, ErrDB)
@@ -195,13 +195,141 @@ func (tqs TunaQuestServer) GetUser(ctx context.Context, id string) (dao.User, er
 
 	user, err := tqs.db.Users.GetByID(ctx, uuidID)
 	if err != nil {
-		if err == inmem.ErrNotFound {
+		if err == dao.ErrNotFound {
 			return dao.User{}, ErrNotFound
 		}
 		return dao.User{}, newError("could not get user", err, ErrDB)
 	}
 
 	return user, nil
+}
+
+// UpdatePassword sets the password of the user with the given ID to the new
+// password. The new password cannot be empty. Returns the updated user.
+//
+// The returned error, if non-nil, will return true for various calls to
+// errors.Is depending on what caused the error. If no user with the given ID
+// exists, it will match ErrNotFound. If the error occured due to an unexpected
+// problem with the DB, it will match ErrDB. Finally, if one of the arguments is
+// invalid, it will match ErrBadArgument.
+func (tqs TunaQuestServer) UpdatePassword(ctx context.Context, id, password string) (dao.User, error) {
+	if password == "" {
+		return dao.User{}, newError("password cannot be empty", ErrBadArgument)
+	}
+	uuidID, err := uuid.Parse(id)
+	if err != nil {
+		return dao.User{}, newError("ID is not valid", ErrBadArgument)
+	}
+
+	existing, err := tqs.db.Users.GetByID(ctx, uuidID)
+	if err != nil {
+		if err == dao.ErrNotFound {
+			return dao.User{}, newError("no user with that ID exists", ErrNotFound)
+		}
+		return dao.User{}, wrapDBError(err)
+	}
+
+	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	if err != nil {
+		if err == bcrypt.ErrPasswordTooLong {
+			return dao.User{}, newError("password is too long", err, ErrBadArgument)
+		} else {
+			return dao.User{}, newError("password could not be encrypted", err)
+		}
+	}
+
+	storedPass := base64.StdEncoding.EncodeToString(passHash)
+
+	existing.Password = storedPass
+
+	updated, err := tqs.db.Users.Update(ctx, uuidID, existing)
+	if err != nil {
+		if err == dao.ErrNotFound {
+			return dao.User{}, newError("no user with that ID exists", ErrNotFound)
+		}
+		return dao.User{}, newError("could not update user", err, ErrDB)
+	}
+
+	return updated, nil
+}
+
+// UpdateUser sets the properties of the user with the given ID to the
+// properties in the given user. All the given properties of the user will
+// overwrite the existing ones. Returns the updated user.
+//
+// This function cannot be used to update the password. Use UpdatePassword for
+// that.
+//
+// The returned error, if non-nil, will return true for various calls to
+// errors.Is depending on what caused the error. If a user with that username or
+// ID (if they are changing) is already present, it will match ErrAlreadyExists.
+// If no user with the given ID exists, it will match ErrNotFound. If the error
+// occured due to an unexpected problem with the DB, it will match ErrDB.
+// Finally, if one of the arguments is invalid, it will match ErrBadArgument.
+func (tqs TunaQuestServer) UpdateUser(ctx context.Context, curID, newID, username, email string, role dao.Role) (dao.User, error) {
+	var err error
+
+	if username == "" {
+		return dao.User{}, newError("username cannot be blank", err, ErrBadArgument)
+	}
+
+	var storedEmail *mail.Address
+	if email != "" {
+		storedEmail, err = mail.ParseAddress(email)
+		if err != nil {
+			return dao.User{}, newError("email is not valid", err, ErrBadArgument)
+		}
+	}
+
+	uuidCurID, err := uuid.Parse(curID)
+	if err != nil {
+		return dao.User{}, newError("current ID is not valid", ErrBadArgument)
+	}
+	uuidNewID, err := uuid.Parse(newID)
+	if err != nil {
+		return dao.User{}, newError("new ID is not valid", ErrBadArgument)
+	}
+
+	daoUser, err := tqs.db.Users.GetByID(ctx, uuidCurID)
+	if err != nil {
+		if err == dao.ErrNotFound {
+			return dao.User{}, newError("user not found", ErrNotFound)
+		}
+	}
+
+	if curID != newID {
+		_, err := tqs.db.Users.GetByID(ctx, uuidNewID)
+		if err == nil {
+			return dao.User{}, newError("a user with that username already exists", ErrAlreadyExists)
+		} else if err != dao.ErrNotFound {
+			return dao.User{}, wrapDBError(err)
+		}
+	}
+	if daoUser.Username != username {
+		_, err := tqs.db.Users.GetByUsername(ctx, username)
+		if err == nil {
+			return dao.User{}, newError("a user with that username already exists", ErrAlreadyExists)
+		} else if err != dao.ErrNotFound {
+			return dao.User{}, wrapDBError(err)
+		}
+	}
+
+	daoUser.Email = storedEmail
+	daoUser.ID = uuidNewID
+	daoUser.Username = username
+	daoUser.Role = role
+
+	updatedUser, err := tqs.db.Users.Update(ctx, uuidCurID, daoUser)
+	if err != nil {
+		if err == dao.ErrConstraintViolation {
+			return dao.User{}, newError("a user with that ID/username already exists", ErrAlreadyExists)
+		} else if err == dao.ErrNotFound {
+			return dao.User{}, newError("user not found", ErrNotFound)
+		}
+		return dao.User{}, wrapDBError(err)
+	}
+
+	return updatedUser, nil
 }
 
 // CreateUser creates a new user with the given username, password, and email
@@ -213,9 +341,12 @@ func (tqs TunaQuestServer) GetUser(ctx context.Context, id string) (dao.User, er
 // an unexpected problem with the DB, it will match ErrDB. Finally, if one of
 // the arguments is invalid, it will match ErrBadArgument.
 func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password, email string, role dao.Role) (dao.User, error) {
-	_, err := tqs.db.Users.GetByUsername(ctx, username)
-	if err != inmem.ErrNotFound {
-		return dao.User{}, newError("a user with that username already exists", ErrAlreadyExists)
+	var err error
+	if username == "" {
+		return dao.User{}, newError("username cannot be blank", err, ErrBadArgument)
+	}
+	if password == "" {
+		return dao.User{}, newError("password cannot be blank", err, ErrBadArgument)
 	}
 
 	var storedEmail *mail.Address
@@ -224,6 +355,13 @@ func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password, e
 		if err != nil {
 			return dao.User{}, newError("email is not valid", err, ErrBadArgument)
 		}
+	}
+
+	_, err = tqs.db.Users.GetByUsername(ctx, username)
+	if err == nil {
+		return dao.User{}, newError("a user with that username already exists", ErrAlreadyExists)
+	} else if err != dao.ErrNotFound {
+		return dao.User{}, wrapDBError(err)
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
@@ -246,7 +384,7 @@ func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password, e
 
 	user, err := tqs.db.Users.Create(ctx, newUser)
 	if err != nil {
-		if err == inmem.ErrConstraintViolation {
+		if err == dao.ErrConstraintViolation {
 			return dao.User{}, ErrAlreadyExists
 		}
 		return dao.User{}, newError("could not create user", err, ErrDB)

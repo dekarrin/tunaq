@@ -31,7 +31,7 @@ func (imur *InMemoryUsersRepository) Create(ctx context.Context, user dao.User) 
 
 	// make sure it's not already in the DB
 	if _, ok := imur.byUsernameIndex[user.Username]; ok {
-		return dao.User{}, ErrConstraintViolation
+		return dao.User{}, dao.ErrConstraintViolation
 	}
 
 	user.LastLogoutTime = time.Now()
@@ -42,21 +42,29 @@ func (imur *InMemoryUsersRepository) Create(ctx context.Context, user dao.User) 
 	return user, nil
 }
 
-func (imur *InMemoryUsersRepository) Update(ctx context.Context, user dao.User) (dao.User, error) {
-	existing, ok := imur.users[user.ID]
+func (imur *InMemoryUsersRepository) Update(ctx context.Context, id uuid.UUID, user dao.User) (dao.User, error) {
+	existing, ok := imur.users[id]
 	if !ok {
-		return dao.User{}, ErrNotFound
+		return dao.User{}, dao.ErrNotFound
 	}
 
 	if user.Username != existing.Username {
 		// that's okay but we need to check it
 		if _, ok := imur.byUsernameIndex[user.Username]; ok {
-			return dao.User{}, ErrConstraintViolation
+			return dao.User{}, dao.ErrConstraintViolation
+		}
+	} else if user.ID != id {
+		// that's okay but we need to check it
+		if _, ok := imur.users[id]; ok {
+			return dao.User{}, dao.ErrConstraintViolation
 		}
 	}
 
 	imur.users[user.ID] = user
 	imur.byUsernameIndex[user.Username] = user.ID
+	if user.ID != id {
+		delete(imur.users, id)
+	}
 
 	return user, nil
 }
@@ -64,7 +72,7 @@ func (imur *InMemoryUsersRepository) Update(ctx context.Context, user dao.User) 
 func (imur *InMemoryUsersRepository) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error) {
 	user, ok := imur.users[id]
 	if !ok {
-		return dao.User{}, ErrNotFound
+		return dao.User{}, dao.ErrNotFound
 	}
 
 	return user, nil
@@ -73,7 +81,7 @@ func (imur *InMemoryUsersRepository) GetByID(ctx context.Context, id uuid.UUID) 
 func (imur *InMemoryUsersRepository) GetByUsername(ctx context.Context, username string) (dao.User, error) {
 	userID, ok := imur.byUsernameIndex[username]
 	if !ok {
-		return dao.User{}, ErrNotFound
+		return dao.User{}, dao.ErrNotFound
 	}
 
 	return imur.users[userID], nil
@@ -82,7 +90,7 @@ func (imur *InMemoryUsersRepository) GetByUsername(ctx context.Context, username
 func (imur *InMemoryUsersRepository) Delete(ctx context.Context, id uuid.UUID) (dao.User, error) {
 	user, ok := imur.users[id]
 	if !ok {
-		return dao.User{}, ErrNotFound
+		return dao.User{}, dao.ErrNotFound
 	}
 
 	delete(imur.byUsernameIndex, user.Username)

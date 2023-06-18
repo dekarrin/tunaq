@@ -27,3 +27,16 @@ type UserModel struct {
 	Email    string `json:"email,"`
 	Role     string `json:"role,omitempty"`
 }
+
+type UserUpdateRequest struct {
+	ID       UpdateString `json:"id,omitempty"`
+	Username UpdateString `json:"username,omitempty"`
+	Password UpdateString `json:"password,omitempty"`
+	Email    UpdateString `json:"email,"`
+	Role     UpdateString `json:"role,omitempty"`
+}
+
+type UpdateString struct {
+	Update bool   `json:"u,omitempty"`
+	Value  string `json:"v,omitempty"`
+}

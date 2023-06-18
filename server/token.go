@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
-	"github.com/dekarrin/tunaq/server/dao/inmem"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
@@ -35,7 +34,7 @@ func (tqs TunaQuestServer) requireJWT(ctx context.Context, req *http.Request) (d
 
 		user, err = tqs.db.Users.GetByID(ctx, id)
 		if err != nil {
-			if err == inmem.ErrNotFound {
+			if err == dao.ErrNotFound {
 				return nil, fmt.Errorf("subject does not exist")
 			} else {
 				return nil, fmt.Errorf("subject could not be validated")

@@ -169,7 +169,7 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) endpointResu
 	}
 
 	if newUser.Email != nil {
-		resp.Email = newUser.Email.String()
+		resp.Email = newUser.Email.Address
 	}
 
 	return jsonCreated(resp, "user '%s' (%s) created", resp.Username, resp.ID)
@@ -218,7 +218,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 		Role:     userInfo.Role.String(),
 	}
 	if userInfo.Email != nil {
-		resp.Email = userInfo.Email.String()
+		resp.Email = userInfo.Email.Address
 	}
 
 	var otherStr string
@@ -233,6 +233,183 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 	}
 
 	return jsonOK(resp, "user '%s' successfully got %s", user.Username, otherStr)
+}
+
+// PATCH /users/{id}: perform a partial update on an existing user with the
+// given ID. Auth required. Admin auth required for modifying someone else's
+// user.
+func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.UUID) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
+	}
+
+	if id != user.ID && user.Role != dao.Admin {
+		time.Sleep(tqs.unauthedDelay)
+
+		var otherUserStr string
+		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		// if there was another user, find out now
+		if err != nil {
+			otherUserStr = fmt.Sprintf("%d", id)
+		} else {
+			otherUserStr = "'" + otherUser.Username + "'"
+		}
+
+		return jsonForbidden("user '%s' (role %s) update user %s: forbidden", user.Username, user.Role, otherUserStr)
+	}
+
+	var updateReq UserUpdateRequest
+	err = parseJSON(req, &updateReq)
+	if err != nil {
+		return jsonBadRequest(err.Error(), err.Error())
+	}
+
+	// pre-parse updateRole if needed so we return bad request before hitting
+	// DB
+	var updateRole dao.Role
+	if updateReq.Role.Update {
+		updateRole, err = dao.ParseRole(updateReq.Role.Value)
+		if err != nil {
+			return jsonBadRequest(err.Error(), err.Error())
+		}
+	}
+
+	existing, err := tqs.GetUser(req.Context(), id.String())
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return jsonNotFound()
+		}
+		return jsonInternalServerError(err.Error())
+	}
+
+	var newEmail string
+	if existing.Email != nil {
+		newEmail = existing.Email.Address
+	}
+	if updateReq.Email.Update {
+		newEmail = updateReq.Email.Value
+	}
+	newID := existing.ID.String()
+	if updateReq.ID.Update {
+		newID = updateReq.ID.Value
+	}
+	newUsername := existing.Username
+	if updateReq.Username.Update {
+		newUsername = updateReq.Username.Value
+	}
+	newRole := existing.Role
+	if updateReq.Role.Update {
+		newRole = updateRole
+	}
+
+	// TODO: this is sequential modification. we need to update this when we get
+	// transactions on dao.
+	updated, err := tqs.UpdateUser(req.Context(), id.String(), newID, newUsername, newEmail, newRole)
+	if err != nil {
+		if errors.Is(err, ErrAlreadyExists) {
+			return jsonConflict(err.Error(), err.Error())
+		} else if errors.Is(err, ErrNotFound) {
+			return jsonNotFound()
+		}
+		return jsonInternalServerError(err.Error())
+	}
+	if updateReq.Password.Update {
+		updated, err = tqs.UpdatePassword(req.Context(), updated.ID.String(), updateReq.Password.Value)
+		if errors.Is(err, ErrNotFound) {
+			return jsonNotFound()
+		}
+		return jsonInternalServerError(err.Error())
+	}
+
+	resp := UserModel{
+		URI:      "/users/" + updated.ID.String(),
+		ID:       updated.ID.String(),
+		Username: updated.Username,
+		Role:     updated.Role.String(),
+	}
+
+	if updated.Email != nil {
+		resp.Email = updated.Email.Address
+	}
+
+	return jsonCreated(resp, "user '%s' (%s) updated", resp.Username, resp.ID)
+}
+
+// PUT /users/{id}: create an existing user with the given ID (admin auth
+// required)
+func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUID) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
+	}
+
+	if user.Role != dao.Admin {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonForbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
+	}
+
+	var createUser UserModel
+	err = parseJSON(req, &createUser)
+	if err != nil {
+		return jsonBadRequest(err.Error(), err.Error())
+	}
+	if createUser.Username == "" {
+		return jsonBadRequest("username: property is empty or missing from request", "empty username")
+	}
+	if createUser.Password == "" {
+		return jsonBadRequest("password: property is empty or missing from request", "empty password")
+	}
+	if createUser.ID == "" {
+		createUser.ID = id.String()
+	}
+	if createUser.ID != id.String() {
+		return jsonBadRequest("id: must be same as ID in URI", "body ID different from URI ID")
+	}
+
+	role := dao.Unverified
+	if createUser.Role != "" {
+		role, err = dao.ParseRole(createUser.Role)
+		if err != nil {
+			return jsonBadRequest("role: "+err.Error(), "role: %s", err.Error())
+		}
+	}
+
+	newUser, err := tqs.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
+	if err != nil {
+		if errors.Is(err, ErrAlreadyExists) {
+			return jsonConflict("User with that username already exists", "user '%s' already exists", createUser.Username)
+		} else if errors.Is(err, ErrBadArgument) {
+			return jsonBadRequest(err.Error(), err.Error())
+		}
+		return jsonInternalServerError(err.Error())
+	}
+
+	// but also update it immediately to set its user ID
+	newUser, err = tqs.UpdateUser(req.Context(), newUser.ID.String(), createUser.ID, newUser.Username, newUser.Email.Address, newUser.Role)
+	if err != nil {
+		if errors.Is(err, ErrAlreadyExists) {
+			return jsonConflict("User with that username already exists", "user '%s' already exists", createUser.Username)
+		} else if errors.Is(err, ErrBadArgument) {
+			return jsonBadRequest(err.Error(), err.Error())
+		}
+		return jsonInternalServerError(err.Error())
+	}
+
+	resp := UserModel{
+		URI:      "/users/" + newUser.ID.String(),
+		ID:       newUser.ID.String(),
+		Username: newUser.Username,
+		Role:     newUser.Role.String(),
+	}
+
+	if newUser.Email != nil {
+		resp.Email = newUser.Email.Address
+	}
+
+	return jsonCreated(resp, "user '%s' (%s) created", resp.Username, resp.ID)
 }
 
 // DELETE /users/{id}: delete a user. Requires auth. Requires admin auth for any
