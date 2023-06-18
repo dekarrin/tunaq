@@ -204,6 +204,16 @@ func (tqs TunaQuestServer) GetUser(ctx context.Context, id string) (dao.User, er
 	return user, nil
 }
 
+// GetAllUsers returns all users currently in persistence.
+func (tqs TunaQuestServer) GetAllUsers(ctx context.Context) ([]dao.User, error) {
+	users, err := tqs.db.Users.GetAll(ctx)
+	if err != nil {
+		return nil, wrapDBError(err)
+	}
+
+	return users, nil
+}
+
 // UpdatePassword sets the password of the user with the given ID to the new
 // password. The new password cannot be empty. Returns the updated user.
 //

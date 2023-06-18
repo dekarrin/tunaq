@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dekarrin/tunaq/internal/util"
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/google/uuid"
 )
@@ -40,6 +41,22 @@ func (imur *InMemoryUsersRepository) Create(ctx context.Context, user dao.User) 
 	imur.byUsernameIndex[user.Username] = user.ID
 
 	return user, nil
+}
+
+func (imur *InMemoryUsersRepository) GetAll(ctx context.Context) ([]dao.User, error) {
+	all := make([]dao.User, len(imur.users))
+
+	i := 0
+	for k := range imur.users {
+		all[i] = imur.users[k]
+		i++
+	}
+
+	all = util.SortBy(all, func(l, r dao.User) bool {
+		return l.ID.String() < r.ID.String()
+	})
+
+	return all, nil
 }
 
 func (imur *InMemoryUsersRepository) Update(ctx context.Context, id uuid.UUID, user dao.User) (dao.User, error) {

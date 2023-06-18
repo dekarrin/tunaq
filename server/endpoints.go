@@ -175,6 +175,41 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) endpointResu
 	return jsonCreated(resp, "user '%s' (%s) created", resp.Username, resp.ID)
 }
 
+// GET /users: get all users (admin auth required).
+func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
+	}
+
+	if user.Role != dao.Admin {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonForbidden("user '%s' (role %s): forbidden", user.Username, user.Role)
+	}
+
+	users, err := tqs.GetAllUsers(req.Context())
+	if err != nil {
+		return jsonInternalServerError(err.Error())
+	}
+
+	resp := make([]UserModel, len(users))
+
+	for i := range users {
+		resp[i] = UserModel{
+			URI:      "/users/" + users[i].ID.String(),
+			ID:       users[i].ID.String(),
+			Username: users[i].Username,
+			Role:     users[i].Role.String(),
+		}
+		if users[i].Email != nil {
+			resp[i].Email = users[i].Email.Address
+		}
+	}
+
+	return jsonOK(resp, "user '%s' got all users", user.Username)
+}
+
 // GET /users/{id}: get info on a user. Requires auth. Requires admin auth for
 // any but own ID.
 func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUID) endpointResult {

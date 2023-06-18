@@ -119,6 +119,8 @@ func (tqs TunaQuestServer) handlePathUsers(w http.ResponseWriter, req *http.Requ
 		switch req.Method {
 		case http.MethodPost:
 			result = tqs.doEndpoint_Users_POST(req)
+		case http.MethodGet:
+			result = tqs.doEndpoint_Users_GET(req)
 		default:
 			result = jsonMethodNotAllowed(req)
 		}
