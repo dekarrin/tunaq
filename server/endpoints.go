@@ -2,52 +2,39 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/google/uuid"
 )
 
-type LoginResponse struct {
-	Token  string `json:"token"`
-	UserID string `json:"user_id"`
-}
-
-type LoginRequest struct {
-	User     string `json:"user"`
-	Password string `json:"password"`
-}
-
-type ErrorResponse struct {
-	Error  string `json:"error"`
-	Status int    `json:"status"`
-}
-
-func (tqs TunaQuestServer) doEndpointLoginPOST(req *http.Request) endpointResult {
+// POST /login: create a new login with token
+func (tqs TunaQuestServer) doEndpoint_Login_POST(req *http.Request) endpointResult {
 	loginData := LoginRequest{}
 	err := parseJSON(req, &loginData)
 	if err != nil {
-		return jsonErr(http.StatusBadRequest, err.Error(), err.Error())
+		return jsonBadRequest(err.Error(), err.Error())
 	}
 
-	if loginData.User == "" {
-		return jsonErr(http.StatusBadRequest, "Non-empty 'user' property is empty or missing from request", "login request does not give user")
+	if loginData.Username == "" {
+		return jsonBadRequest("username: property is empty or missing from request", "empty username")
 	}
 	if loginData.Password == "" {
-		return jsonErr(http.StatusBadRequest, "Non-empty 'password' property is empty or missing from request", "login request does not give password")
+		return jsonBadRequest("password: property is empty or missing from request", "empty password")
 	}
 
-	user, err := tqs.Login(req.Context(), loginData.User, loginData.Password)
+	user, err := tqs.Login(req.Context(), loginData.Username, loginData.Password)
 	if err != nil {
-		if err == ErrBadCredentials {
-			return jsonErr(http.StatusUnauthorized, err.Error(), err.Error()).
-				withHeader("WWW-Authenticate", `Basic realm="TunaQuest server", charset="utf-8"`)
+		time.Sleep(tqs.unauthedDelay)
+		if errors.Is(err, ErrBadCredentials) {
+			return jsonUnauthorized(ErrBadCredentials.Error(), "user '%s': %s", loginData.Username, err.Error())
 		} else {
-			return jsonErr(http.StatusInternalServerError, "An internal server error occurred", err.Error())
+			return jsonInternalServerError(err.Error())
 		}
 	}
 
@@ -55,25 +42,51 @@ func (tqs TunaQuestServer) doEndpointLoginPOST(req *http.Request) endpointResult
 	// password is valid, generate token for user and return it.
 	tok, err := tqs.generateJWT(user)
 	if err != nil {
-		return jsonErr(http.StatusInternalServerError, "An internal server error occurred", "could not generate JWT: "+err.Error())
+		return jsonInternalServerError("could not generate JWT: " + err.Error())
 	}
 
 	resp := LoginResponse{
 		Token:  tok,
 		UserID: user.ID.String(),
 	}
-	return jsonResponse(http.StatusCreated, resp, "user '"+user.Username+"' successfully logged in")
+	return jsonCreated(resp, "user '"+user.Username+"' successfully logged in")
 }
 
-func (tqs TunaQuestServer) doEndpointLoginDELETE(req *http.Request, id uuid.UUID) endpointResult {
+// POST /tokens: create a new token for self (auth required)
+func (tqs TunaQuestServer) doEndpoint_Tokens_POST(req *http.Request) endpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
-		return jsonErr(http.StatusUnauthorized, "You are not authorized to do that", err.Error()).
-			withHeader("WWW-Authenticate", `Basic realm="TunaQuest server", charset="utf-8"`)
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
 	}
 
-	// is the user trying to delete someone else? they'd betta be the admin if so!
+	tok, err := tqs.generateJWT(user)
+	if err != nil {
+		return jsonInternalServerError("could not generate JWT: " + err.Error())
+	}
+
+	resp := LoginResponse{
+		Token:  tok,
+		UserID: user.ID.String(),
+	}
+	return jsonCreated(resp, "user '"+user.Username+"' successfully created new token")
+}
+
+// DELETE /login/{id}: remove a login for some user (log out). Requires auth for
+// access at all. Requires auth by user with role Admin to log out anybody but
+// self.
+func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.UUID) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
+	}
+
+	// is the user trying to delete someone else's login? they'd betta be the
+	// admin if so!
 	if id != user.ID && user.Role != dao.Admin {
+		time.Sleep(tqs.unauthedDelay)
+
 		var otherUserStr string
 		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
 		// if there was another user, find out now
@@ -83,15 +96,15 @@ func (tqs TunaQuestServer) doEndpointLoginDELETE(req *http.Request, id uuid.UUID
 			otherUserStr = "'" + otherUser.Username + "'"
 		}
 
-		return jsonErr(http.StatusForbidden, "You don't have permission to do that", fmt.Sprintf("user '%s' (role %s) logout of user %s: forbidden", user.Username, user.Role, otherUserStr))
+		return jsonForbidden("user '%s' (role %s) logout of user %s: forbidden", user.Username, user.Role, otherUserStr)
 	}
 
 	loggedOutUser, err := tqs.Logout(req.Context(), id)
 	if err != nil {
-		if err == ErrNotFound {
-			return jsonErr(http.StatusNotFound, "The requested resource was not found", "not found")
+		if errors.Is(err, ErrNotFound) {
+			return jsonNotFound()
 		}
-		return jsonErr(http.StatusInternalServerError, "An internal server error occurred", "could not log out user: "+err.Error())
+		return jsonInternalServerError("could not log out user: " + err.Error())
 	}
 
 	var otherStr string
@@ -101,129 +114,384 @@ func (tqs TunaQuestServer) doEndpointLoginDELETE(req *http.Request, id uuid.UUID
 		otherStr = "self"
 	}
 
-	return jsonResponse(http.StatusNoContent, nil, fmt.Sprintf("user '%s' successfully logged out %s", user.Username, otherStr))
+	return jsonNoContent("user '%s' successfully logged out %s", user.Username, otherStr)
 }
 
-type endpointResult struct {
-	isErr       bool
-	isJSON      bool
-	status      int
-	internalMsg string
-	resp        interface{}
-	hdrs        [][2]string
-}
-
-func (r endpointResult) withHeader(name, val string) endpointResult {
-	erCopy := endpointResult{
-		isErr:       r.isErr,
-		isJSON:      r.isJSON,
-		status:      r.status,
-		internalMsg: r.internalMsg,
-		resp:        r.resp,
-		hdrs:        r.hdrs,
+// POST /users: create a new user (admin auth required)
+func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
 	}
 
-	erCopy.hdrs = append(erCopy.hdrs, [2]string{name, val})
-	return erCopy
-}
-
-func (r endpointResult) writeResponse(w http.ResponseWriter, req *http.Request) {
-	// if this hasn't been properly created, output error directly and do not
-	// try to read properties
-	if r.status == 0 {
-		logHttpResponse("ERROR", req, http.StatusInternalServerError, "endpoint result was never populated")
-		http.Error(w, "An internal server error occurred", http.StatusInternalServerError)
-		return
+	if user.Role != dao.Admin {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonForbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
 	}
 
-	var respJSON []byte
-	if r.isJSON && r.status != http.StatusNoContent {
-		var err error
-		respJSON, err = json.Marshal(r.resp)
+	var createUser UserModel
+	err = parseJSON(req, &createUser)
+	if err != nil {
+		return jsonBadRequest(err.Error(), err.Error())
+	}
+	if createUser.Username == "" {
+		return jsonBadRequest("username: property is empty or missing from request", "empty username")
+	}
+	if createUser.Password == "" {
+		return jsonBadRequest("password: property is empty or missing from request", "empty password")
+	}
+
+	role := dao.Unverified
+	if createUser.Role != "" {
+		role, err = dao.ParseRole(createUser.Role)
 		if err != nil {
-			res := jsonErr(r.status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
-			res.writeResponse(w, req)
+			return jsonBadRequest("role: "+err.Error(), "role: %s", err.Error())
 		}
 	}
 
-	if r.isErr {
-		logHttpResponse("ERROR", req, r.status, r.internalMsg)
-	} else {
-		logHttpResponse("INFO", req, r.status, r.internalMsg)
-	}
-
-	var respBytes []byte
-
-	if r.isJSON {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		respBytes = respJSON
-	} else {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		if r.status != http.StatusNoContent {
-			respBytes = []byte(fmt.Sprintf("%v", r.resp))
+	newUser, err := tqs.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
+	if err != nil {
+		if errors.Is(err, ErrAlreadyExists) {
+			return jsonConflict("User with that username already exists", "user '%s' already exists", createUser.Username)
+		} else if errors.Is(err, ErrBadArgument) {
+			return jsonBadRequest(err.Error(), err.Error())
+		} else {
+			return jsonInternalServerError(err.Error())
 		}
 	}
 
-	for i := range r.hdrs {
-		w.Header().Set(r.hdrs[i][0], r.hdrs[i][1])
+	resp := UserModel{
+		URI:      "/users/" + newUser.ID.String(),
+		ID:       newUser.ID.String(),
+		Username: newUser.Username,
+		Role:     newUser.Role.String(),
 	}
 
-	w.WriteHeader(r.status)
-
-	if r.status != http.StatusNoContent {
-		w.Write(respBytes)
+	if newUser.Email != nil {
+		resp.Email = newUser.Email.Address
 	}
+
+	return jsonCreated(resp, "user '%s' (%s) created", resp.Username, resp.ID)
 }
 
-// if status is http.StatusNoContent, respObj will not be read and may be nil.
-// Otherwise, respObj MUST NOT be nil.
-func jsonResponse(status int, respObj interface{}, internalMsg string) endpointResult {
-	return endpointResult{
-		isJSON:      true,
-		isErr:       false,
-		status:      status,
-		internalMsg: internalMsg,
-		resp:        respObj,
+// GET /users: get all users (admin auth required).
+func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
 	}
+
+	if user.Role != dao.Admin {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonForbidden("user '%s' (role %s): forbidden", user.Username, user.Role)
+	}
+
+	users, err := tqs.GetAllUsers(req.Context())
+	if err != nil {
+		return jsonInternalServerError(err.Error())
+	}
+
+	resp := make([]UserModel, len(users))
+
+	for i := range users {
+		resp[i] = UserModel{
+			URI:      "/users/" + users[i].ID.String(),
+			ID:       users[i].ID.String(),
+			Username: users[i].Username,
+			Role:     users[i].Role.String(),
+		}
+		if users[i].Email != nil {
+			resp[i].Email = users[i].Email.Address
+		}
+	}
+
+	return jsonOK(resp, "user '%s' got all users", user.Username)
 }
 
-func jsonErr(status int, userMsg, internalMsg string) endpointResult {
-	return endpointResult{
-		isJSON:      true,
-		isErr:       true,
-		status:      status,
-		internalMsg: internalMsg,
-		resp: ErrorResponse{
-			Error:  userMsg,
-			Status: status,
-		},
+// GET /users/{id}: get info on a user. Requires auth. Requires admin auth for
+// any but own ID.
+func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUID) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
 	}
+
+	// is the user trying to delete someone else? they'd betta be the admin if so!
+	if id != user.ID && user.Role != dao.Admin {
+		time.Sleep(tqs.unauthedDelay)
+
+		var otherUserStr string
+		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		// if there was another user, find out now
+		if err != nil {
+			otherUserStr = fmt.Sprintf("%d", id)
+		} else {
+			otherUserStr = "'" + otherUser.Username + "'"
+		}
+
+		return jsonForbidden("user '%s' (role %s) get user %s: forbidden", user.Username, user.Role, otherUserStr)
+	}
+
+	userInfo, err := tqs.GetUser(req.Context(), id.String())
+	if err != nil {
+		if errors.Is(err, ErrBadArgument) {
+			return jsonBadRequest(err.Error(), err.Error())
+		} else if errors.Is(err, ErrNotFound) {
+			return jsonNotFound()
+		}
+		return jsonInternalServerError("could not get user: " + err.Error())
+	}
+
+	// put it into a model to return
+	resp := UserModel{
+		URI:      "/users/" + userInfo.ID.String(),
+		ID:       userInfo.ID.String(),
+		Username: userInfo.Username,
+		Role:     userInfo.Role.String(),
+	}
+	if userInfo.Email != nil {
+		resp.Email = userInfo.Email.Address
+	}
+
+	var otherStr string
+	if id != user.ID {
+		if userInfo.Username != "" {
+			otherStr = "user '" + userInfo.Username + "'"
+		} else {
+			otherStr = "user " + id.String() + " (no-op)"
+		}
+	} else {
+		otherStr = "self"
+	}
+
+	return jsonOK(resp, "user '%s' successfully got %s", user.Username, otherStr)
 }
 
-// textErr is like jsonErr but it avoids JSON encoding of any kind and writes
-// the output as plain text.
-func textErr(status int, userMsg, internalMsg string) endpointResult {
-	return endpointResult{
-		isJSON:      false,
-		isErr:       true,
-		status:      status,
-		internalMsg: internalMsg,
-		resp:        userMsg,
+// PATCH /users/{id}: perform a partial update on an existing user with the
+// given ID. Auth required. Admin auth required for modifying someone else's
+// user.
+func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.UUID) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
 	}
+
+	if id != user.ID && user.Role != dao.Admin {
+		time.Sleep(tqs.unauthedDelay)
+
+		var otherUserStr string
+		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		// if there was another user, find out now
+		if err != nil {
+			otherUserStr = fmt.Sprintf("%d", id)
+		} else {
+			otherUserStr = "'" + otherUser.Username + "'"
+		}
+
+		return jsonForbidden("user '%s' (role %s) update user %s: forbidden", user.Username, user.Role, otherUserStr)
+	}
+
+	var updateReq UserUpdateRequest
+	err = parseJSON(req, &updateReq)
+	if err != nil {
+		return jsonBadRequest(err.Error(), err.Error())
+	}
+
+	// pre-parse updateRole if needed so we return bad request before hitting
+	// DB
+	var updateRole dao.Role
+	if updateReq.Role.Update {
+		updateRole, err = dao.ParseRole(updateReq.Role.Value)
+		if err != nil {
+			return jsonBadRequest(err.Error(), err.Error())
+		}
+	}
+
+	existing, err := tqs.GetUser(req.Context(), id.String())
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return jsonNotFound()
+		}
+		return jsonInternalServerError(err.Error())
+	}
+
+	var newEmail string
+	if existing.Email != nil {
+		newEmail = existing.Email.Address
+	}
+	if updateReq.Email.Update {
+		newEmail = updateReq.Email.Value
+	}
+	newID := existing.ID.String()
+	if updateReq.ID.Update {
+		newID = updateReq.ID.Value
+	}
+	newUsername := existing.Username
+	if updateReq.Username.Update {
+		newUsername = updateReq.Username.Value
+	}
+	newRole := existing.Role
+	if updateReq.Role.Update {
+		newRole = updateRole
+	}
+
+	// TODO: this is sequential modification. we need to update this when we get
+	// transactions on dao.
+	updated, err := tqs.UpdateUser(req.Context(), id.String(), newID, newUsername, newEmail, newRole)
+	if err != nil {
+		if errors.Is(err, ErrAlreadyExists) {
+			return jsonConflict(err.Error(), err.Error())
+		} else if errors.Is(err, ErrNotFound) {
+			return jsonNotFound()
+		}
+		return jsonInternalServerError(err.Error())
+	}
+	if updateReq.Password.Update {
+		updated, err = tqs.UpdatePassword(req.Context(), updated.ID.String(), updateReq.Password.Value)
+		if errors.Is(err, ErrNotFound) {
+			return jsonNotFound()
+		}
+		return jsonInternalServerError(err.Error())
+	}
+
+	resp := UserModel{
+		URI:      "/users/" + updated.ID.String(),
+		ID:       updated.ID.String(),
+		Username: updated.Username,
+		Role:     updated.Role.String(),
+	}
+
+	if updated.Email != nil {
+		resp.Email = updated.Email.Address
+	}
+
+	return jsonCreated(resp, "user '%s' (%s) updated", resp.Username, resp.ID)
 }
 
-func logHttpResponse(level string, req *http.Request, respStatus int, msg string) {
-	if len(level) > 5 {
-		level = level[0:5]
+// PUT /users/{id}: create an existing user with the given ID (admin auth
+// required)
+func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUID) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
 	}
 
-	for len(level) < 5 {
-		level += " "
+	if user.Role != dao.Admin {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonForbidden("user '%s' (role %s) creation of new user: forbidden", user.Username, user.Role)
 	}
 
-	log.Printf("%s: HTTP-%d response to %s %s: %s", level, respStatus, req.Method, req.URL.Path, msg)
+	var createUser UserModel
+	err = parseJSON(req, &createUser)
+	if err != nil {
+		return jsonBadRequest(err.Error(), err.Error())
+	}
+	if createUser.Username == "" {
+		return jsonBadRequest("username: property is empty or missing from request", "empty username")
+	}
+	if createUser.Password == "" {
+		return jsonBadRequest("password: property is empty or missing from request", "empty password")
+	}
+	if createUser.ID == "" {
+		createUser.ID = id.String()
+	}
+	if createUser.ID != id.String() {
+		return jsonBadRequest("id: must be same as ID in URI", "body ID different from URI ID")
+	}
+
+	role := dao.Unverified
+	if createUser.Role != "" {
+		role, err = dao.ParseRole(createUser.Role)
+		if err != nil {
+			return jsonBadRequest("role: "+err.Error(), "role: %s", err.Error())
+		}
+	}
+
+	newUser, err := tqs.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
+	if err != nil {
+		if errors.Is(err, ErrAlreadyExists) {
+			return jsonConflict("User with that username already exists", "user '%s' already exists", createUser.Username)
+		} else if errors.Is(err, ErrBadArgument) {
+			return jsonBadRequest(err.Error(), err.Error())
+		}
+		return jsonInternalServerError(err.Error())
+	}
+
+	// but also update it immediately to set its user ID
+	newUser, err = tqs.UpdateUser(req.Context(), newUser.ID.String(), createUser.ID, newUser.Username, newUser.Email.Address, newUser.Role)
+	if err != nil {
+		if errors.Is(err, ErrAlreadyExists) {
+			return jsonConflict("User with that username already exists", "user '%s' already exists", createUser.Username)
+		} else if errors.Is(err, ErrBadArgument) {
+			return jsonBadRequest(err.Error(), err.Error())
+		}
+		return jsonInternalServerError(err.Error())
+	}
+
+	resp := UserModel{
+		URI:      "/users/" + newUser.ID.String(),
+		ID:       newUser.ID.String(),
+		Username: newUser.Username,
+		Role:     newUser.Role.String(),
+	}
+
+	if newUser.Email != nil {
+		resp.Email = newUser.Email.Address
+	}
+
+	return jsonCreated(resp, "user '%s' (%s) created", resp.Username, resp.ID)
+}
+
+// DELETE /users/{id}: delete a user. Requires auth. Requires admin auth for any
+// but own ID.
+func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.UUID) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
+	}
+
+	// is the user trying to delete someone else? they'd betta be the admin if so!
+	if id != user.ID && user.Role != dao.Admin {
+		time.Sleep(tqs.unauthedDelay)
+
+		var otherUserStr string
+		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		// if there was another user, find out now
+		if err != nil {
+			otherUserStr = fmt.Sprintf("%d", id)
+		} else {
+			otherUserStr = "'" + otherUser.Username + "'"
+		}
+
+		return jsonForbidden("user '%s' (role %s) delete user %s: forbidden", user.Username, user.Role, otherUserStr)
+	}
+
+	deletedUser, err := tqs.DeleteUser(req.Context(), id.String())
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		if errors.Is(err, ErrBadArgument) {
+			return jsonBadRequest(err.Error(), err.Error())
+		}
+		return jsonInternalServerError("could not delete user: " + err.Error())
+	}
+
+	var otherStr string
+	if id != user.ID {
+		if deletedUser.Username != "" {
+			otherStr = "user '" + deletedUser.Username + "'"
+		} else {
+			otherStr = "user " + id.String() + " (no-op)"
+		}
+	} else {
+		otherStr = "self"
+	}
+
+	return jsonNoContent("user '%s' successfully deleted %s", user.Username, otherStr)
 }
 
 // v must be a pointer to a type.
