@@ -38,10 +38,8 @@ func (imur *InMemoryRegistrationsRepository) Create(ctx context.Context, reg dao
 	imur.regs[reg.ID] = reg
 
 	userRegs := imur.byUserIDIndex[reg.UserID]
-	if !util.InSlice(reg.ID, userRegs) {
-		userRegs = append(userRegs, reg.ID)
-		imur.byUserIDIndex[reg.UserID] = userRegs
-	}
+	userRegs = append(userRegs, reg.ID)
+	imur.byUserIDIndex[reg.UserID] = userRegs
 
 	return reg, nil
 }
@@ -79,15 +77,35 @@ func (imur *InMemoryRegistrationsRepository) Update(ctx context.Context, id uuid
 	imur.regs[reg.ID] = reg
 	if reg.ID != id {
 		delete(imur.regs, id)
-		// also update it in the index slice
+
+		// also update it in the index slice if we are not about to remove it
+		if existing.UserID == reg.UserID {
+			byUser := imur.byUserIDIndex[existing.UserID]
+			pos := util.SliceIndexOf(id, byUser)
+			if pos < 0 {
+				return dao.Registration{}, fmt.Errorf("DB ASSERTION FAILURE: missing index entry for user %s to reg %s", existing.UserID, existing.ID)
+			}
+			byUser[pos] = reg.ID
+			imur.byUserIDIndex[existing.UserID] = byUser
+		}
+	}
+
+	if reg.UserID != existing.UserID {
+		// if we're modifying the user, we must remove it from old index
+		// entry and put it into another.
 		byUser := imur.byUserIDIndex[existing.UserID]
-		byUser = util.SliceIndexOf[]()
+		updated := util.SliceRemove(existing.ID, byUser)
+		imur.byUserIDIndex[existing.UserID] = updated
+
+		newByUser := imur.byUserIDIndex[reg.UserID]
+		newByUser = append(newByUser, reg.ID)
+		imur.byUserIDIndex[reg.UserID] = newByUser
 	}
 
-	return user, nil
+	return reg, nil
 }
 
-func (imur *InMemoryUsersRepository) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error) {
+func (imur *InMemoryRegistrationsRepository) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error) {
 	user, ok := imur.users[id]
 	if !ok {
 		return dao.User{}, dao.ErrNotFound
@@ -96,19 +114,10 @@ func (imur *InMemoryUsersRepository) GetByID(ctx context.Context, id uuid.UUID) 
 	return user, nil
 }
 
-func (imur *InMemoryUsersRepository) GetByUsername(ctx context.Context, username string) (dao.User, error) {
-	userID, ok := imur.byUsernameIndex[username]
+func (imur *InMemoryRegistrationsRepository) Delete(ctx context.Context, id uuid.UUID) (dao.Registration, error) {
+	reg, ok := imur.regs[id]
 	if !ok {
-		return dao.User{}, dao.ErrNotFound
-	}
-
-	return imur.users[userID], nil
-}
-
-func (imur *InMemoryUsersRepository) Delete(ctx context.Context, id uuid.UUID) (dao.User, error) {
-	user, ok := imur.users[id]
-	if !ok {
-		return dao.User{}, dao.ErrNotFound
+		return dao.Registration{}, dao.ErrNotFound
 	}
 
 	delete(imur.byUsernameIndex, user.Username)
