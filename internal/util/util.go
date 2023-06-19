@@ -350,6 +350,21 @@ func ArticleFor(s string, definite bool) string {
 	return art
 }
 
+// SliceRemove removes the given item from the slice, if it is present. Returns
+// the slice with the first instance of the given element removed. If no such
+// element exists, the provided slice is returned unchanged.
+func SliceRemove[V comparable](s V, slice []V) []V {
+	indexOf := SliceIndexOf(s, slice)
+	if indexOf == -1 {
+		return slice
+	}
+
+	newSlice := make([]V, len(slice)-1)
+	copy(newSlice, slice[:indexOf])
+	copy(newSlice[indexOf:], slice[indexOf+1:])
+	return newSlice
+}
+
 // InSlice returns whether s is present in the given slice by checking each item
 // in order.
 func InSlice[V comparable](s V, slice []V) bool {
@@ -359,6 +374,18 @@ func InSlice[V comparable](s V, slice []V) bool {
 		}
 	}
 	return false
+}
+
+// SliceIndexOf returns the index of s is present in the given slice by checking
+// each item in order. Returns the index that the item has, or -1 if the item is
+// not found in the slice.
+func SliceIndexOf[V comparable](s V, slice []V) int {
+	for i := range slice {
+		if slice[i] == s {
+			return i
+		}
+	}
+	return -1
 }
 
 // EqualSliceItems returns whether s1 and s2 have the same set of items, in any

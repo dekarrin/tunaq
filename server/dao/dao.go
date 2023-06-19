@@ -37,6 +37,7 @@ type CommnadRepository interface {
 	GetAllByDateRange(ctx context.Context, notBefore, notAfter time.Time) ([]Command, error)
 	Update(ctx context.Context, id uuid.UUID, reg Command) (Command, error)
 	Delete(ctx context.Context, id uuid.UUID) (Command, error)
+	Close() error
 }
 
 type Command struct {
@@ -53,6 +54,7 @@ type GameRepository interface {
 	GetAll(ctx context.Context) ([]Game, error)
 	Update(ctx context.Context, id uuid.UUID, sesh Game) (Game, error)
 	Delete(ctx context.Context, id uuid.UUID) (Game, error)
+	Close() error
 }
 
 type Game struct {
@@ -70,6 +72,7 @@ type SessionRepository interface {
 	GetAll(ctx context.Context) ([]Session, error)
 	Update(ctx context.Context, id uuid.UUID, sesh Session) (Session, error)
 	Delete(ctx context.Context, id uuid.UUID) (Session, error)
+	Close() error
 }
 
 type Session struct {
@@ -83,18 +86,19 @@ type Session struct {
 type RegistrationRepository interface {
 	Create(ctx context.Context, reg Registration) (Registration, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Registration, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID) (Registration, error)
 	GetAll(ctx context.Context) ([]Registration, error)
+	GetAllByUserID(ctx context.Context, userID uuid.UUID) ([]Registration, error)
 	Update(ctx context.Context, id uuid.UUID, reg Registration) (Registration, error)
 	Delete(ctx context.Context, id uuid.UUID) (Registration, error)
+	Close() error
 }
 
 type Registration struct {
-	ID      uuid.UUID
-	UserID  uuid.UUID
-	Code    []byte
-	Created time.Time
-	Expires time.Time
+	ID      uuid.UUID // PK, NOT NULL
+	UserID  uuid.UUID // FK (Many-to-One User.ID), NOT NULL
+	Code    string    // NOT NULL
+	Created time.Time // NOT NULL DEFAULT NOW()
+	Expires time.Time // NOT NULL
 }
 
 type UserRepository interface {
@@ -154,10 +158,10 @@ func ParseRole(s string) (Role, error) {
 }
 
 type User struct {
-	ID             uuid.UUID
-	Username       string
-	Password       string
-	Email          *mail.Address
-	Role           Role
-	LastLogoutTime time.Time
+	ID             uuid.UUID     // PK, NOT NULL
+	Username       string        // UNIQUE, NOT NULL
+	Password       string        // NOT NULL
+	Email          *mail.Address // NOT NULL
+	Role           Role          // NOT NULL
+	LastLogoutTime time.Time     // NOT NULL DEFAULT NOW()
 }

@@ -55,7 +55,7 @@ func (repo *UsersDB) Create(ctx context.Context, user dao.User) (dao.User, error
 	if user.Email != nil {
 		newEmail = user.Email.Address
 	}
-	_, err = stmt.ExecContext(ctx, newUUID.String(), user.Username, user.Password, user.Role.String(), newEmail, user.LastLogoutTime.Unix())
+	_, err = stmt.ExecContext(ctx, newUUID.String(), user.Username, user.Password, user.Role.String(), newEmail, time.Now().Unix())
 	if err != nil {
 		return dao.User{}, wrapDBError(err)
 	}
