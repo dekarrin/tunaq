@@ -68,10 +68,8 @@ func (imur *InMemoryRegistrationsRepository) GetAllByUserID(ctx context.Context,
 
 	all := make([]dao.Registration, len(byUser))
 
-	i := 0
-	for k := range imur.regs {
-		if imur.regs[k]
-		all[i] = imur.regs[k]
+	for i := range byUser {
+		all[i] = imur.regs[byUser[i]]
 		i++
 	}
 
