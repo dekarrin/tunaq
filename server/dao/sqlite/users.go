@@ -31,7 +31,7 @@ func NewUsersDBConn(file string) (*UsersDB, error) {
 		last_logout_time INTEGER NOT NULL
 	);`)
 	if err != nil {
-		return nil, err
+		return nil, wrapDBError(err)
 	}
 
 	return repo, nil

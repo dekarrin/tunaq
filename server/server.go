@@ -74,7 +74,8 @@ func New(tokenSecret []byte, dbPath string) (TunaQuestServer, error) {
 	}
 
 	if dbPath != "" {
-		dbUsers, err := sqlite.NewUsersDBConn(filepath.Join(dbPath, "users.sqlite"))
+		fp := filepath.Join(dbPath, "users.sqlite")
+		dbUsers, err := sqlite.NewUsersDBConn(fp)
 		if err != nil {
 			return tqs, err
 		}

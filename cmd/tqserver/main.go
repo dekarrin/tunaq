@@ -113,7 +113,7 @@ func main() {
 			dbPath = ""
 		case "sqlite":
 			dbPath = dbParts[1]
-			err := os.MkdirAll(dbPath, 0644)
+			err := os.MkdirAll(dbPath, 0770)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Could not build data directory: %s\n", err)
 				os.Exit(1)
