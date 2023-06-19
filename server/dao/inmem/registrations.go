@@ -60,6 +60,28 @@ func (imur *InMemoryRegistrationsRepository) GetAll(ctx context.Context) ([]dao.
 	return all, nil
 }
 
+func (imur *InMemoryRegistrationsRepository) GetAllByUserID(ctx context.Context, id uuid.UUID) ([]dao.Registration, error) {
+	byUser := imur.byUserIDIndex[id]
+	if len(byUser) < 1 {
+		return nil, dao.ErrNotFound
+	}
+
+	all := make([]dao.Registration, len(byUser))
+
+	i := 0
+	for k := range imur.regs {
+		if imur.regs[k]
+		all[i] = imur.regs[k]
+		i++
+	}
+
+	all = util.SortBy(all, func(l, r dao.Registration) bool {
+		return l.ID.String() < r.ID.String()
+	})
+
+	return all, nil
+}
+
 func (imur *InMemoryRegistrationsRepository) Update(ctx context.Context, id uuid.UUID, reg dao.Registration) (dao.Registration, error) {
 	existing, ok := imur.regs[id]
 	if !ok {
@@ -96,6 +118,9 @@ func (imur *InMemoryRegistrationsRepository) Update(ctx context.Context, id uuid
 		byUser := imur.byUserIDIndex[existing.UserID]
 		updated := util.SliceRemove(existing.ID, byUser)
 		imur.byUserIDIndex[existing.UserID] = updated
+		if len(updated) < 1 {
+			delete(imur.byUserIDIndex, existing.UserID)
+		}
 
 		newByUser := imur.byUserIDIndex[reg.UserID]
 		newByUser = append(newByUser, reg.ID)
@@ -105,13 +130,13 @@ func (imur *InMemoryRegistrationsRepository) Update(ctx context.Context, id uuid
 	return reg, nil
 }
 
-func (imur *InMemoryRegistrationsRepository) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error) {
-	user, ok := imur.users[id]
+func (imur *InMemoryRegistrationsRepository) GetByID(ctx context.Context, id uuid.UUID) (dao.Registration, error) {
+	reg, ok := imur.regs[id]
 	if !ok {
-		return dao.User{}, dao.ErrNotFound
+		return dao.Registration{}, dao.ErrNotFound
 	}
 
-	return user, nil
+	return reg, nil
 }
 
 func (imur *InMemoryRegistrationsRepository) Delete(ctx context.Context, id uuid.UUID) (dao.Registration, error) {
@@ -120,8 +145,13 @@ func (imur *InMemoryRegistrationsRepository) Delete(ctx context.Context, id uuid
 		return dao.Registration{}, dao.ErrNotFound
 	}
 
-	delete(imur.byUsernameIndex, user.Username)
-	delete(imur.users, user.ID)
+	byUser := imur.byUserIDIndex[reg.UserID]
+	updated := util.SliceRemove(reg.ID, byUser)
+	imur.byUserIDIndex[reg.UserID] = updated
+	if len(updated) < 1 {
+		delete(imur.byUserIDIndex, reg.UserID)
+	}
+	delete(imur.regs, reg.ID)
 
-	return user, nil
+	return reg, nil
 }
