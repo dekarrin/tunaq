@@ -25,6 +25,7 @@ var (
 	ErrAlreadyExists  = errors.New("resource with same identifying information already exists")
 	ErrDB             = errors.New("an error occured with the DB")
 	ErrBadArgument    = errors.New("one or more of the arguments is invalid")
+	ErrBodyUnmarshal  = errors.New("malformed data in request")
 )
 
 // js site interface -> {"input": "TAKE SPOON", "session": "alkdf803=="} -> server

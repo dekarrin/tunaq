@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -298,6 +299,15 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 	var updateReq UserUpdateRequest
 	err = parseJSON(req, &updateReq)
 	if err != nil {
+		if errors.Is(err, ErrBodyUnmarshal) {
+			// did they send a normal user?
+			var normalUser UserModel
+			err2 := parseJSON(req, &normalUser)
+			if err2 == nil {
+				return jsonBadRequest("updated fields must be objects with keys {'u': true, 'v': NEW_VALUE}", "request is UserModel, not UserUpdateRequest")
+			}
+		}
+
 		return jsonBadRequest(err.Error(), err.Error())
 	}
 
@@ -494,7 +504,9 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.
 	return jsonNoContent("user '%s' successfully deleted %s", user.Username, otherStr)
 }
 
-// v must be a pointer to a type.
+// v must be a pointer to a type. Will return error such that
+// errors.Is(err, ErrMalformedBody) returns true if it is problem decoding the
+// JSON itself.
 func parseJSON(req *http.Request, v interface{}) error {
 	contentType := req.Header.Get("Content-Type")
 
@@ -506,10 +518,14 @@ func parseJSON(req *http.Request, v interface{}) error {
 	if err != nil {
 		return fmt.Errorf("could not read request body: %w", err)
 	}
+	defer func() {
+		req.Body.Close()
+		req.Body = io.NopCloser(bytes.NewBuffer(bodyData))
+	}()
 
 	err = json.Unmarshal(bodyData, v)
 	if err != nil {
-		return fmt.Errorf("malformed JSON in request")
+		return newError("malformed JSON in request", err, ErrBodyUnmarshal)
 	}
 
 	return nil

@@ -76,7 +76,7 @@ func (imur *InMemoryUsersRepository) Update(ctx context.Context, id uuid.UUID, u
 		}
 	} else if user.ID != id {
 		// that's okay but we need to check it
-		if _, ok := imur.users[id]; ok {
+		if _, ok := imur.users[user.ID]; ok {
 			return dao.User{}, dao.ErrConstraintViolation
 		}
 	}
