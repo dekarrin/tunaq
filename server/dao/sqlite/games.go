@@ -197,7 +197,7 @@ func (repo *GamesDB) Update(ctx context.Context, id uuid.UUID, g dao.Game) (dao.
 		g.LocalPath,
 		g.LastLocalAccess.Unix(),
 		g.Created.Unix(),
-		g.Modified.Unix(),
+		time.Now().Unix(),
 		id.String(),
 	)
 	if err != nil {

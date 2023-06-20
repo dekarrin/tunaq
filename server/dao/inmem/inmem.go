@@ -10,6 +10,7 @@ type store struct {
 	users *InMemoryUsersRepository
 	regs  *InMemoryRegistrationsRepository
 	games *InMemoryGamesRepository
+	gd    *InMemoryGameDatasRepository
 }
 
 func NewDatastore() dao.Store {
@@ -17,6 +18,7 @@ func NewDatastore() dao.Store {
 		users: NewUsersRepository(),
 		regs:  NewRegistrationsRepository(),
 		games: NewGamesRepository(),
+		gd:    NewGameDatasRepository(),
 	}
 }
 
@@ -30,6 +32,10 @@ func (s *store) Registrations() dao.RegistrationRepository {
 
 func (s *store) Games() dao.GameRepository {
 	return s.games
+}
+
+func (s *store) GameData() dao.GameDataRepository {
+	return s.gd
 }
 
 func (s *store) Close() error {

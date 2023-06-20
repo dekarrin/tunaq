@@ -17,18 +17,27 @@ type store struct {
 	users *UsersDB
 	regs  *RegistrationsDB
 	games *GamesDB
+	gd    *GameDatasDB
 }
 
 func NewDatastore(storageDir string) (dao.Store, error) {
 	st := &store{}
 
 	fileName := filepath.Join(storageDir, "data.db")
+	worldFileName := filepath.Join(storageDir, "worlds.db")
 
 	var err error
 	st.db, err = sql.Open("sqlite", fileName)
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
+	st.worldDataDB, err = sql.Open("sqlite", worldFileName)
+	if err != nil {
+		return nil, wrapDBError(err)
+	}
+
+	st.gd = &GameDatasDB{db: st.db}
+	st.gd.init()
 
 	st.users = &UsersDB{db: st.db}
 	st.users.init()
@@ -54,7 +63,12 @@ func (s *store) Games() dao.GameRepository {
 	return s.games
 }
 
+func (s *store) GameData() dao.GameDataRepository {
+	return s.gd
+}
+
 func (s *store) Close() error {
+	s.worldDataDB.Close()
 	return s.db.Close()
 }
 

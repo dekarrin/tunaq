@@ -16,8 +16,9 @@ import (
 type Store interface {
 	Users() UserRepository
 	Registrations() RegistrationRepository
-	/*Commands() CommandRepository
 	Games() GameRepository
+	GameData() GameDataRepository
+	/*Commands() CommandRepository
 	Sessions() SessionRepository*/
 	Close() error
 }
