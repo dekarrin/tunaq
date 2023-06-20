@@ -159,4 +159,5 @@ type User struct {
 	Role           Role          // NOT NULL
 	Created        time.Time     // NOT NULL
 	LastLogoutTime time.Time     // NOT NULL DEFAULT NOW()
+	LastLoginTime  time.Time     // NOT NULL
 }

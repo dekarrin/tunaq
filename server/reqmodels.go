@@ -26,8 +26,9 @@ type UserModel struct {
 	Password       string `json:"password,omitempty"`
 	Email          string `json:"email,"`
 	Role           string `json:"role,omitempty"`
-	Created        string `json:"created"`
-	LastLogoutTime string `json:"last_logout"`
+	Created        string `json:"created,omitempty"`
+	LastLogoutTime string `json:"last_logout,omitempty"`
+	LastLoginTime  string `json:"last_login,omitempty"`
 }
 
 type UserUpdateRequest struct {

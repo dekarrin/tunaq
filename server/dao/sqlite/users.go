@@ -35,7 +35,8 @@ func (repo *UsersDB) init() error {
 		role INTEGER NOT NULL,
 		email TEXT NOT NULL,
 		created INTEGER NOT NULL,
-		last_logout_time INTEGER NOT NULL
+		last_logout_time INTEGER NOT NULL,
+		last_login_time INTEGER NOT NULL
 	);`)
 	if err != nil {
 		return wrapDBError(err)
@@ -50,7 +51,7 @@ func (repo *UsersDB) Create(ctx context.Context, user dao.User) (dao.User, error
 		return dao.User{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
-	stmt, err := repo.db.Prepare(`INSERT INTO users (id, username, password, role, email, created, last_logout_time) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+	stmt, err := repo.db.Prepare(`INSERT INTO users (id, username, password, role, email, created, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return dao.User{}, wrapDBError(err)
 	}
@@ -58,8 +59,8 @@ func (repo *UsersDB) Create(ctx context.Context, user dao.User) (dao.User, error
 	if user.Email != nil {
 		newEmail = user.Email.Address
 	}
-	now := time.Now().Unix()
-	_, err = stmt.ExecContext(ctx, newUUID.String(), user.Username, user.Password, user.Role.String(), newEmail, now, now)
+	now := time.Now()
+	_, err = stmt.ExecContext(ctx, newUUID.String(), user.Username, user.Password, user.Role.String(), newEmail, now.Unix(), now.Unix(), time.Time{})
 	if err != nil {
 		return dao.User{}, wrapDBError(err)
 	}
@@ -68,7 +69,7 @@ func (repo *UsersDB) Create(ctx context.Context, user dao.User) (dao.User, error
 }
 
 func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, username, password, role, email, created, last_logout_time FROM users;`)
+	rows, err := repo.db.QueryContext(ctx, `SELECT id, username, password, role, email, created, last_logout_time, last_login_time FROM users;`)
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
@@ -80,6 +81,7 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 		var user dao.User
 		var email string
 		var logoutTime int64
+		var loginTime int64
 		var created int64
 		var role string
 		var id string
@@ -91,6 +93,7 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 			&email,
 			&created,
 			&logoutTime,
+			&loginTime,
 		)
 
 		if err != nil {
@@ -108,6 +111,7 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 			}
 		}
 		user.LastLogoutTime = time.Unix(logoutTime, 0)
+		user.LastLoginTime = time.Unix(loginTime, 0)
 		user.Created = time.Unix(created, 0)
 		user.Role, err = dao.ParseRole(role)
 		if err != nil {
@@ -130,13 +134,14 @@ func (repo *UsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User) (d
 		newEmail = user.Email.Address
 	}
 	// deliberately not updating created
-	res, err := repo.db.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=? WHERE id=?;`,
+	res, err := repo.db.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=? WHERE id=?;`,
 		user.ID.String(),
 		user.Username,
 		user.Password,
 		user.Role.String(),
 		newEmail,
 		user.LastLogoutTime.Unix(),
+		user.LastLoginTime.Unix(),
 		id.String(),
 	)
 	if err != nil {
@@ -161,9 +166,10 @@ func (repo *UsersDB) GetByUsername(ctx context.Context, username string) (dao.Us
 	var role string
 	var email string
 	var logout int64
+	var login int64
 	var created int64
 
-	row := repo.db.QueryRowContext(ctx, `SELECT id, password, role, email, created, last_logout_time FROM users WHERE username = ?;`,
+	row := repo.db.QueryRowContext(ctx, `SELECT id, password, role, email, created, last_logout_time, last_login_time FROM users WHERE username = ?;`,
 		username,
 	)
 	err := row.Scan(
@@ -173,6 +179,7 @@ func (repo *UsersDB) GetByUsername(ctx context.Context, username string) (dao.Us
 		&email,
 		&created,
 		&logout,
+		&login,
 	)
 
 	if err != nil {
@@ -191,6 +198,7 @@ func (repo *UsersDB) GetByUsername(ctx context.Context, username string) (dao.Us
 		}
 	}
 	user.LastLogoutTime = time.Unix(logout, 0)
+	user.LastLoginTime = time.Unix(login, 0)
 	user.Created = time.Unix(created, 0)
 	user.Role, err = dao.ParseRole(role)
 	if err != nil {
@@ -207,9 +215,10 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 	var role string
 	var email string
 	var logout int64
+	var login int64
 	var created int64
 
-	row := repo.db.QueryRowContext(ctx, `SELECT username, password, role, email, created, last_logout_time FROM users WHERE id = ?;`,
+	row := repo.db.QueryRowContext(ctx, `SELECT username, password, role, email, created, last_logout_time, last_login_time FROM users WHERE id = ?;`,
 		id.String(),
 	)
 	err := row.Scan(
@@ -219,6 +228,7 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 		&email,
 		&created,
 		&logout,
+		&login,
 	)
 
 	if err != nil {
@@ -232,6 +242,7 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 		}
 	}
 	user.LastLogoutTime = time.Unix(logout, 0)
+	user.LastLoginTime = time.Unix(login, 0)
 	user.Created = time.Unix(logout, 0)
 	user.Role, err = dao.ParseRole(role)
 	if err != nil {

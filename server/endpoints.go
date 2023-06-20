@@ -169,6 +169,7 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) endpointResu
 		Role:           newUser.Role.String(),
 		Created:        newUser.Created.Format(time.RFC3339),
 		LastLogoutTime: newUser.LastLogoutTime.Format(time.RFC3339),
+		LastLoginTime:  newUser.LastLoginTime.Format(time.RFC3339),
 	}
 
 	if newUser.Email != nil {
@@ -206,6 +207,7 @@ func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) endpointResul
 			Role:           users[i].Role.String(),
 			Created:        users[i].Created.Format(time.RFC3339),
 			LastLogoutTime: users[i].LastLogoutTime.Format(time.RFC3339),
+			LastLoginTime:  users[i].LastLoginTime.Format(time.RFC3339),
 		}
 		if users[i].Email != nil {
 			resp[i].Email = users[i].Email.Address
@@ -258,6 +260,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 		Role:           userInfo.Role.String(),
 		Created:        userInfo.Created.Format(time.RFC3339),
 		LastLogoutTime: userInfo.LastLogoutTime.Format(time.RFC3339),
+		LastLoginTime:  userInfo.LastLoginTime.Format(time.RFC3339),
 	}
 	if userInfo.Email != nil {
 		resp.Email = userInfo.Email.Address
@@ -381,6 +384,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 		Role:           updated.Role.String(),
 		Created:        updated.Created.Format(time.RFC3339),
 		LastLogoutTime: updated.LastLogoutTime.Format(time.RFC3339),
+		LastLoginTime:  updated.LastLoginTime.Format(time.RFC3339),
 	}
 
 	if updated.Email != nil {
@@ -458,6 +462,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUI
 		Role:           newUser.Role.String(),
 		Created:        newUser.Created.Format(time.RFC3339),
 		LastLogoutTime: newUser.LastLogoutTime.Format(time.RFC3339),
+		LastLoginTime:  newUser.LastLoginTime.Format(time.RFC3339),
 	}
 
 	if newUser.Email != nil {
