@@ -163,10 +163,12 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) endpointResu
 	}
 
 	resp := UserModel{
-		URI:      "/users/" + newUser.ID.String(),
-		ID:       newUser.ID.String(),
-		Username: newUser.Username,
-		Role:     newUser.Role.String(),
+		URI:            "/users/" + newUser.ID.String(),
+		ID:             newUser.ID.String(),
+		Username:       newUser.Username,
+		Role:           newUser.Role.String(),
+		Created:        newUser.Created.Format(time.RFC3339),
+		LastLogoutTime: newUser.LastLogoutTime.Format(time.RFC3339),
 	}
 
 	if newUser.Email != nil {
@@ -198,10 +200,12 @@ func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) endpointResul
 
 	for i := range users {
 		resp[i] = UserModel{
-			URI:      "/users/" + users[i].ID.String(),
-			ID:       users[i].ID.String(),
-			Username: users[i].Username,
-			Role:     users[i].Role.String(),
+			URI:            "/users/" + users[i].ID.String(),
+			ID:             users[i].ID.String(),
+			Username:       users[i].Username,
+			Role:           users[i].Role.String(),
+			Created:        users[i].Created.Format(time.RFC3339),
+			LastLogoutTime: users[i].LastLogoutTime.Format(time.RFC3339),
 		}
 		if users[i].Email != nil {
 			resp[i].Email = users[i].Email.Address
@@ -248,10 +252,12 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 
 	// put it into a model to return
 	resp := UserModel{
-		URI:      "/users/" + userInfo.ID.String(),
-		ID:       userInfo.ID.String(),
-		Username: userInfo.Username,
-		Role:     userInfo.Role.String(),
+		URI:            "/users/" + userInfo.ID.String(),
+		ID:             userInfo.ID.String(),
+		Username:       userInfo.Username,
+		Role:           userInfo.Role.String(),
+		Created:        userInfo.Created.Format(time.RFC3339),
+		LastLogoutTime: userInfo.LastLogoutTime.Format(time.RFC3339),
 	}
 	if userInfo.Email != nil {
 		resp.Email = userInfo.Email.Address
@@ -369,10 +375,12 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 	}
 
 	resp := UserModel{
-		URI:      "/users/" + updated.ID.String(),
-		ID:       updated.ID.String(),
-		Username: updated.Username,
-		Role:     updated.Role.String(),
+		URI:            "/users/" + updated.ID.String(),
+		ID:             updated.ID.String(),
+		Username:       updated.Username,
+		Role:           updated.Role.String(),
+		Created:        updated.Created.Format(time.RFC3339),
+		LastLogoutTime: updated.LastLogoutTime.Format(time.RFC3339),
 	}
 
 	if updated.Email != nil {
@@ -444,10 +452,12 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUI
 	}
 
 	resp := UserModel{
-		URI:      "/users/" + newUser.ID.String(),
-		ID:       newUser.ID.String(),
-		Username: newUser.Username,
-		Role:     newUser.Role.String(),
+		URI:            "/users/" + newUser.ID.String(),
+		ID:             newUser.ID.String(),
+		Username:       newUser.Username,
+		Role:           newUser.Role.String(),
+		Created:        newUser.Created.Format(time.RFC3339),
+		LastLogoutTime: newUser.LastLogoutTime.Format(time.RFC3339),
 	}
 
 	if newUser.Email != nil {

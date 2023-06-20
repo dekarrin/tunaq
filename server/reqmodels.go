@@ -20,12 +20,14 @@ type ErrorResponse struct {
 }
 
 type UserModel struct {
-	URI      string `json:"uri"`
-	ID       string `json:"id,omitempty"`
-	Username string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-	Email    string `json:"email,"`
-	Role     string `json:"role,omitempty"`
+	URI            string `json:"uri"`
+	ID             string `json:"id,omitempty"`
+	Username       string `json:"username,omitempty"`
+	Password       string `json:"password,omitempty"`
+	Email          string `json:"email,"`
+	Role           string `json:"role,omitempty"`
+	Created        string `json:"created"`
+	LastLogoutTime string `json:"last_logout"`
 }
 
 type UserUpdateRequest struct {
