@@ -7,18 +7,20 @@ import (
 )
 
 type store struct {
-	users *InMemoryUsersRepository
-	regs  *InMemoryRegistrationsRepository
-	games *InMemoryGamesRepository
-	gd    *InMemoryGameDatasRepository
+	users  *InMemoryUsersRepository
+	regs   *InMemoryRegistrationsRepository
+	games  *InMemoryGamesRepository
+	gd     *InMemoryGameDatasRepository
+	seshes *InMemorySessionsRepository
 }
 
 func NewDatastore() dao.Store {
 	return &store{
-		users: NewUsersRepository(),
-		regs:  NewRegistrationsRepository(),
-		games: NewGamesRepository(),
-		gd:    NewGameDatasRepository(),
+		users:  NewUsersRepository(),
+		regs:   NewRegistrationsRepository(),
+		games:  NewGamesRepository(),
+		gd:     NewGameDatasRepository(),
+		seshes: NewSessionsRepository(),
 	}
 }
 
@@ -36,6 +38,10 @@ func (s *store) Games() dao.GameRepository {
 
 func (s *store) GameData() dao.GameDataRepository {
 	return s.gd
+}
+
+func (s *store) Sessions() dao.SessionRepository {
+	return s.seshes
 }
 
 func (s *store) Close() error {
@@ -59,6 +65,22 @@ func (s *store) Close() error {
 		}
 	}
 	nextErr = s.games.Close()
+	if nextErr != err {
+		if err != nil {
+			err = fmt.Errorf("%s\nadditionally, %w", err, nextErr)
+		} else {
+			err = nextErr
+		}
+	}
+	nextErr = s.gd.Close()
+	if nextErr != err {
+		if err != nil {
+			err = fmt.Errorf("%s\nadditionally, %w", err, nextErr)
+		} else {
+			err = nextErr
+		}
+	}
+	nextErr = s.seshes.Close()
 	if nextErr != err {
 		if err != nil {
 			err = fmt.Errorf("%s\nadditionally, %w", err, nextErr)

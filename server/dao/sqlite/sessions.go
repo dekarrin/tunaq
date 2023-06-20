@@ -78,45 +78,63 @@ func (repo *SessionsDB) Create(ctx context.Context, s dao.Session) (dao.Session,
 	return repo.GetByID(ctx, newUUID)
 }
 
-func (repo *RegistrationsDB) GetAll(ctx context.Context) ([]dao.Registration, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, user_id, code, created, expires FROM registrations;`)
+func (repo *SessionsDB) GetAll(ctx context.Context) ([]dao.Session, error) {
+	rows, err := repo.db.QueryContext(ctx, `SELECT id, user_id, game_id, state, created FROM sessions;`)
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
 	defer rows.Close()
 
-	var all []dao.Registration
+	var all []dao.Session
 
 	for rows.Next() {
-		var reg dao.Registration
+		var s dao.Session
 		var id string
 		var userID string
+		var gameID string
+		var encState string
 		var created int64
-		var expires int64
 		err = rows.Scan(
 			&id,
 			&userID,
-			&reg.Code,
+			&gameID,
+			&encState,
 			&created,
-			&expires,
 		)
 
 		if err != nil {
 			return nil, wrapDBError(err)
 		}
 
-		reg.ID, err = uuid.Parse(id)
+		s.ID, err = uuid.Parse(id)
 		if err != nil {
-			return all, fmt.Errorf("stored UUID %q is invalid", id)
+			return all, fmt.Errorf("stored ID %q is invalid: %w", id, err)
 		}
-		reg.UserID, err = uuid.Parse(userID)
+		s.UserID, err = uuid.Parse(userID)
 		if err != nil {
 			return all, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
 		}
-		reg.Created = time.Unix(created, 0)
-		reg.Expires = time.Unix(expires, 0)
+		s.GameID, err = uuid.Parse(gameID)
+		if err != nil {
+			return all, fmt.Errorf("stored game ID %q is invalid: %w", gameID, err)
+		}
 
-		all = append(all, reg)
+		s.Created = time.Unix(created, 0)
+
+		stateData, err := base64.StdEncoding.DecodeString(encState)
+		if err != nil {
+			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), stateData)
+		}
+
+		n, err := rezi.DecBinary(stateData, s.State)
+		if err != nil {
+			return all, fmt.Errorf("stored game state for %s is invalid: rezi decode: %w", s.ID.String(), err)
+		}
+		if n != len(stateData) {
+			return all, fmt.Errorf("stored game state for %s is invalid: decoded byte count mismatch; only consumed %d/%d bytes", s.ID.String(), n, len(stateData))
+		}
+
+		all = append(all, s)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -126,41 +144,59 @@ func (repo *RegistrationsDB) GetAll(ctx context.Context) ([]dao.Registration, er
 	return all, nil
 }
 
-func (repo *RegistrationsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.Registration, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, code, created, expires FROM registrations WHERE user_id=?;`, userID.String())
+func (repo *SessionsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.Session, error) {
+	rows, err := repo.db.QueryContext(ctx, `SELECT id, game_id, state, created FROM sessions WHERE user_id=?;`)
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
 	defer rows.Close()
 
-	var all []dao.Registration
+	var all []dao.Session
 
 	for rows.Next() {
-		reg := dao.Registration{
+		s := dao.Session{
 			UserID: userID,
 		}
 		var id string
+		var gameID string
+		var encState string
 		var created int64
-		var expires int64
 		err = rows.Scan(
 			&id,
-			&reg.Code,
+			&gameID,
+			&encState,
 			&created,
-			&expires,
 		)
 
 		if err != nil {
 			return nil, wrapDBError(err)
 		}
 
-		reg.ID, err = uuid.Parse(id)
+		s.ID, err = uuid.Parse(id)
 		if err != nil {
-			return all, fmt.Errorf("stored UUID %q is invalid", id)
+			return all, fmt.Errorf("stored ID %q is invalid: %w", id, err)
 		}
-		reg.Created = time.Unix(created, 0)
-		reg.Expires = time.Unix(expires, 0)
+		s.GameID, err = uuid.Parse(gameID)
+		if err != nil {
+			return all, fmt.Errorf("stored game ID %q is invalid: %w", gameID, err)
+		}
 
-		all = append(all, reg)
+		s.Created = time.Unix(created, 0)
+
+		stateData, err := base64.StdEncoding.DecodeString(encState)
+		if err != nil {
+			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), stateData)
+		}
+
+		n, err := rezi.DecBinary(stateData, s.State)
+		if err != nil {
+			return all, fmt.Errorf("stored game state for %s is invalid: rezi decode: %w", s.ID.String(), err)
+		}
+		if n != len(stateData) {
+			return all, fmt.Errorf("stored game state for %s is invalid: decoded byte count mismatch; only consumed %d/%d bytes", s.ID.String(), n, len(stateData))
+		}
+
+		all = append(all, s)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -170,27 +206,94 @@ func (repo *RegistrationsDB) GetAllByUser(ctx context.Context, userID uuid.UUID)
 	return all, nil
 }
 
-func (repo *RegistrationsDB) Update(ctx context.Context, id uuid.UUID, reg dao.Registration) (dao.Registration, error) {
-	res, err := repo.db.ExecContext(ctx, `UPDATE registrations SET id=?, user_id=?, code=?, created=?, expires=? WHERE id=?;`,
-		reg.ID.String(),
-		reg.UserID.String(),
-		reg.Code,
-		reg.Created.Unix(),
-		reg.Expires.Unix(),
+func (repo *SessionsDB) GetAllByGame(ctx context.Context, gameID uuid.UUID) ([]dao.Session, error) {
+	rows, err := repo.db.QueryContext(ctx, `SELECT id, user_id, state, created FROM sessions;`)
+	if err != nil {
+		return nil, wrapDBError(err)
+	}
+	defer rows.Close()
+
+	var all []dao.Session
+
+	for rows.Next() {
+		s := dao.Session{
+			GameID: gameID,
+		}
+		var id string
+		var userID string
+		var encState string
+		var created int64
+		err = rows.Scan(
+			&id,
+			&userID,
+			&encState,
+			&created,
+		)
+
+		if err != nil {
+			return nil, wrapDBError(err)
+		}
+
+		s.ID, err = uuid.Parse(id)
+		if err != nil {
+			return all, fmt.Errorf("stored ID %q is invalid: %w", id, err)
+		}
+		s.UserID, err = uuid.Parse(userID)
+		if err != nil {
+			return all, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
+		}
+
+		s.Created = time.Unix(created, 0)
+
+		stateData, err := base64.StdEncoding.DecodeString(encState)
+		if err != nil {
+			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), stateData)
+		}
+
+		n, err := rezi.DecBinary(stateData, s.State)
+		if err != nil {
+			return all, fmt.Errorf("stored game state for %s is invalid: rezi decode: %w", s.ID.String(), err)
+		}
+		if n != len(stateData) {
+			return all, fmt.Errorf("stored game state for %s is invalid: decoded byte count mismatch; only consumed %d/%d bytes", s.ID.String(), n, len(stateData))
+		}
+
+		all = append(all, s)
+	}
+
+	if err := rows.Err(); err != nil {
+		return all, wrapDBError(err)
+	}
+
+	return all, nil
+}
+
+func (repo *SessionsDB) Update(ctx context.Context, id uuid.UUID, s dao.Session) (dao.Session, error) {
+	// TODO: check all to ensure that 'Created' remains a dao-enforced constant
+	// and that nothing is allowed to update it.
+
+	stateData := rezi.EncBinary(s.State)
+	encState := base64.StdEncoding.EncodeToString(stateData)
+
+	res, err := repo.db.ExecContext(ctx, `UPDATE sessions SET id=?, user_id=?, game_id=?, state=? WHERE id=?;`,
+		s.ID.String(),
+		s.UserID.String(),
+		s.GameID.String(),
+		encState,
 		id.String(),
 	)
 	if err != nil {
-		return dao.Registration{}, wrapDBError(err)
+		return dao.Session{}, wrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return dao.Registration{}, wrapDBError(err)
+		return dao.Session{}, wrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return dao.Registration{}, dao.ErrNotFound
+		return dao.Session{}, dao.ErrNotFound
 	}
 
-	return repo.GetByID(ctx, reg.ID)
+	return repo.GetByID(ctx, s.ID)
 }
 
 func (repo *SessionsDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Session, error) {
@@ -199,23 +302,25 @@ func (repo *SessionsDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Session,
 	}
 	var userID string
 	var gameID string
-	var created int64
 	var encState string
+	var created int64
 
-	row := repo.db.QueryRowContext(ctx, `SELECT user_id, game_id, created, state FROM sessions WHERE id = ?;`,
+	row := repo.db.QueryRowContext(ctx, `SELECT user_id, game_id, state, created FROM sessions WHERE id = ?;`,
 		id.String(),
 	)
 	err := row.Scan(
 		&userID,
 		&gameID,
-		&created,
 		&encState,
+		&created,
 	)
 
 	if err != nil {
 		return s, wrapDBError(err)
 	}
 
+	// TODO: move these and all other 'stored X is invalid' errors to use serr
+	// API and specifically include cause ErrDecoding
 	s.UserID, err = uuid.Parse(userID)
 	if err != nil {
 		return s, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
@@ -229,20 +334,27 @@ func (repo *SessionsDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Session,
 
 	stateData, err := base64.StdEncoding.DecodeString(encState)
 	if err != nil {
-		return s, fmt.Errorf("stored game state for %s is invalid: %w", s.ID.String(), stateData)
+		return s, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), stateData)
 	}
-	s.Expires = time.Unix(expires, 0)
+
+	n, err := rezi.DecBinary(stateData, s.State)
+	if err != nil {
+		return s, fmt.Errorf("stored game state for %s is invalid: rezi decode: %w", s.ID.String(), err)
+	}
+	if n != len(stateData) {
+		return s, fmt.Errorf("stored game state for %s is invalid: decoded byte count mismatch; only consumed %d/%d bytes", s.ID.String(), n, len(stateData))
+	}
 
 	return s, nil
 }
 
-func (repo *RegistrationsDB) Delete(ctx context.Context, id uuid.UUID) (dao.Registration, error) {
+func (repo *SessionsDB) Delete(ctx context.Context, id uuid.UUID) (dao.Session, error) {
 	curVal, err := repo.GetByID(ctx, id)
 	if err != nil {
 		return curVal, err
 	}
 
-	res, err := repo.db.ExecContext(ctx, `DELETE FROM registrations WHERE id = ?`, id.String())
+	res, err := repo.db.ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, id.String())
 	if err != nil {
 		return curVal, wrapDBError(err)
 	}
@@ -257,6 +369,6 @@ func (repo *RegistrationsDB) Delete(ctx context.Context, id uuid.UUID) (dao.Regi
 	return curVal, nil
 }
 
-func (repo *RegistrationsDB) Close() error {
+func (repo *SessionsDB) Close() error {
 	return repo.db.Close()
 }

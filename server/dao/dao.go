@@ -25,8 +25,8 @@ type Store interface {
 	Registrations() RegistrationRepository
 	Games() GameRepository
 	GameData() GameDataRepository
-	/*Commands() CommandRepository
-	Sessions() SessionRepository*/
+	//Commands() CommandRepository
+	Sessions() SessionRepository
 	Close() error
 }
 
