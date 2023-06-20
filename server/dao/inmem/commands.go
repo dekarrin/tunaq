@@ -92,9 +92,7 @@ func (imur *InMemoryCommandsRepository) GetAllByUser(ctx context.Context, id uui
 		if err != nil {
 			return nil, err
 		}
-		for _, com := range seshCommands {
-			allCommands = append(allCommands, com)
-		}
+		allCommands = append(allCommands, seshCommands...)
 	}
 
 	return allCommands, nil
