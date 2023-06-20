@@ -13,18 +13,9 @@ import (
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/dekarrin/tunaq/server/dao/inmem"
 	"github.com/dekarrin/tunaq/server/dao/sqlite"
+	"github.com/dekarrin/tunaq/server/serr"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
-)
-
-var (
-	ErrBadCredentials = errors.New("the supplied username/password combination is incorrect")
-	ErrPermissions    = errors.New("you don't have permission to do that")
-	ErrNotFound       = errors.New("the requested entity could not be found")
-	ErrAlreadyExists  = errors.New("resource with same identifying information already exists")
-	ErrDB             = errors.New("an error occured with the DB")
-	ErrBadArgument    = errors.New("one or more of the arguments is invalid")
-	ErrBodyUnmarshal  = errors.New("malformed data in request")
 )
 
 // js site interface -> {"input": "TAKE SPOON", "session": "alkdf803=="} -> server
@@ -111,14 +102,14 @@ func (tqs TunaQuestServer) ServeForever(address string, port int) {
 // errors.Is depending on what caused the error. If the credentials do not match
 // a user or if the password is incorrect, it will match ErrBadCredentials. If
 // the error occured due to an unexpected problem with the DB, it will match
-// ErrDB.
+// serr.ErrDB.
 func (tqs TunaQuestServer) Login(ctx context.Context, username string, password string) (dao.User, error) {
 	user, err := tqs.db.Users().GetByUsername(ctx, username)
 	if err != nil {
-		if err == dao.ErrNotFound {
-			return dao.User{}, ErrBadCredentials
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, serr.ErrBadCredentials
 		}
-		return dao.User{}, wrapDBError(err)
+		return dao.User{}, serr.WrapDB("", err)
 	}
 
 	// verify password
@@ -130,9 +121,9 @@ func (tqs TunaQuestServer) Login(ctx context.Context, username string, password 
 	err = bcrypt.CompareHashAndPassword(bcryptHash, []byte(password))
 	if err != nil {
 		if err == bcrypt.ErrMismatchedHashAndPassword {
-			return dao.User{}, ErrBadCredentials
+			return dao.User{}, serr.ErrBadCredentials
 		}
-		return dao.User{}, wrapDBError(err)
+		return dao.User{}, serr.WrapDB("", err)
 	}
 
 	return user, nil
@@ -143,22 +134,22 @@ func (tqs TunaQuestServer) Login(ctx context.Context, username string, password 
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If the user doesn't exist, it
-// will match ErrNotFound.  If the error occured due to an unexpected problem
-// with the DB, it will match ErrDB.
+// will match serr.ErrNotFound. If the error occured due to an unexpected
+// problem with the DB, it will match serr.ErrDB.
 func (tqs TunaQuestServer) Logout(ctx context.Context, who uuid.UUID) (dao.User, error) {
 	existing, err := tqs.db.Users().GetByID(ctx, who)
 	if err != nil {
-		if err == dao.ErrNotFound {
-			return dao.User{}, ErrNotFound
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, serr.ErrNotFound
 		}
-		return dao.User{}, newError("could not retrieve user", err, ErrDB)
+		return dao.User{}, serr.WrapDB("could not retrieve user", err)
 	}
 
 	existing.LastLogoutTime = time.Now()
 
 	updated, err := tqs.db.Users().Update(ctx, existing.ID, existing)
 	if err != nil {
-		return dao.User{}, newError("could not update user", err, ErrDB)
+		return dao.User{}, serr.WrapDB("could not update user", err)
 	}
 
 	return updated, nil
@@ -169,21 +160,21 @@ func (tqs TunaQuestServer) Logout(ctx context.Context, who uuid.UUID) (dao.User,
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If no user with that username
-// exists, it will match ErrNotFound. If the error occured due to an unexpected
-// problem with the DB, it will match ErrDB. Finally, if there is an issue with
-// one of the arguments, it will match ErrBadArgument.
+// exists, it will match serr.ErrNotFound. If the error occured due to an
+// unexpected problem with the DB, it will match serr.ErrDB. Finally, if there
+// is an issue with one of the arguments, it will match serr.ErrBadArgument.
 func (tqs TunaQuestServer) DeleteUser(ctx context.Context, id string) (dao.User, error) {
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return dao.User{}, newError("ID is not valid", ErrBadArgument)
+		return dao.User{}, serr.New("ID is not valid", serr.ErrBadArgument)
 	}
 
 	user, err := tqs.db.Users().Delete(ctx, uuidID)
 	if err != nil {
-		if err == dao.ErrNotFound {
-			return dao.User{}, ErrNotFound
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, serr.ErrNotFound
 		}
-		return dao.User{}, newError("could not delete user", err, ErrDB)
+		return dao.User{}, serr.WrapDB("could not delete user", err)
 	}
 
 	return user, nil
@@ -193,21 +184,21 @@ func (tqs TunaQuestServer) DeleteUser(ctx context.Context, id string) (dao.User,
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If no user with that ID exists,
-// it will match ErrNotFound. If the error occured due to an unexpected problem
-// with the DB, it will match ErrDB. Finally, if there is an issue with one of
-// the arguments, it will match ErrBadArgument.
+// it will match serr.ErrNotFound. If the error occured due to an unexpected
+// problem with the DB, it will match serr.ErrDB. Finally, if there is an issue
+// with one of the arguments, it will match serr.ErrBadArgument.
 func (tqs TunaQuestServer) GetUser(ctx context.Context, id string) (dao.User, error) {
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return dao.User{}, newError("ID is not valid", ErrBadArgument)
+		return dao.User{}, serr.New("ID is not valid", serr.ErrBadArgument)
 	}
 
 	user, err := tqs.db.Users().GetByID(ctx, uuidID)
 	if err != nil {
-		if err == dao.ErrNotFound {
-			return dao.User{}, ErrNotFound
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, serr.ErrNotFound
 		}
-		return dao.User{}, newError("could not get user", err, ErrDB)
+		return dao.User{}, serr.WrapDB("could not get user", err)
 	}
 
 	return user, nil
@@ -217,7 +208,7 @@ func (tqs TunaQuestServer) GetUser(ctx context.Context, id string) (dao.User, er
 func (tqs TunaQuestServer) GetAllUsers(ctx context.Context) ([]dao.User, error) {
 	users, err := tqs.db.Users().GetAll(ctx)
 	if err != nil {
-		return nil, wrapDBError(err)
+		return nil, serr.WrapDB("", err)
 	}
 
 	return users, nil
@@ -228,32 +219,32 @@ func (tqs TunaQuestServer) GetAllUsers(ctx context.Context) ([]dao.User, error) 
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If no user with the given ID
-// exists, it will match ErrNotFound. If the error occured due to an unexpected
-// problem with the DB, it will match ErrDB. Finally, if one of the arguments is
-// invalid, it will match ErrBadArgument.
+// exists, it will match serr.ErrNotFound. If the error occured due to an
+// unexpected problem with the DB, it will match serr.ErrDB. Finally, if one of
+// the arguments is invalid, it will match serr.ErrBadArgument.
 func (tqs TunaQuestServer) UpdatePassword(ctx context.Context, id, password string) (dao.User, error) {
 	if password == "" {
-		return dao.User{}, newError("password cannot be empty", ErrBadArgument)
+		return dao.User{}, serr.New("password cannot be empty", serr.ErrBadArgument)
 	}
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return dao.User{}, newError("ID is not valid", ErrBadArgument)
+		return dao.User{}, serr.New("ID is not valid", serr.ErrBadArgument)
 	}
 
 	existing, err := tqs.db.Users().GetByID(ctx, uuidID)
 	if err != nil {
-		if err == dao.ErrNotFound {
-			return dao.User{}, newError("no user with that ID exists", ErrNotFound)
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, serr.New("no user with that ID exists", serr.ErrNotFound)
 		}
-		return dao.User{}, wrapDBError(err)
+		return dao.User{}, serr.WrapDB("", err)
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		if err == bcrypt.ErrPasswordTooLong {
-			return dao.User{}, newError("password is too long", err, ErrBadArgument)
+			return dao.User{}, serr.New("password is too long", err, serr.ErrBadArgument)
 		} else {
-			return dao.User{}, newError("password could not be encrypted", err)
+			return dao.User{}, serr.New("password could not be encrypted", err)
 		}
 	}
 
@@ -263,10 +254,10 @@ func (tqs TunaQuestServer) UpdatePassword(ctx context.Context, id, password stri
 
 	updated, err := tqs.db.Users().Update(ctx, uuidID, existing)
 	if err != nil {
-		if err == dao.ErrNotFound {
-			return dao.User{}, newError("no user with that ID exists", ErrNotFound)
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, serr.New("no user with that ID exists", serr.ErrNotFound)
 		}
-		return dao.User{}, newError("could not update user", err, ErrDB)
+		return dao.User{}, serr.WrapDB("could not update user", err)
 	}
 
 	return updated, nil
@@ -281,55 +272,56 @@ func (tqs TunaQuestServer) UpdatePassword(ctx context.Context, id, password stri
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If a user with that username or
-// ID (if they are changing) is already present, it will match ErrAlreadyExists.
-// If no user with the given ID exists, it will match ErrNotFound. If the error
-// occured due to an unexpected problem with the DB, it will match ErrDB.
-// Finally, if one of the arguments is invalid, it will match ErrBadArgument.
+// ID (if they are changing) is already present, it will match
+// serr.ErrAlreadyExists. If no user with the given ID exists, it will match
+// serr.ErrNotFound. If the error occured due to an unexpected problem with the
+// DB, it will match serr.ErrDB. Finally, if one of the arguments is invalid, it
+// will match serr.ErrBadArgument.
 func (tqs TunaQuestServer) UpdateUser(ctx context.Context, curID, newID, username, email string, role dao.Role) (dao.User, error) {
 	var err error
 
 	if username == "" {
-		return dao.User{}, newError("username cannot be blank", err, ErrBadArgument)
+		return dao.User{}, serr.New("username cannot be blank", err, serr.ErrBadArgument)
 	}
 
 	var storedEmail *mail.Address
 	if email != "" {
 		storedEmail, err = mail.ParseAddress(email)
 		if err != nil {
-			return dao.User{}, newError("email is not valid", err, ErrBadArgument)
+			return dao.User{}, serr.New("email is not valid", err, serr.ErrBadArgument)
 		}
 	}
 
 	uuidCurID, err := uuid.Parse(curID)
 	if err != nil {
-		return dao.User{}, newError("current ID is not valid", ErrBadArgument)
+		return dao.User{}, serr.New("current ID is not valid", serr.ErrBadArgument)
 	}
 	uuidNewID, err := uuid.Parse(newID)
 	if err != nil {
-		return dao.User{}, newError("new ID is not valid", ErrBadArgument)
+		return dao.User{}, serr.New("new ID is not valid", serr.ErrBadArgument)
 	}
 
 	daoUser, err := tqs.db.Users().GetByID(ctx, uuidCurID)
 	if err != nil {
-		if err == dao.ErrNotFound {
-			return dao.User{}, newError("user not found", ErrNotFound)
+		if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, serr.New("user not found", serr.ErrNotFound)
 		}
 	}
 
 	if curID != newID {
 		_, err := tqs.db.Users().GetByID(ctx, uuidNewID)
 		if err == nil {
-			return dao.User{}, newError("a user with that username already exists", ErrAlreadyExists)
-		} else if err != dao.ErrNotFound {
-			return dao.User{}, wrapDBError(err)
+			return dao.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
+		} else if !errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, serr.WrapDB("", err)
 		}
 	}
 	if daoUser.Username != username {
 		_, err := tqs.db.Users().GetByUsername(ctx, username)
 		if err == nil {
-			return dao.User{}, newError("a user with that username already exists", ErrAlreadyExists)
-		} else if err != dao.ErrNotFound {
-			return dao.User{}, wrapDBError(err)
+			return dao.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
+		} else if !errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, serr.WrapDB("", err)
 		}
 	}
 
@@ -340,12 +332,12 @@ func (tqs TunaQuestServer) UpdateUser(ctx context.Context, curID, newID, usernam
 
 	updatedUser, err := tqs.db.Users().Update(ctx, uuidCurID, daoUser)
 	if err != nil {
-		if err == dao.ErrConstraintViolation {
-			return dao.User{}, newError("a user with that ID/username already exists", ErrAlreadyExists)
-		} else if err == dao.ErrNotFound {
-			return dao.User{}, newError("user not found", ErrNotFound)
+		if errors.Is(err, dao.ErrConstraintViolation) {
+			return dao.User{}, serr.New("a user with that ID/username already exists", serr.ErrAlreadyExists)
+		} else if errors.Is(err, dao.ErrNotFound) {
+			return dao.User{}, serr.New("user not found", serr.ErrNotFound)
 		}
-		return dao.User{}, wrapDBError(err)
+		return dao.User{}, serr.WrapDB("", err)
 	}
 
 	return updatedUser, nil
@@ -356,39 +348,39 @@ func (tqs TunaQuestServer) UpdateUser(ctx context.Context, curID, newID, usernam
 //
 // The returned error, if non-nil, will return true for various calls to
 // errors.Is depending on what caused the error. If a user with that username is
-// already present, it will match ErrAlreadyExists. If the error occured due to
-// an unexpected problem with the DB, it will match ErrDB. Finally, if one of
-// the arguments is invalid, it will match ErrBadArgument.
+// already present, it will match serr.ErrAlreadyExists. If the error occured
+// due to an unexpected problem with the DB, it will match serr.ErrDB. Finally,
+// if one of the arguments is invalid, it will match serr.ErrBadArgument.
 func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password, email string, role dao.Role) (dao.User, error) {
 	var err error
 	if username == "" {
-		return dao.User{}, newError("username cannot be blank", err, ErrBadArgument)
+		return dao.User{}, serr.New("username cannot be blank", err, serr.ErrBadArgument)
 	}
 	if password == "" {
-		return dao.User{}, newError("password cannot be blank", err, ErrBadArgument)
+		return dao.User{}, serr.New("password cannot be blank", err, serr.ErrBadArgument)
 	}
 
 	var storedEmail *mail.Address
 	if email != "" {
 		storedEmail, err = mail.ParseAddress(email)
 		if err != nil {
-			return dao.User{}, newError("email is not valid", err, ErrBadArgument)
+			return dao.User{}, serr.New("email is not valid", err, serr.ErrBadArgument)
 		}
 	}
 
 	_, err = tqs.db.Users().GetByUsername(ctx, username)
 	if err == nil {
-		return dao.User{}, newError("a user with that username already exists", ErrAlreadyExists)
-	} else if err != dao.ErrNotFound {
-		return dao.User{}, wrapDBError(err)
+		return dao.User{}, serr.New("a user with that username already exists", serr.ErrAlreadyExists)
+	} else if !errors.Is(err, dao.ErrNotFound) {
+		return dao.User{}, serr.WrapDB("", err)
 	}
 
 	passHash, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	if err != nil {
 		if err == bcrypt.ErrPasswordTooLong {
-			return dao.User{}, newError("password is too long", err, ErrBadArgument)
+			return dao.User{}, serr.New("password is too long", err, serr.ErrBadArgument)
 		} else {
-			return dao.User{}, newError("password could not be encrypted", err)
+			return dao.User{}, serr.New("password could not be encrypted", err)
 		}
 	}
 
@@ -403,60 +395,11 @@ func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password, e
 
 	user, err := tqs.db.Users().Create(ctx, newUser)
 	if err != nil {
-		if err == dao.ErrConstraintViolation {
-			return dao.User{}, ErrAlreadyExists
+		if errors.Is(err, dao.ErrConstraintViolation) {
+			return dao.User{}, serr.ErrAlreadyExists
 		}
-		return dao.User{}, newError("could not create user", err, ErrDB)
+		return dao.User{}, serr.WrapDB("could not create user", err)
 	}
 
 	return user, nil
-}
-
-// Error is an error in the server.
-type Error struct {
-	msg   string
-	cause []error
-}
-
-func (e Error) Error() string {
-	if e.msg == "" && e.cause != nil {
-		return e.cause[0].Error()
-	}
-
-	if e.cause != nil {
-		return e.msg + ": " + e.cause[0].Error()
-	}
-
-	return e.msg
-}
-
-func (e Error) Unwrap() []error {
-	if len(e.cause) > 0 {
-		return e.cause
-	}
-	return nil
-}
-
-func (e Error) Is(target error) bool {
-	for i := range e.cause {
-		if e.cause[i] == target {
-			return true
-		}
-	}
-	return false
-}
-
-func wrapDBError(err error) Error {
-	return Error{
-		cause: []error{err, ErrDB},
-	}
-}
-
-func newError(msg string, causes ...error) Error {
-	err := Error{msg: msg}
-	if len(causes) > 0 {
-		err.cause = make([]error, len(causes))
-		copy(err.cause, causes)
-	}
-	return err
 }

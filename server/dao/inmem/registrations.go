@@ -86,7 +86,8 @@ func (imur *InMemoryRegistrationsRepository) Update(ctx context.Context, id uuid
 		return dao.Registration{}, dao.ErrNotFound
 	}
 
-	// check for conflicts
+	// check for conflicts on this table only
+	// (inmem does not support enforcement of foreign keys)
 	if reg.ID != id {
 		// that's okay but we need to check it
 		if _, ok := imur.regs[reg.ID]; ok {

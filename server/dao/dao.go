@@ -3,6 +3,7 @@ package dao
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/mail"
 	"strings"
@@ -10,6 +11,12 @@ import (
 
 	"github.com/dekarrin/tunaq/internal/game"
 	"github.com/google/uuid"
+)
+
+var (
+	ErrConstraintViolation = errors.New("a uniqueness constraint was violated")
+	ErrNotFound            = errors.New("the requested resource was not found")
+	ErrDecoding            = errors.New("field(s) could not be decoded from storage format to DAO model format")
 )
 
 // Store holds all the repositories.

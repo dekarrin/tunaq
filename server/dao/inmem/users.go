@@ -70,6 +70,8 @@ func (imur *InMemoryUsersRepository) Update(ctx context.Context, id uuid.UUID, u
 		return dao.User{}, dao.ErrNotFound
 	}
 
+	// check for conflicts on this table only
+	// (inmem does not support enforcement of foreign keys)
 	if user.Username != existing.Username {
 		// that's okay but we need to check it
 		if _, ok := imur.byUsernameIndex[user.Username]; ok {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
+	"github.com/dekarrin/tunaq/server/serr"
 	"github.com/google/uuid"
 )
 
@@ -32,8 +33,8 @@ func (tqs TunaQuestServer) doEndpoint_Login_POST(req *http.Request) endpointResu
 	user, err := tqs.Login(req.Context(), loginData.Username, loginData.Password)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)
-		if errors.Is(err, ErrBadCredentials) {
-			return jsonUnauthorized(ErrBadCredentials.Error(), "user '%s': %s", loginData.Username, err.Error())
+		if errors.Is(err, serr.ErrBadCredentials) {
+			return jsonUnauthorized(serr.ErrBadCredentials.Error(), "user '%s': %s", loginData.Username, err.Error())
 		} else {
 			return jsonInternalServerError(err.Error())
 		}
@@ -102,7 +103,7 @@ func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.
 
 	loggedOutUser, err := tqs.Logout(req.Context(), id)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, serr.ErrNotFound) {
 			return jsonNotFound()
 		}
 		return jsonInternalServerError("could not log out user: " + err.Error())
@@ -153,9 +154,9 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) endpointResu
 
 	newUser, err := tqs.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
 	if err != nil {
-		if errors.Is(err, ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jsonConflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-		} else if errors.Is(err, ErrBadArgument) {
+		} else if errors.Is(err, serr.ErrBadArgument) {
 			return jsonBadRequest(err.Error(), err.Error())
 		} else {
 			return jsonInternalServerError(err.Error())
@@ -244,9 +245,9 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 
 	userInfo, err := tqs.GetUser(req.Context(), id.String())
 	if err != nil {
-		if errors.Is(err, ErrBadArgument) {
+		if errors.Is(err, serr.ErrBadArgument) {
 			return jsonBadRequest(err.Error(), err.Error())
-		} else if errors.Is(err, ErrNotFound) {
+		} else if errors.Is(err, serr.ErrNotFound) {
 			return jsonNotFound()
 		}
 		return jsonInternalServerError("could not get user: " + err.Error())
@@ -308,7 +309,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 	var updateReq UserUpdateRequest
 	err = parseJSON(req, &updateReq)
 	if err != nil {
-		if errors.Is(err, ErrBodyUnmarshal) {
+		if errors.Is(err, serr.ErrBodyUnmarshal) {
 			// did they send a normal user?
 			var normalUser UserModel
 			err2 := parseJSON(req, &normalUser)
@@ -332,7 +333,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 
 	existing, err := tqs.GetUser(req.Context(), id.String())
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, serr.ErrNotFound) {
 			return jsonNotFound()
 		}
 		return jsonInternalServerError(err.Error())
@@ -362,16 +363,16 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 	// transactions on dao.
 	updated, err := tqs.UpdateUser(req.Context(), id.String(), newID, newUsername, newEmail, newRole)
 	if err != nil {
-		if errors.Is(err, ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jsonConflict(err.Error(), err.Error())
-		} else if errors.Is(err, ErrNotFound) {
+		} else if errors.Is(err, serr.ErrNotFound) {
 			return jsonNotFound()
 		}
 		return jsonInternalServerError(err.Error())
 	}
 	if updateReq.Password.Update {
 		updated, err = tqs.UpdatePassword(req.Context(), updated.ID.String(), updateReq.Password.Value)
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, serr.ErrNotFound) {
 			return jsonNotFound()
 		}
 		return jsonInternalServerError(err.Error())
@@ -436,9 +437,9 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUI
 
 	newUser, err := tqs.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
 	if err != nil {
-		if errors.Is(err, ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jsonConflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-		} else if errors.Is(err, ErrBadArgument) {
+		} else if errors.Is(err, serr.ErrBadArgument) {
 			return jsonBadRequest(err.Error(), err.Error())
 		}
 		return jsonInternalServerError(err.Error())
@@ -447,9 +448,9 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUI
 	// but also update it immediately to set its user ID
 	newUser, err = tqs.UpdateUser(req.Context(), newUser.ID.String(), createUser.ID, newUser.Username, newUser.Email.Address, newUser.Role)
 	if err != nil {
-		if errors.Is(err, ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jsonConflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-		} else if errors.Is(err, ErrBadArgument) {
+		} else if errors.Is(err, serr.ErrBadArgument) {
 			return jsonBadRequest(err.Error(), err.Error())
 		}
 		return jsonInternalServerError(err.Error())
@@ -498,8 +499,8 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.
 	}
 
 	deletedUser, err := tqs.DeleteUser(req.Context(), id.String())
-	if err != nil && !errors.Is(err, ErrNotFound) {
-		if errors.Is(err, ErrBadArgument) {
+	if err != nil && !errors.Is(err, serr.ErrNotFound) {
+		if errors.Is(err, serr.ErrBadArgument) {
 			return jsonBadRequest(err.Error(), err.Error())
 		}
 		return jsonInternalServerError("could not delete user: " + err.Error())
@@ -540,7 +541,7 @@ func parseJSON(req *http.Request, v interface{}) error {
 
 	err = json.Unmarshal(bodyData, v)
 	if err != nil {
-		return newError("malformed JSON in request", err, ErrBodyUnmarshal)
+		return serr.New("malformed JSON in request", err, serr.ErrBodyUnmarshal)
 	}
 
 	return nil

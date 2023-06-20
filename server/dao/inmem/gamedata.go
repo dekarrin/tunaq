@@ -41,6 +41,8 @@ func (imur *InMemoryGameDatasRepository) Update(ctx context.Context, id uuid.UUI
 		return dao.GameData{}, dao.ErrNotFound
 	}
 
+	// check for conflicts on this table only
+	// (inmem does not support enforcement of foreign keys)
 	if gd.ID != id {
 		// that's okay but we need to check it
 		if _, ok := imur.datas[gd.ID]; ok {
