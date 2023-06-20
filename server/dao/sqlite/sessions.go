@@ -123,7 +123,7 @@ func (repo *SessionsDB) GetAll(ctx context.Context) ([]dao.Session, error) {
 
 		stateData, err := base64.StdEncoding.DecodeString(encState)
 		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), stateData)
+			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), err)
 		}
 
 		n, err := rezi.DecBinary(stateData, s.State)
@@ -185,7 +185,7 @@ func (repo *SessionsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]d
 
 		stateData, err := base64.StdEncoding.DecodeString(encState)
 		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), stateData)
+			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), err)
 		}
 
 		n, err := rezi.DecBinary(stateData, s.State)
@@ -247,7 +247,7 @@ func (repo *SessionsDB) GetAllByGame(ctx context.Context, gameID uuid.UUID) ([]d
 
 		stateData, err := base64.StdEncoding.DecodeString(encState)
 		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), stateData)
+			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), err)
 		}
 
 		n, err := rezi.DecBinary(stateData, s.State)
@@ -334,7 +334,7 @@ func (repo *SessionsDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Session,
 
 	stateData, err := base64.StdEncoding.DecodeString(encState)
 	if err != nil {
-		return s, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), stateData)
+		return s, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), err)
 	}
 
 	n, err := rezi.DecBinary(stateData, s.State)
