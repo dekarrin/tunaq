@@ -13,23 +13,16 @@ import (
 )
 
 // Store holds all the repositories.
-type Store struct {
-	Users         UserRepository
-	Registrations RegistrationRepository
-	Commands      CommnadRepository
-	Games         GameRepository
-	Sessions      SessionRepository
+type Store interface {
+	Users() UserRepository
+	Registrations() RegistrationRepository
+	/*Commands() CommandRepository
+	Games() GameRepository
+	Sessions() SessionRepository*/
+	Close() error
 }
 
-func (s Store) Close() []error {
-	errs := []error{}
-
-	errs = append(errs, s.Users.Close())
-
-	return errs
-}
-
-type CommnadRepository interface {
+type CommandRepository interface {
 	Create(ctx context.Context, reg Command) (Command, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Command, error)
 	GetAll(ctx context.Context) ([]Command, error)

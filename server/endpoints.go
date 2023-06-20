@@ -89,7 +89,7 @@ func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.
 		time.Sleep(tqs.unauthedDelay)
 
 		var otherUserStr string
-		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		otherUser, err := tqs.db.Users().GetByID(req.Context(), id)
 		// if there was another user, find out now
 		if err != nil {
 			otherUserStr = fmt.Sprintf("%d", id)
@@ -225,7 +225,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 		time.Sleep(tqs.unauthedDelay)
 
 		var otherUserStr string
-		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		otherUser, err := tqs.db.Users().GetByID(req.Context(), id)
 		// if there was another user, find out now
 		if err != nil {
 			otherUserStr = fmt.Sprintf("%d", id)
@@ -285,7 +285,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 		time.Sleep(tqs.unauthedDelay)
 
 		var otherUserStr string
-		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		otherUser, err := tqs.db.Users().GetByID(req.Context(), id)
 		// if there was another user, find out now
 		if err != nil {
 			otherUserStr = fmt.Sprintf("%d", id)
@@ -471,7 +471,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.
 		time.Sleep(tqs.unauthedDelay)
 
 		var otherUserStr string
-		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		otherUser, err := tqs.db.Users().GetByID(req.Context(), id)
 		// if there was another user, find out now
 		if err != nil {
 			otherUserStr = fmt.Sprintf("%d", id)

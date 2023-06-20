@@ -19,23 +19,33 @@ func NewRegistrationsDBConn(file string) (*RegistrationsDB, error) {
 		return nil, err
 	}
 
-	// FKs not possible due to separate table files.
-	_, err = repo.db.Exec(`CREATE TABLE IF NOT EXISTS registrations (
-		id TEXT NOT NULL PRIMARY KEY,
-		user_id TEXT NOT NULL,
-		code TEXT NOT NULL,
-		created INTEGER NOT NULL,
-		expires INTEGER NOT NULL
-	);`)
-	if err != nil {
-		return nil, wrapDBError(err)
-	}
-
-	return repo, nil
+	return repo, repo.init(false)
 }
 
 type RegistrationsDB struct {
 	db *sql.DB
+}
+
+func (repo *RegistrationsDB) init(fk bool) error {
+	// FKs not possible due to separate table files.
+	stmt := `CREATE TABLE IF NOT EXISTS registrations (
+		id TEXT NOT NULL PRIMARY KEY,
+		user_id TEXT NOT NULL`
+
+	if fk {
+		stmt += ` REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE`
+	}
+
+	stmt += `,
+		code TEXT NOT NULL,
+		created INTEGER NOT NULL,
+		expires INTEGER NOT NULL
+	);`
+	_, err := repo.db.Exec(stmt)
+	if err != nil {
+		return wrapDBError(err)
+	}
+	return nil
 }
 
 func (repo *RegistrationsDB) Create(ctx context.Context, reg dao.Registration) (dao.Registration, error) {

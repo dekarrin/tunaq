@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/mail"
-	"path/filepath"
 	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
@@ -73,20 +72,14 @@ func New(tokenSecret []byte, dbPath string) (TunaQuestServer, error) {
 		unauthedDelay: time.Second,
 	}
 
+	var err error
 	if dbPath != "" {
-		fp := filepath.Join(dbPath, "users.sqlite")
-		dbUsers, err := sqlite.NewUsersDBConn(fp)
+		tqs.db, err = sqlite.NewDatastore(dbPath)
 		if err != nil {
 			return tqs, err
 		}
-
-		tqs.db = dao.Store{
-			Users: dbUsers,
-		}
 	} else {
-		tqs.db = dao.Store{
-			Users: inmem.NewUsersRepository(),
-		}
+		tqs.db = inmem.NewDatastore()
 	}
 
 	tqs.initHandlers()
@@ -120,7 +113,7 @@ func (tqs TunaQuestServer) ServeForever(address string, port int) {
 // the error occured due to an unexpected problem with the DB, it will match
 // ErrDB.
 func (tqs TunaQuestServer) Login(ctx context.Context, username string, password string) (dao.User, error) {
-	user, err := tqs.db.Users.GetByUsername(ctx, username)
+	user, err := tqs.db.Users().GetByUsername(ctx, username)
 	if err != nil {
 		if err == dao.ErrNotFound {
 			return dao.User{}, ErrBadCredentials
@@ -153,7 +146,7 @@ func (tqs TunaQuestServer) Login(ctx context.Context, username string, password 
 // will match ErrNotFound.  If the error occured due to an unexpected problem
 // with the DB, it will match ErrDB.
 func (tqs TunaQuestServer) Logout(ctx context.Context, who uuid.UUID) (dao.User, error) {
-	existing, err := tqs.db.Users.GetByID(ctx, who)
+	existing, err := tqs.db.Users().GetByID(ctx, who)
 	if err != nil {
 		if err == dao.ErrNotFound {
 			return dao.User{}, ErrNotFound
@@ -163,7 +156,7 @@ func (tqs TunaQuestServer) Logout(ctx context.Context, who uuid.UUID) (dao.User,
 
 	existing.LastLogoutTime = time.Now()
 
-	updated, err := tqs.db.Users.Update(ctx, existing.ID, existing)
+	updated, err := tqs.db.Users().Update(ctx, existing.ID, existing)
 	if err != nil {
 		return dao.User{}, newError("could not update user", err, ErrDB)
 	}
@@ -185,7 +178,7 @@ func (tqs TunaQuestServer) DeleteUser(ctx context.Context, id string) (dao.User,
 		return dao.User{}, newError("ID is not valid", ErrBadArgument)
 	}
 
-	user, err := tqs.db.Users.Delete(ctx, uuidID)
+	user, err := tqs.db.Users().Delete(ctx, uuidID)
 	if err != nil {
 		if err == dao.ErrNotFound {
 			return dao.User{}, ErrNotFound
@@ -209,7 +202,7 @@ func (tqs TunaQuestServer) GetUser(ctx context.Context, id string) (dao.User, er
 		return dao.User{}, newError("ID is not valid", ErrBadArgument)
 	}
 
-	user, err := tqs.db.Users.GetByID(ctx, uuidID)
+	user, err := tqs.db.Users().GetByID(ctx, uuidID)
 	if err != nil {
 		if err == dao.ErrNotFound {
 			return dao.User{}, ErrNotFound
@@ -222,7 +215,7 @@ func (tqs TunaQuestServer) GetUser(ctx context.Context, id string) (dao.User, er
 
 // GetAllUsers returns all users currently in persistence.
 func (tqs TunaQuestServer) GetAllUsers(ctx context.Context) ([]dao.User, error) {
-	users, err := tqs.db.Users.GetAll(ctx)
+	users, err := tqs.db.Users().GetAll(ctx)
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
@@ -247,7 +240,7 @@ func (tqs TunaQuestServer) UpdatePassword(ctx context.Context, id, password stri
 		return dao.User{}, newError("ID is not valid", ErrBadArgument)
 	}
 
-	existing, err := tqs.db.Users.GetByID(ctx, uuidID)
+	existing, err := tqs.db.Users().GetByID(ctx, uuidID)
 	if err != nil {
 		if err == dao.ErrNotFound {
 			return dao.User{}, newError("no user with that ID exists", ErrNotFound)
@@ -268,7 +261,7 @@ func (tqs TunaQuestServer) UpdatePassword(ctx context.Context, id, password stri
 
 	existing.Password = storedPass
 
-	updated, err := tqs.db.Users.Update(ctx, uuidID, existing)
+	updated, err := tqs.db.Users().Update(ctx, uuidID, existing)
 	if err != nil {
 		if err == dao.ErrNotFound {
 			return dao.User{}, newError("no user with that ID exists", ErrNotFound)
@@ -316,7 +309,7 @@ func (tqs TunaQuestServer) UpdateUser(ctx context.Context, curID, newID, usernam
 		return dao.User{}, newError("new ID is not valid", ErrBadArgument)
 	}
 
-	daoUser, err := tqs.db.Users.GetByID(ctx, uuidCurID)
+	daoUser, err := tqs.db.Users().GetByID(ctx, uuidCurID)
 	if err != nil {
 		if err == dao.ErrNotFound {
 			return dao.User{}, newError("user not found", ErrNotFound)
@@ -324,7 +317,7 @@ func (tqs TunaQuestServer) UpdateUser(ctx context.Context, curID, newID, usernam
 	}
 
 	if curID != newID {
-		_, err := tqs.db.Users.GetByID(ctx, uuidNewID)
+		_, err := tqs.db.Users().GetByID(ctx, uuidNewID)
 		if err == nil {
 			return dao.User{}, newError("a user with that username already exists", ErrAlreadyExists)
 		} else if err != dao.ErrNotFound {
@@ -332,7 +325,7 @@ func (tqs TunaQuestServer) UpdateUser(ctx context.Context, curID, newID, usernam
 		}
 	}
 	if daoUser.Username != username {
-		_, err := tqs.db.Users.GetByUsername(ctx, username)
+		_, err := tqs.db.Users().GetByUsername(ctx, username)
 		if err == nil {
 			return dao.User{}, newError("a user with that username already exists", ErrAlreadyExists)
 		} else if err != dao.ErrNotFound {
@@ -345,7 +338,7 @@ func (tqs TunaQuestServer) UpdateUser(ctx context.Context, curID, newID, usernam
 	daoUser.Username = username
 	daoUser.Role = role
 
-	updatedUser, err := tqs.db.Users.Update(ctx, uuidCurID, daoUser)
+	updatedUser, err := tqs.db.Users().Update(ctx, uuidCurID, daoUser)
 	if err != nil {
 		if err == dao.ErrConstraintViolation {
 			return dao.User{}, newError("a user with that ID/username already exists", ErrAlreadyExists)
@@ -383,7 +376,7 @@ func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password, e
 		}
 	}
 
-	_, err = tqs.db.Users.GetByUsername(ctx, username)
+	_, err = tqs.db.Users().GetByUsername(ctx, username)
 	if err == nil {
 		return dao.User{}, newError("a user with that username already exists", ErrAlreadyExists)
 	} else if err != dao.ErrNotFound {
@@ -408,7 +401,7 @@ func (tqs TunaQuestServer) CreateUser(ctx context.Context, username, password, e
 		Role:     role,
 	}
 
-	user, err := tqs.db.Users.Create(ctx, newUser)
+	user, err := tqs.db.Users().Create(ctx, newUser)
 	if err != nil {
 		if err == dao.ErrConstraintViolation {
 			return dao.User{}, ErrAlreadyExists

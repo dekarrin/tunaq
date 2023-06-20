@@ -20,7 +20,15 @@ func NewUsersDBConn(file string) (*UsersDB, error) {
 		return nil, err
 	}
 
-	_, err = repo.db.Exec(`CREATE TABLE IF NOT EXISTS users (
+	return repo, repo.init()
+}
+
+type UsersDB struct {
+	db *sql.DB
+}
+
+func (repo *UsersDB) init() error {
+	_, err := repo.db.Exec(`CREATE TABLE IF NOT EXISTS users (
 		id TEXT NOT NULL PRIMARY KEY,
 		username TEXT NOT NULL UNIQUE,
 		password TEXT NOT NULL,
@@ -29,14 +37,9 @@ func NewUsersDBConn(file string) (*UsersDB, error) {
 		last_logout_time INTEGER NOT NULL
 	);`)
 	if err != nil {
-		return nil, wrapDBError(err)
+		return wrapDBError(err)
 	}
-
-	return repo, nil
-}
-
-type UsersDB struct {
-	db *sql.DB
+	return nil
 }
 
 func (repo *UsersDB) Create(ctx context.Context, user dao.User) (dao.User, error) {
