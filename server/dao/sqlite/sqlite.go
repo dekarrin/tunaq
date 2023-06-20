@@ -115,9 +115,9 @@ func convertToDB_Role(r dao.Role) string {
 	return r.String()
 }
 
-// convertToDB_EmailPtr converts a *mail.Address to storage DB format. If the
+// convertToDB_Email converts a *mail.Address to storage DB format. If the
 // pointer is nil, it will return the zero value.
-func convertToDB_EmailPtr(email *mail.Address) string {
+func convertToDB_Email(email *mail.Address) string {
 	if email == nil {
 		return ""
 	}
@@ -154,13 +154,13 @@ func convertToDB_GameStatePtr(g *game.State) string {
 	return convertToDB_ByteSlice(stateData)
 }
 
-// convertFromDB_EmailPtr converts storage DB format value to a *mail.Address
+// convertFromDB_Email converts storage DB format value to a *mail.Address
 // and stores it at the address pointed to by target. If the zero value is
 // provided, target is set to a nil pointer. If there is a problem with the
 // decoding, the returned error will be of type serr.Error, and will wrap
 // dao.ErrDecodingFailure. If this function returns a non-nil error, target will
 // not have been modified.
-func convertFromDB_EmailPtr(s string, target **mail.Address) error {
+func convertFromDB_Email(s string, target **mail.Address) error {
 	if s == "" {
 		*target = nil
 		return nil

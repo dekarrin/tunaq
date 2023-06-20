@@ -59,9 +59,9 @@ func (repo *GameDatasDB) Create(ctx context.Context, gd dao.GameData) (dao.GameD
 
 func (repo *GameDatasDB) Update(ctx context.Context, id uuid.UUID, gd dao.GameData) (dao.GameData, error) {
 	res, err := repo.db.ExecContext(ctx, `UPDATE gamedata SET id=?, data=? WHERE id=?;`,
-		gd.ID.String(),
-		base64.StdEncoding.EncodeToString(gd.Data),
-		id.String(),
+		convertToDB_UUID(gd.ID),
+		convertToDB_ByteSlice(gd.Data),
+		convertToDB_UUID(id),
 	)
 	if err != nil {
 		return dao.GameData{}, wrapDBError(err)
@@ -84,7 +84,7 @@ func (repo *GameDatasDB) GetByID(ctx context.Context, id uuid.UUID) (dao.GameDat
 	var data string
 
 	row := repo.db.QueryRowContext(ctx, `SELECT data FROM gamedata WHERE id = ?;`,
-		id.String(),
+		convertToDB_UUID(id),
 	)
 	err := row.Scan(
 		&data,
@@ -94,10 +94,9 @@ func (repo *GameDatasDB) GetByID(ctx context.Context, id uuid.UUID) (dao.GameDat
 		return gd, wrapDBError(err)
 	}
 
-	gd.Data, err = base64.StdEncoding.DecodeString(data)
+	err = convertFromDB_ByteSlice(data, &gd.Data)
 	if err != nil {
-		return gd, fmt.Errorf("stored data %s is invalid: %w", gd.ID.String(), err)
-
+		return gd, fmt.Errorf("stored data for %s is invalid: %w", gd.ID.String(), err)
 	}
 
 	return gd, nil
@@ -109,7 +108,7 @@ func (repo *GameDatasDB) Delete(ctx context.Context, id uuid.UUID) (dao.GameData
 		return curVal, err
 	}
 
-	res, err := repo.db.ExecContext(ctx, `DELETE FROM gamedata WHERE id = ?`, id.String())
+	res, err := repo.db.ExecContext(ctx, `DELETE FROM gamedata WHERE id = ?`, convertToDB_UUID(id))
 	if err != nil {
 		return curVal, wrapDBError(err)
 	}

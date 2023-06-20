@@ -62,7 +62,7 @@ func (repo *UsersDB) Create(ctx context.Context, user dao.User) (dao.User, error
 		user.Username,
 		user.Password,
 		convertToDB_Role(user.Role),
-		convertToDB_EmailPtr(user.Email),
+		convertToDB_Email(user.Email),
 		convertToDB_Time(now),
 		convertToDB_Time(now),
 		convertToDB_Time(time.Time{}),
@@ -110,7 +110,7 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 		if err != nil {
 			return all, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 		}
-		err = convertFromDB_EmailPtr(email, &user.Email)
+		err = convertFromDB_Email(email, &user.Email)
 		if err != nil {
 			return all, fmt.Errorf("stored email %q is invalid: %w", email, err)
 		}
@@ -148,10 +148,10 @@ func (repo *UsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User) (d
 		user.Username,
 		user.Password,
 		convertToDB_Role(user.Role),
-		convertToDB_EmailPtr(user.Email),
+		convertToDB_Email(user.Email),
 		user.LastLogoutTime.Unix(),
 		user.LastLoginTime.Unix(),
-		id.String(),
+		convertToDB_UUID(id),
 	)
 	if err != nil {
 		return dao.User{}, wrapDBError(err)
@@ -199,7 +199,7 @@ func (repo *UsersDB) GetByUsername(ctx context.Context, username string) (dao.Us
 	if err != nil {
 		return user, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 	}
-	err = convertFromDB_EmailPtr(email, &user.Email)
+	err = convertFromDB_Email(email, &user.Email)
 	if err != nil {
 		return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
 	}
@@ -233,7 +233,7 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 	var created int64
 
 	row := repo.db.QueryRowContext(ctx, `SELECT username, password, role, email, created, last_logout_time, last_login_time FROM users WHERE id = ?;`,
-		id.String(),
+		convertToDB_UUID(id),
 	)
 	err := row.Scan(
 		&user.Username,
@@ -249,7 +249,7 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 		return user, wrapDBError(err)
 	}
 
-	err = convertFromDB_EmailPtr(email, &user.Email)
+	err = convertFromDB_Email(email, &user.Email)
 	if err != nil {
 		return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
 	}
@@ -279,7 +279,7 @@ func (repo *UsersDB) Delete(ctx context.Context, id uuid.UUID) (dao.User, error)
 		return curVal, err
 	}
 
-	res, err := repo.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id.String())
+	res, err := repo.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, convertToDB_UUID(id))
 	if err != nil {
 		return curVal, wrapDBError(err)
 	}

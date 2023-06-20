@@ -3,11 +3,9 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"encoding/base64"
 	"fmt"
 	"time"
 
-	"github.com/dekarrin/rezi"
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/google/uuid"
 )
@@ -68,9 +66,14 @@ func (repo *SessionsDB) Create(ctx context.Context, s dao.Session) (dao.Session,
 	}
 	now := time.Now()
 
-	stateData := rezi.EncBinary(s.State)
-	encState := base64.StdEncoding.EncodeToString(stateData)
-	_, err = stmt.ExecContext(ctx, newUUID.String(), s.UserID, s.GameID, encState, now.Unix())
+	_, err = stmt.ExecContext(
+		ctx,
+		convertToDB_UUID(newUUID),
+		convertToDB_UUID(s.UserID),
+		convertToDB_UUID(s.GameID),
+		convertToDB_GameStatePtr(s.State),
+		convertToDB_Time(now),
+	)
 	if err != nil {
 		return dao.Session{}, wrapDBError(err)
 	}
@@ -106,32 +109,25 @@ func (repo *SessionsDB) GetAll(ctx context.Context) ([]dao.Session, error) {
 			return nil, wrapDBError(err)
 		}
 
-		s.ID, err = uuid.Parse(id)
+		err = convertFromDB_UUID(id, &s.ID)
 		if err != nil {
 			return all, fmt.Errorf("stored ID %q is invalid: %w", id, err)
 		}
-		s.UserID, err = uuid.Parse(userID)
+		err = convertFromDB_UUID(userID, &s.UserID)
 		if err != nil {
 			return all, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
 		}
-		s.GameID, err = uuid.Parse(gameID)
+		err = convertFromDB_UUID(gameID, &s.GameID)
 		if err != nil {
 			return all, fmt.Errorf("stored game ID %q is invalid: %w", gameID, err)
 		}
-
-		s.Created = time.Unix(created, 0)
-
-		stateData, err := base64.StdEncoding.DecodeString(encState)
+		err = convertFromDB_Time(created, &s.Created)
 		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), err)
+			return all, fmt.Errorf("stored created time %q is invalid: %w", created, err)
 		}
-
-		n, err := rezi.DecBinary(stateData, s.State)
+		err = convertFromDB_GameStatePtr(encState, &s.State)
 		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: rezi decode: %w", s.ID.String(), err)
-		}
-		if n != len(stateData) {
-			return all, fmt.Errorf("stored game state for %s is invalid: decoded byte count mismatch; only consumed %d/%d bytes", s.ID.String(), n, len(stateData))
+			return all, fmt.Errorf("stored game state for %s is invalid: %w", s.ID.String(), err)
 		}
 
 		all = append(all, s)
@@ -145,7 +141,9 @@ func (repo *SessionsDB) GetAll(ctx context.Context) ([]dao.Session, error) {
 }
 
 func (repo *SessionsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.Session, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, game_id, state, created FROM sessions WHERE user_id=?;`)
+	rows, err := repo.db.QueryContext(ctx, `SELECT id, game_id, state, created FROM sessions WHERE user_id=?;`,
+		convertToDB_UUID(userID),
+	)
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
@@ -172,28 +170,21 @@ func (repo *SessionsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]d
 			return nil, wrapDBError(err)
 		}
 
-		s.ID, err = uuid.Parse(id)
+		err = convertFromDB_UUID(id, &s.ID)
 		if err != nil {
 			return all, fmt.Errorf("stored ID %q is invalid: %w", id, err)
 		}
-		s.GameID, err = uuid.Parse(gameID)
+		err = convertFromDB_UUID(gameID, &s.GameID)
 		if err != nil {
 			return all, fmt.Errorf("stored game ID %q is invalid: %w", gameID, err)
 		}
-
-		s.Created = time.Unix(created, 0)
-
-		stateData, err := base64.StdEncoding.DecodeString(encState)
+		err = convertFromDB_Time(created, &s.Created)
 		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), err)
+			return all, fmt.Errorf("stored created time %q is invalid: %w", created, err)
 		}
-
-		n, err := rezi.DecBinary(stateData, s.State)
+		err = convertFromDB_GameStatePtr(encState, &s.State)
 		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: rezi decode: %w", s.ID.String(), err)
-		}
-		if n != len(stateData) {
-			return all, fmt.Errorf("stored game state for %s is invalid: decoded byte count mismatch; only consumed %d/%d bytes", s.ID.String(), n, len(stateData))
+			return all, fmt.Errorf("stored game state for %s is invalid: %w", s.ID.String(), err)
 		}
 
 		all = append(all, s)
@@ -207,7 +198,9 @@ func (repo *SessionsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]d
 }
 
 func (repo *SessionsDB) GetAllByGame(ctx context.Context, gameID uuid.UUID) ([]dao.Session, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, user_id, state, created FROM sessions;`)
+	rows, err := repo.db.QueryContext(ctx, `SELECT id, user_id, state, created FROM sessions WHERE game_id=?;`,
+		convertToDB_UUID(gameID),
+	)
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
@@ -234,28 +227,21 @@ func (repo *SessionsDB) GetAllByGame(ctx context.Context, gameID uuid.UUID) ([]d
 			return nil, wrapDBError(err)
 		}
 
-		s.ID, err = uuid.Parse(id)
+		err = convertFromDB_UUID(id, &s.ID)
 		if err != nil {
 			return all, fmt.Errorf("stored ID %q is invalid: %w", id, err)
 		}
-		s.UserID, err = uuid.Parse(userID)
+		err = convertFromDB_UUID(userID, &s.UserID)
 		if err != nil {
 			return all, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
 		}
-
-		s.Created = time.Unix(created, 0)
-
-		stateData, err := base64.StdEncoding.DecodeString(encState)
+		err = convertFromDB_Time(created, &s.Created)
 		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), err)
+			return all, fmt.Errorf("stored created time %q is invalid: %w", created, err)
 		}
-
-		n, err := rezi.DecBinary(stateData, s.State)
+		err = convertFromDB_GameStatePtr(encState, &s.State)
 		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: rezi decode: %w", s.ID.String(), err)
-		}
-		if n != len(stateData) {
-			return all, fmt.Errorf("stored game state for %s is invalid: decoded byte count mismatch; only consumed %d/%d bytes", s.ID.String(), n, len(stateData))
+			return all, fmt.Errorf("stored game state for %s is invalid: %w", s.ID.String(), err)
 		}
 
 		all = append(all, s)
@@ -272,15 +258,12 @@ func (repo *SessionsDB) Update(ctx context.Context, id uuid.UUID, s dao.Session)
 	// TODO: check all to ensure that 'Created' remains a dao-enforced constant
 	// and that nothing is allowed to update it.
 
-	stateData := rezi.EncBinary(s.State)
-	encState := base64.StdEncoding.EncodeToString(stateData)
-
 	res, err := repo.db.ExecContext(ctx, `UPDATE sessions SET id=?, user_id=?, game_id=?, state=? WHERE id=?;`,
-		s.ID.String(),
-		s.UserID.String(),
-		s.GameID.String(),
-		encState,
-		id.String(),
+		convertToDB_UUID(s.ID),
+		convertToDB_UUID(s.UserID),
+		convertToDB_UUID(s.GameID),
+		convertToDB_GameStatePtr(s.State),
+		convertToDB_UUID(id),
 	)
 	if err != nil {
 		return dao.Session{}, wrapDBError(err)
@@ -306,7 +289,7 @@ func (repo *SessionsDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Session,
 	var created int64
 
 	row := repo.db.QueryRowContext(ctx, `SELECT user_id, game_id, state, created FROM sessions WHERE id = ?;`,
-		id.String(),
+		convertToDB_UUID(id),
 	)
 	err := row.Scan(
 		&userID,
@@ -319,30 +302,21 @@ func (repo *SessionsDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Session,
 		return s, wrapDBError(err)
 	}
 
-	// TODO: move these and all other 'stored X is invalid' errors to use serr
-	// API and specifically include cause ErrDecoding
-	s.UserID, err = uuid.Parse(userID)
+	err = convertFromDB_UUID(userID, &s.UserID)
 	if err != nil {
 		return s, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
 	}
-	s.GameID, err = uuid.Parse(gameID)
+	err = convertFromDB_UUID(gameID, &s.GameID)
 	if err != nil {
 		return s, fmt.Errorf("stored game ID %q is invalid: %w", gameID, err)
 	}
-
-	s.Created = time.Unix(created, 0)
-
-	stateData, err := base64.StdEncoding.DecodeString(encState)
+	err = convertFromDB_Time(created, &s.Created)
 	if err != nil {
-		return s, fmt.Errorf("stored game state for %s is invalid: base64 decode: %w", s.ID.String(), err)
+		return s, fmt.Errorf("stored created time %q is invalid: %w", created, err)
 	}
-
-	n, err := rezi.DecBinary(stateData, s.State)
+	err = convertFromDB_GameStatePtr(encState, &s.State)
 	if err != nil {
-		return s, fmt.Errorf("stored game state for %s is invalid: rezi decode: %w", s.ID.String(), err)
-	}
-	if n != len(stateData) {
-		return s, fmt.Errorf("stored game state for %s is invalid: decoded byte count mismatch; only consumed %d/%d bytes", s.ID.String(), n, len(stateData))
+		return s, fmt.Errorf("stored game state for %s is invalid: %w", s.ID.String(), err)
 	}
 
 	return s, nil
@@ -354,7 +328,7 @@ func (repo *SessionsDB) Delete(ctx context.Context, id uuid.UUID) (dao.Session, 
 		return curVal, err
 	}
 
-	res, err := repo.db.ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, id.String())
+	res, err := repo.db.ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, convertToDB_UUID(id))
 	if err != nil {
 		return curVal, wrapDBError(err)
 	}

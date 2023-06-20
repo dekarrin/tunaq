@@ -66,7 +66,19 @@ func (repo *GamesDB) Create(ctx context.Context, g dao.Game) (dao.Game, error) {
 
 	now := time.Now()
 
-	_, err = stmt.ExecContext(ctx, newUUID.String(), g.UserID, g.Name, g.Version, g.Description, g.Storage, g.LocalPath, g.LastLocalAccess.Unix(), now.Unix(), now.Unix())
+	_, err = stmt.ExecContext(
+		ctx,
+		convertToDB_UUID(newUUID),
+		convertToDB_UUID(g.UserID),
+		g.Name,
+		g.Version,
+		g.Description,
+		g.Storage,
+		g.LocalPath,
+		convertToDB_Time(g.LastLocalAccess),
+		convertToDB_Time(now),
+		convertToDB_Time(now),
+	)
 	if err != nil {
 		return dao.Game{}, wrapDBError(err)
 	}
@@ -107,17 +119,26 @@ func (repo *GamesDB) GetAll(ctx context.Context) ([]dao.Game, error) {
 			return nil, wrapDBError(err)
 		}
 
-		g.ID, err = uuid.Parse(id)
+		err = convertFromDB_UUID(id, &g.ID)
 		if err != nil {
-			return all, fmt.Errorf("stored UUID %q is invalid", id)
+			return all, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 		}
-		g.UserID, err = uuid.Parse(userID)
+		err = convertFromDB_UUID(userID, &g.UserID)
 		if err != nil {
 			return all, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
 		}
-		g.Created = time.Unix(created, 0)
-		g.Modified = time.Unix(modified, 0)
-		g.LastLocalAccess = time.Unix(lastLocal, 0)
+		err = convertFromDB_Time(created, &g.Created)
+		if err != nil {
+			return all, fmt.Errorf("stored created time %d is invalid: %w", created, err)
+		}
+		err = convertFromDB_Time(modified, &g.Modified)
+		if err != nil {
+			return all, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
+		}
+		err = convertFromDB_Time(lastLocal, &g.LastLocalAccess)
+		if err != nil {
+			return all, fmt.Errorf("stored last local access time %d is invalid: %w", lastLocal, err)
+		}
 
 		all = append(all, g)
 	}
@@ -130,8 +151,8 @@ func (repo *GamesDB) GetAll(ctx context.Context) ([]dao.Game, error) {
 }
 
 func (repo *GamesDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.Game, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, user_id, name, version, description, storage, local_path, last_local_access, created, modified FROM games WHERE user_id=?;`,
-		userID.String(),
+	rows, err := repo.db.QueryContext(ctx, `SELECT id, name, version, description, storage, local_path, last_local_access, created, modified FROM games WHERE user_id=?;`,
+		convertToDB_UUID(userID),
 	)
 	if err != nil {
 		return nil, wrapDBError(err)
@@ -141,15 +162,15 @@ func (repo *GamesDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.
 	var all []dao.Game
 
 	for rows.Next() {
-		var g dao.Game
+		g := dao.Game{
+			UserID: userID,
+		}
 		var id string
-		var userID string
 		var created int64
 		var modified int64
 		var lastLocal int64
 		err = rows.Scan(
 			&id,
-			&userID,
 			&g.Name,
 			&g.Version,
 			&g.Description,
@@ -164,17 +185,22 @@ func (repo *GamesDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.
 			return nil, wrapDBError(err)
 		}
 
-		g.ID, err = uuid.Parse(id)
+		err = convertFromDB_UUID(id, &g.ID)
 		if err != nil {
-			return all, fmt.Errorf("stored UUID %q is invalid", id)
+			return all, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 		}
-		g.UserID, err = uuid.Parse(userID)
+		err = convertFromDB_Time(created, &g.Created)
 		if err != nil {
-			return all, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
+			return all, fmt.Errorf("stored created time %d is invalid: %w", created, err)
 		}
-		g.Created = time.Unix(created, 0)
-		g.Modified = time.Unix(modified, 0)
-		g.LastLocalAccess = time.Unix(lastLocal, 0)
+		err = convertFromDB_Time(modified, &g.Modified)
+		if err != nil {
+			return all, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
+		}
+		err = convertFromDB_Time(lastLocal, &g.LastLocalAccess)
+		if err != nil {
+			return all, fmt.Errorf("stored last local access time %d is invalid: %w", lastLocal, err)
+		}
 
 		all = append(all, g)
 	}
@@ -188,17 +214,17 @@ func (repo *GamesDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.
 
 func (repo *GamesDB) Update(ctx context.Context, id uuid.UUID, g dao.Game) (dao.Game, error) {
 	res, err := repo.db.ExecContext(ctx, `UPDATE games SET id=?, user_id=?, name=?, version=?, description=?, storage=?, local_path=?, last_local_access=?, created=?, modified=? WHERE id=?;`,
-		g.ID.String(),
-		g.UserID.String(),
+		convertToDB_UUID(g.ID),
+		convertToDB_UUID(g.UserID),
 		g.Name,
 		g.Version,
 		g.Description,
 		g.Storage,
 		g.LocalPath,
-		g.LastLocalAccess.Unix(),
-		g.Created.Unix(),
-		time.Now().Unix(),
-		id.String(),
+		convertToDB_Time(g.LastLocalAccess),
+		convertToDB_Time(g.Created),
+		convertToDB_Time(time.Now()),
+		convertToDB_UUID(id),
 	)
 	if err != nil {
 		return dao.Game{}, wrapDBError(err)
@@ -224,7 +250,7 @@ func (repo *GamesDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Game, error
 	var lastLocal int64
 
 	row := repo.db.QueryRowContext(ctx, `SELECT user_id, name, version, description, storage, local_path, last_local_access, created, modified FROM games WHERE id = ?;`,
-		id.String(),
+		convertToDB_UUID(id),
 	)
 	err := row.Scan(
 		&userID,
@@ -242,13 +268,22 @@ func (repo *GamesDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Game, error
 		return g, wrapDBError(err)
 	}
 
-	g.UserID, err = uuid.Parse(userID)
+	err = convertFromDB_UUID(userID, &g.UserID)
 	if err != nil {
 		return g, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
 	}
-	g.Created = time.Unix(created, 0)
-	g.Modified = time.Unix(modified, 0)
-	g.LastLocalAccess = time.Unix(lastLocal, 0)
+	err = convertFromDB_Time(created, &g.Created)
+	if err != nil {
+		return g, fmt.Errorf("stored created time %d is invalid: %w", created, err)
+	}
+	err = convertFromDB_Time(modified, &g.Modified)
+	if err != nil {
+		return g, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
+	}
+	err = convertFromDB_Time(lastLocal, &g.LastLocalAccess)
+	if err != nil {
+		return g, fmt.Errorf("stored last local access time %d is invalid: %w", lastLocal, err)
+	}
 
 	return g, nil
 }
@@ -259,7 +294,7 @@ func (repo *GamesDB) Delete(ctx context.Context, id uuid.UUID) (dao.Game, error)
 		return curVal, err
 	}
 
-	res, err := repo.db.ExecContext(ctx, `DELETE FROM games WHERE id = ?`, id.String())
+	res, err := repo.db.ExecContext(ctx, `DELETE FROM games WHERE id = ?`, convertToDB_UUID(id))
 	if err != nil {
 		return curVal, wrapDBError(err)
 	}

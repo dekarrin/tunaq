@@ -59,11 +59,17 @@ func (repo *RegistrationsDB) Create(ctx context.Context, reg dao.Registration) (
 		return dao.Registration{}, wrapDBError(err)
 	}
 	now := time.Now()
-	expireTime := now.Add(time.Hour).Unix()
-	if !reg.Expires.IsZero() {
-		expireTime = reg.Expires.Unix()
+	if reg.Expires.IsZero() {
+		reg.Expires = now.Add(time.Hour)
 	}
-	_, err = stmt.ExecContext(ctx, newUUID.String(), reg.UserID, reg.Code, now.Unix(), expireTime)
+	_, err = stmt.ExecContext(
+		ctx,
+		convertToDB_UUID(newUUID),
+		convertToDB_UUID(reg.UserID),
+		reg.Code,
+		convertToDB_Time(now),
+		convertToDB_Time(reg.Expires),
+	)
 	if err != nil {
 		return dao.Registration{}, wrapDBError(err)
 	}
@@ -98,16 +104,22 @@ func (repo *RegistrationsDB) GetAll(ctx context.Context) ([]dao.Registration, er
 			return nil, wrapDBError(err)
 		}
 
-		reg.ID, err = uuid.Parse(id)
+		err = convertFromDB_UUID(id, &reg.ID)
 		if err != nil {
-			return all, fmt.Errorf("stored UUID %q is invalid", id)
+			return all, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 		}
-		reg.UserID, err = uuid.Parse(userID)
+		err = convertFromDB_UUID(userID, &reg.UserID)
 		if err != nil {
 			return all, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
 		}
-		reg.Created = time.Unix(created, 0)
-		reg.Expires = time.Unix(expires, 0)
+		err = convertFromDB_Time(created, &reg.Created)
+		if err != nil {
+			return all, fmt.Errorf("stored created time %d is invalid: %w", created, err)
+		}
+		err = convertFromDB_Time(expires, &reg.Expires)
+		if err != nil {
+			return all, fmt.Errorf("stored expiration time %d is invalid: %w", expires, err)
+		}
 
 		all = append(all, reg)
 	}
@@ -120,7 +132,9 @@ func (repo *RegistrationsDB) GetAll(ctx context.Context) ([]dao.Registration, er
 }
 
 func (repo *RegistrationsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.Registration, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, code, created, expires FROM registrations WHERE user_id=?;`, userID.String())
+	rows, err := repo.db.QueryContext(ctx, `SELECT id, code, created, expires FROM registrations WHERE user_id=?;`,
+		convertToDB_UUID(userID),
+	)
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
@@ -146,12 +160,18 @@ func (repo *RegistrationsDB) GetAllByUser(ctx context.Context, userID uuid.UUID)
 			return nil, wrapDBError(err)
 		}
 
-		reg.ID, err = uuid.Parse(id)
+		err = convertFromDB_UUID(id, &reg.ID)
 		if err != nil {
-			return all, fmt.Errorf("stored UUID %q is invalid", id)
+			return all, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 		}
-		reg.Created = time.Unix(created, 0)
-		reg.Expires = time.Unix(expires, 0)
+		err = convertFromDB_Time(created, &reg.Created)
+		if err != nil {
+			return all, fmt.Errorf("stored created time %d is invalid: %w", created, err)
+		}
+		err = convertFromDB_Time(expires, &reg.Expires)
+		if err != nil {
+			return all, fmt.Errorf("stored expiration time %d is invalid: %w", expires, err)
+		}
 
 		all = append(all, reg)
 	}
@@ -165,12 +185,12 @@ func (repo *RegistrationsDB) GetAllByUser(ctx context.Context, userID uuid.UUID)
 
 func (repo *RegistrationsDB) Update(ctx context.Context, id uuid.UUID, reg dao.Registration) (dao.Registration, error) {
 	res, err := repo.db.ExecContext(ctx, `UPDATE registrations SET id=?, user_id=?, code=?, created=?, expires=? WHERE id=?;`,
-		reg.ID.String(),
-		reg.UserID.String(),
+		convertToDB_UUID(reg.ID),
+		convertToDB_UUID(reg.UserID),
 		reg.Code,
-		reg.Created.Unix(),
-		reg.Expires.Unix(),
-		id.String(),
+		convertToDB_Time(reg.Created),
+		convertToDB_Time(reg.Expires),
+		convertToDB_UUID(id),
 	)
 	if err != nil {
 		return dao.Registration{}, wrapDBError(err)
@@ -195,7 +215,7 @@ func (repo *RegistrationsDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Reg
 	var expires int64
 
 	row := repo.db.QueryRowContext(ctx, `SELECT user_id, code, created, expires FROM registrations WHERE id = ?;`,
-		id.String(),
+		convertToDB_UUID(id),
 	)
 	err := row.Scan(
 		&userID,
@@ -208,12 +228,18 @@ func (repo *RegistrationsDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Reg
 		return reg, wrapDBError(err)
 	}
 
-	reg.UserID, err = uuid.Parse(userID)
+	err = convertFromDB_UUID(userID, &reg.UserID)
 	if err != nil {
 		return reg, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
 	}
-	reg.Created = time.Unix(created, 0)
-	reg.Expires = time.Unix(expires, 0)
+	err = convertFromDB_Time(created, &reg.Created)
+	if err != nil {
+		return reg, fmt.Errorf("stored created time %d is invalid: %w", created, err)
+	}
+	err = convertFromDB_Time(expires, &reg.Expires)
+	if err != nil {
+		return reg, fmt.Errorf("stored expiration time %d is invalid: %w", expires, err)
+	}
 
 	return reg, nil
 }
@@ -224,7 +250,7 @@ func (repo *RegistrationsDB) Delete(ctx context.Context, id uuid.UUID) (dao.Regi
 		return curVal, err
 	}
 
-	res, err := repo.db.ExecContext(ctx, `DELETE FROM registrations WHERE id = ?`, id.String())
+	res, err := repo.db.ExecContext(ctx, `DELETE FROM registrations WHERE id = ?`, convertToDB_UUID(id))
 	if err != nil {
 		return curVal, wrapDBError(err)
 	}
