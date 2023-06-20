@@ -3,14 +3,12 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"net/mail"
 	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/google/uuid"
-	"modernc.org/sqlite"
 )
 
 func NewUsersDBConn(file string) (*UsersDB, error) {
@@ -251,17 +249,4 @@ func (repo *UsersDB) Delete(ctx context.Context, id uuid.UUID) (dao.User, error)
 
 func (repo *UsersDB) Close() error {
 	return repo.db.Close()
-}
-
-func wrapDBError(err error) error {
-	sqliteErr := &sqlite.Error{}
-	if errors.As(err, &sqliteErr) {
-		if sqliteErr.Code() == 19 {
-			return dao.ErrConstraintViolation
-		}
-		return fmt.Errorf("%s", sqlite.ErrorCodeString[sqliteErr.Code()])
-	} else if errors.Is(err, sql.ErrNoRows) {
-		return dao.ErrNotFound
-	}
-	return err
 }
