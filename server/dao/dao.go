@@ -27,6 +27,7 @@ type CommandRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (Command, error)
 	GetAll(ctx context.Context) ([]Command, error)
 	GetAllByUser(ctx context.Context, userID uuid.UUID) ([]Command, error)
+	GetAllBySession(ctx context.Context, sessionID uuid.UUID) ([]Command, error)
 	GetAllByDateRange(ctx context.Context, notBefore, notAfter time.Time) ([]Command, error)
 	Update(ctx context.Context, id uuid.UUID, reg Command) (Command, error)
 	Delete(ctx context.Context, id uuid.UUID) (Command, error)
@@ -34,10 +35,10 @@ type CommandRepository interface {
 }
 
 type Command struct {
-	ID      uuid.UUID
-	UserID  uuid.UUID
-	Created time.Time
-	Command string
+	ID        uuid.UUID
+	SessionID uuid.UUID
+	Created   time.Time
+	Command   string
 }
 
 type GameRepository interface {
@@ -156,5 +157,6 @@ type User struct {
 	Password       string        // NOT NULL
 	Email          *mail.Address // NOT NULL
 	Role           Role          // NOT NULL
+	Created        time.Time     // NOT NULL
 	LastLogoutTime time.Time     // NOT NULL DEFAULT NOW()
 }

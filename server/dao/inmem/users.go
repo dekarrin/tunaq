@@ -40,6 +40,7 @@ func (imur *InMemoryUsersRepository) Create(ctx context.Context, user dao.User) 
 	}
 
 	user.LastLogoutTime = time.Now()
+	user.Created = time.Now()
 
 	imur.users[user.ID] = user
 	imur.byUsernameIndex[user.Username] = user.ID
