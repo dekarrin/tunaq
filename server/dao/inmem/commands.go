@@ -53,176 +53,145 @@ func (imur *InMemoryCommandsRepository) Create(ctx context.Context, c dao.Comman
 
 	imur.coms[c.ID] = c
 
-	userSeshes := imur.byUserIDIndex[s.UserID]
-	userSeshes = append(userSeshes, s.ID)
-	imur.byUserIDIndex[s.UserID] = userSeshes
+	seshComs := imur.bySeshIDIndex[c.SessionID]
+	seshComs = append(seshComs, c.ID)
+	imur.bySeshIDIndex[c.SessionID] = seshComs
 
-	gameSeshes := imur.byGameIDIndex[s.GameID]
-	gameSeshes = append(gameSeshes, s.ID)
-	imur.byGameIDIndex[s.GameID] = gameSeshes
-
-	return s, nil
+	return c, nil
 }
 
-func (imur *InMemorySessionsRepository) GetAll(ctx context.Context) ([]dao.Session, error) {
-	all := make([]dao.Session, len(imur.seshes))
+func (imur *InMemoryCommandsRepository) GetAll(ctx context.Context) ([]dao.Command, error) {
+	all := make([]dao.Command, len(imur.coms))
 
 	i := 0
-	for k := range imur.seshes {
-		all[i] = imur.seshes[k]
+	for k := range imur.coms {
+		all[i] = imur.coms[k]
 		i++
 	}
 
-	all = util.SortBy(all, func(l, r dao.Session) bool {
+	all = util.SortBy(all, func(l, r dao.Command) bool {
 		return l.ID.String() < r.ID.String()
 	})
 
 	return all, nil
 }
 
-func (imur *InMemorySessionsRepository) GetAllByUser(ctx context.Context, id uuid.UUID) ([]dao.Session, error) {
-	byUser := imur.byUserIDIndex[id]
-	if len(byUser) < 1 {
+func (imur *InMemoryCommandsRepository) GetAllByUser(ctx context.Context, id uuid.UUID) ([]dao.Command, error) {
+	if imur.seshRepo == nil {
+		return nil, nil
+	}
+
+	userSessions, err := imur.seshRepo.GetAllByUser(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	allCommands := []dao.Command{}
+	for _, sesh := range userSessions {
+		seshCommands, err := imur.GetAllBySession(ctx, sesh.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, com := range seshCommands {
+			allCommands = append(allCommands, com)
+		}
+	}
+
+	return allCommands, nil
+}
+
+func (imur *InMemoryCommandsRepository) GetAllBySession(ctx context.Context, id uuid.UUID) ([]dao.Command, error) {
+	bySesh := imur.bySeshIDIndex[id]
+	if len(bySesh) < 1 {
 		return nil, dao.ErrNotFound
 	}
 
-	all := make([]dao.Session, len(byUser))
+	all := make([]dao.Command, len(bySesh))
 
-	for i := range byUser {
-		all[i] = imur.seshes[byUser[i]]
+	for i := range bySesh {
+		all[i] = imur.coms[bySesh[i]]
 		i++
 	}
 
-	all = util.SortBy(all, func(l, r dao.Session) bool {
+	all = util.SortBy(all, func(l, r dao.Command) bool {
 		return l.ID.String() < r.ID.String()
 	})
 
 	return all, nil
 }
 
-func (imur *InMemorySessionsRepository) GetAllByGame(ctx context.Context, id uuid.UUID) ([]dao.Session, error) {
-	byGame := imur.byGameIDIndex[id]
-	if len(byGame) < 1 {
-		return nil, dao.ErrNotFound
-	}
-
-	all := make([]dao.Session, len(byGame))
-
-	for i := range byGame {
-		all[i] = imur.seshes[byGame[i]]
-		i++
-	}
-
-	all = util.SortBy(all, func(l, r dao.Session) bool {
-		return l.ID.String() < r.ID.String()
-	})
-
-	return all, nil
-}
-
-func (imur *InMemorySessionsRepository) Update(ctx context.Context, id uuid.UUID, s dao.Session) (dao.Session, error) {
-	existing, ok := imur.seshes[id]
+func (imur *InMemoryCommandsRepository) Update(ctx context.Context, id uuid.UUID, c dao.Command) (dao.Command, error) {
+	existing, ok := imur.coms[id]
 	if !ok {
-		return dao.Session{}, dao.ErrNotFound
+		return dao.Command{}, dao.ErrNotFound
 	}
 
 	// check for conflicts on this table only
 	// (inmem does not support enforcement of foreign keys)
-	if s.ID != id {
+	if c.ID != id {
 		// that's okay but we need to check it
-		if _, ok := imur.seshes[s.ID]; ok {
-			return dao.Session{}, dao.ErrConstraintViolation
+		if _, ok := imur.coms[c.ID]; ok {
+			return dao.Command{}, dao.ErrConstraintViolation
 		}
 	}
 
-	imur.seshes[s.ID] = s
-	if s.ID != id {
-		delete(imur.seshes, id)
+	imur.coms[c.ID] = c
+	if c.ID != id {
+		delete(imur.coms, id)
 
 		// also update it in the index slices if we are not about to remove it
-		if existing.UserID == s.UserID {
-			byUser := imur.byUserIDIndex[existing.UserID]
-			pos := util.SliceIndexOf(id, byUser)
+		if existing.SessionID == c.SessionID {
+			bySesh := imur.bySeshIDIndex[existing.SessionID]
+			pos := util.SliceIndexOf(id, bySesh)
 			if pos < 0 {
-				return dao.Session{}, fmt.Errorf("DB ASSERTION FAILURE: missing index entry for user %s to sesh %s", existing.UserID, existing.ID)
+				return dao.Command{}, fmt.Errorf("DB ASSERTION FAILURE: missing index entry for sesh %s to sesh %s", existing.SessionID, existing.ID)
 			}
-			byUser[pos] = s.ID
-			imur.byUserIDIndex[existing.UserID] = byUser
-		}
-		if existing.GameID == s.GameID {
-			byGame := imur.byGameIDIndex[existing.GameID]
-			pos := util.SliceIndexOf(id, byGame)
-			if pos < 0 {
-				return dao.Session{}, fmt.Errorf("DB ASSERTION FAILURE: missing index entry for game %s to sesh %s", existing.GameID, existing.ID)
-			}
-			byGame[pos] = s.ID
-			imur.byGameIDIndex[existing.GameID] = byGame
+			bySesh[pos] = c.ID
+			imur.bySeshIDIndex[existing.SessionID] = bySesh
 		}
 	}
 
-	if s.UserID != existing.UserID {
+	if c.SessionID != existing.SessionID {
 		// if we're modifying the user, we must remove it from old index
 		// entry and put it into another.
-		byUser := imur.byUserIDIndex[existing.UserID]
-		updated := util.SliceRemove(existing.ID, byUser)
-		imur.byUserIDIndex[existing.UserID] = updated
+		bySesh := imur.bySeshIDIndex[existing.SessionID]
+		updated := util.SliceRemove(existing.ID, bySesh)
+		imur.bySeshIDIndex[existing.SessionID] = updated
 		if len(updated) < 1 {
-			delete(imur.byUserIDIndex, existing.UserID)
+			delete(imur.bySeshIDIndex, existing.SessionID)
 		}
 
-		newByUser := imur.byUserIDIndex[s.UserID]
-		newByUser = append(newByUser, s.ID)
-		imur.byUserIDIndex[s.UserID] = newByUser
+		newBySesh := imur.bySeshIDIndex[c.SessionID]
+		newBySesh = append(newBySesh, c.ID)
+		imur.bySeshIDIndex[c.SessionID] = newBySesh
 	}
 
-	if s.GameID != existing.GameID {
-		// if we're modifying the game, we must remove it from old index
-		// entry and put it into another.
-		byGame := imur.byGameIDIndex[existing.GameID]
-		updated := util.SliceRemove(existing.ID, byGame)
-		imur.byGameIDIndex[existing.GameID] = updated
-		if len(updated) < 1 {
-			delete(imur.byGameIDIndex, existing.GameID)
-		}
-
-		newByGame := imur.byGameIDIndex[s.GameID]
-		newByGame = append(newByGame, s.ID)
-		imur.byGameIDIndex[s.GameID] = newByGame
-	}
-
-	return s, nil
+	return c, nil
 }
 
-func (imur *InMemorySessionsRepository) GetByID(ctx context.Context, id uuid.UUID) (dao.Session, error) {
-	s, ok := imur.seshes[id]
+func (imur *InMemoryCommandsRepository) GetByID(ctx context.Context, id uuid.UUID) (dao.Command, error) {
+	c, ok := imur.coms[id]
 	if !ok {
-		return dao.Session{}, dao.ErrNotFound
+		return dao.Command{}, dao.ErrNotFound
 	}
 
-	return s, nil
+	return c, nil
 }
 
-func (imur *InMemorySessionsRepository) Delete(ctx context.Context, id uuid.UUID) (dao.Session, error) {
-	s, ok := imur.seshes[id]
+func (imur *InMemoryCommandsRepository) Delete(ctx context.Context, id uuid.UUID) (dao.Command, error) {
+	c, ok := imur.coms[id]
 	if !ok {
-		return dao.Session{}, dao.ErrNotFound
+		return dao.Command{}, dao.ErrNotFound
 	}
 
-	byUser := imur.byUserIDIndex[s.UserID]
-	userUpdated := util.SliceRemove(s.ID, byUser)
-	imur.byUserIDIndex[s.UserID] = userUpdated
-	if len(userUpdated) < 1 {
-		delete(imur.byUserIDIndex, s.UserID)
+	bySesh := imur.bySeshIDIndex[c.SessionID]
+	updated := util.SliceRemove(c.ID, bySesh)
+	imur.bySeshIDIndex[c.SessionID] = updated
+	if len(updated) < 1 {
+		delete(imur.bySeshIDIndex, c.SessionID)
 	}
 
-	byGame := imur.byGameIDIndex[s.GameID]
-	gameUpdated := util.SliceRemove(s.ID, byGame)
-	imur.byGameIDIndex[s.GameID] = gameUpdated
-	if len(gameUpdated) < 1 {
-		delete(imur.byGameIDIndex, s.GameID)
-	}
+	delete(imur.coms, c.ID)
 
-	delete(imur.seshes, s.ID)
-
-	return s, nil
+	return c, nil
 }

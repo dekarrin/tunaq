@@ -36,7 +36,6 @@ type CommandRepository interface {
 	GetAll(ctx context.Context) ([]Command, error)
 	GetAllByUser(ctx context.Context, userID uuid.UUID) ([]Command, error)
 	GetAllBySession(ctx context.Context, sessionID uuid.UUID) ([]Command, error)
-	GetAllByDateRange(ctx context.Context, notBefore, notAfter time.Time) ([]Command, error)
 	Update(ctx context.Context, id uuid.UUID, reg Command) (Command, error)
 	Delete(ctx context.Context, id uuid.UUID) (Command, error)
 	Close() error
