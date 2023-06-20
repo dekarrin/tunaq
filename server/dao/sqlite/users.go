@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/mail"
 	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
@@ -55,12 +54,19 @@ func (repo *UsersDB) Create(ctx context.Context, user dao.User) (dao.User, error
 	if err != nil {
 		return dao.User{}, wrapDBError(err)
 	}
-	newEmail := ""
-	if user.Email != nil {
-		newEmail = user.Email.Address
-	}
+
 	now := time.Now()
-	_, err = stmt.ExecContext(ctx, newUUID.String(), user.Username, user.Password, user.Role.String(), newEmail, now.Unix(), now.Unix(), time.Time{})
+	_, err = stmt.ExecContext(
+		ctx,
+		convertToDB_UUID(newUUID),
+		user.Username,
+		user.Password,
+		convertToDB_Role(user.Role),
+		convertToDB_EmailPtr(user.Email),
+		convertToDB_Time(now),
+		convertToDB_Time(now),
+		convertToDB_Time(time.Time{}),
+	)
 	if err != nil {
 		return dao.User{}, wrapDBError(err)
 	}
@@ -100,20 +106,27 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 			return nil, wrapDBError(err)
 		}
 
-		user.ID, err = uuid.Parse(id)
+		err = convertFromDB_UUID(id, &user.ID)
 		if err != nil {
-			return all, fmt.Errorf("stored UUID %q is invalid", id)
+			return all, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 		}
-		if email != "" {
-			user.Email, err = mail.ParseAddress(email)
-			if err != nil {
-				return all, fmt.Errorf("stored email %q is invalid: %w", email, err)
-			}
+		err = convertFromDB_EmailPtr(email, &user.Email)
+		if err != nil {
+			return all, fmt.Errorf("stored email %q is invalid: %w", email, err)
 		}
-		user.LastLogoutTime = time.Unix(logoutTime, 0)
-		user.LastLoginTime = time.Unix(loginTime, 0)
-		user.Created = time.Unix(created, 0)
-		user.Role, err = dao.ParseRole(role)
+		err = convertFromDB_Time(logoutTime, &user.LastLogoutTime)
+		if err != nil {
+			return all, fmt.Errorf("stored last_logout_time %d is invalid: %w", logoutTime, err)
+		}
+		err = convertFromDB_Time(loginTime, &user.LastLoginTime)
+		if err != nil {
+			return all, fmt.Errorf("stored last_login_time %d is invalid: %w", loginTime, err)
+		}
+		err = convertFromDB_Time(created, &user.Created)
+		if err != nil {
+			return all, fmt.Errorf("stored created time %d is invalid: %w", created, err)
+		}
+		err = convertFromDB_Role(role, &user.Role)
 		if err != nil {
 			return all, fmt.Errorf("stored role %q is invalid: %w", role, err)
 		}
@@ -129,17 +142,13 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 }
 
 func (repo *UsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User) (dao.User, error) {
-	newEmail := ""
-	if user.Email != nil {
-		newEmail = user.Email.Address
-	}
 	// deliberately not updating created
 	res, err := repo.db.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=? WHERE id=?;`,
-		user.ID.String(),
+		convertToDB_UUID(user.ID),
 		user.Username,
 		user.Password,
-		user.Role.String(),
-		newEmail,
+		convertToDB_Role(user.Role),
+		convertToDB_EmailPtr(user.Email),
 		user.LastLogoutTime.Unix(),
 		user.LastLoginTime.Unix(),
 		id.String(),
@@ -186,24 +195,29 @@ func (repo *UsersDB) GetByUsername(ctx context.Context, username string) (dao.Us
 		return user, wrapDBError(err)
 	}
 
-	user.ID, err = uuid.Parse(id)
+	err = convertFromDB_UUID(id, &user.ID)
 	if err != nil {
-		return user, fmt.Errorf("stored UUID %q is invalid", id)
+		return user, fmt.Errorf("stored UUID %q is invalid: %w", id, err)
 	}
-
-	if email != "" {
-		user.Email, err = mail.ParseAddress(email)
-		if err != nil {
-			return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
-		}
+	err = convertFromDB_EmailPtr(email, &user.Email)
+	if err != nil {
+		return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
 	}
-	user.LastLogoutTime = time.Unix(logout, 0)
-	user.LastLoginTime = time.Unix(login, 0)
-	user.Created = time.Unix(created, 0)
-	user.Role, err = dao.ParseRole(role)
+	err = convertFromDB_Time(logout, &user.LastLogoutTime)
+	if err != nil {
+		return user, fmt.Errorf("stored last_logout_time %d is invalid: %w", logout, err)
+	}
+	err = convertFromDB_Time(login, &user.LastLoginTime)
+	if err != nil {
+		return user, fmt.Errorf("stored last_login_time %d is invalid: %w", login, err)
+	}
+	err = convertFromDB_Time(created, &user.Created)
+	if err != nil {
+		return user, fmt.Errorf("stored created time %d is invalid: %w", created, err)
+	}
+	err = convertFromDB_Role(role, &user.Role)
 	if err != nil {
 		return user, fmt.Errorf("stored role %q is invalid: %w", role, err)
-
 	}
 
 	return user, nil
@@ -235,19 +249,25 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 		return user, wrapDBError(err)
 	}
 
-	if email != "" {
-		user.Email, err = mail.ParseAddress(email)
-		if err != nil {
-			return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
-		}
+	err = convertFromDB_EmailPtr(email, &user.Email)
+	if err != nil {
+		return user, fmt.Errorf("stored email %q is invalid: %w", email, err)
 	}
-	user.LastLogoutTime = time.Unix(logout, 0)
-	user.LastLoginTime = time.Unix(login, 0)
-	user.Created = time.Unix(logout, 0)
-	user.Role, err = dao.ParseRole(role)
+	err = convertFromDB_Time(logout, &user.LastLogoutTime)
+	if err != nil {
+		return user, fmt.Errorf("stored last_logout_time %d is invalid: %w", logout, err)
+	}
+	err = convertFromDB_Time(login, &user.LastLoginTime)
+	if err != nil {
+		return user, fmt.Errorf("stored last_login_time %d is invalid: %w", login, err)
+	}
+	err = convertFromDB_Time(created, &user.Created)
+	if err != nil {
+		return user, fmt.Errorf("stored created time %d is invalid: %w", created, err)
+	}
+	err = convertFromDB_Role(role, &user.Role)
 	if err != nil {
 		return user, fmt.Errorf("stored role %q is invalid: %w", role, err)
-
 	}
 
 	return user, nil

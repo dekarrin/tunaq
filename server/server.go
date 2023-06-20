@@ -126,6 +126,13 @@ func (tqs TunaQuestServer) Login(ctx context.Context, username string, password 
 		return dao.User{}, serr.WrapDB("", err)
 	}
 
+	// successful login; update the DB
+	user.LastLoginTime = time.Now()
+	user, err = tqs.db.Users().Update(ctx, user.ID, user)
+	if err != nil {
+		return dao.User{}, serr.WrapDB("cannot update user login time", err)
+	}
+
 	return user, nil
 }
 

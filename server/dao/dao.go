@@ -16,7 +16,7 @@ import (
 var (
 	ErrConstraintViolation = errors.New("a uniqueness constraint was violated")
 	ErrNotFound            = errors.New("the requested resource was not found")
-	ErrDecoding            = errors.New("field(s) could not be decoded from storage format to DAO model format")
+	ErrDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")
 )
 
 // Store holds all the repositories.
