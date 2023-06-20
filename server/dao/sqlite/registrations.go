@@ -16,7 +16,7 @@ func NewRegistrationsDBConn(file string) (*RegistrationsDB, error) {
 	var err error
 	repo.db, err = sql.Open("sqlite", file)
 	if err != nil {
-		return nil, err
+		return nil, wrapDBError(err)
 	}
 
 	return repo, repo.init(false)
@@ -58,11 +58,12 @@ func (repo *RegistrationsDB) Create(ctx context.Context, reg dao.Registration) (
 	if err != nil {
 		return dao.Registration{}, wrapDBError(err)
 	}
-	expireTime := time.Now().Add(time.Hour).Unix()
+	now := time.Now()
+	expireTime := now.Add(time.Hour).Unix()
 	if !reg.Expires.IsZero() {
 		expireTime = reg.Expires.Unix()
 	}
-	_, err = stmt.ExecContext(ctx, newUUID.String(), reg.UserID, reg.Code, time.Now().Unix(), expireTime)
+	_, err = stmt.ExecContext(ctx, newUUID.String(), reg.UserID, reg.Code, now.Unix(), expireTime)
 	if err != nil {
 		return dao.Registration{}, wrapDBError(err)
 	}
@@ -118,7 +119,7 @@ func (repo *RegistrationsDB) GetAll(ctx context.Context) ([]dao.Registration, er
 	return all, nil
 }
 
-func (repo *RegistrationsDB) GetAllByUserID(ctx context.Context, userID uuid.UUID) ([]dao.Registration, error) {
+func (repo *RegistrationsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.Registration, error) {
 	rows, err := repo.db.QueryContext(ctx, `SELECT id, code, created, expires FROM registrations WHERE user_id=?;`, userID.String())
 	if err != nil {
 		return nil, wrapDBError(err)

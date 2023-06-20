@@ -17,7 +17,7 @@ func NewUsersDBConn(file string) (*UsersDB, error) {
 	var err error
 	repo.db, err = sql.Open("sqlite", file)
 	if err != nil {
-		return nil, err
+		return nil, wrapDBError(err)
 	}
 
 	return repo, repo.init()

@@ -41,20 +41,42 @@ type Command struct {
 	Command   string
 }
 
+type GameDataRepository interface {
+	Create(ctx context.Context, data GameData) (GameData, error)
+	GetByID(ctx context.Context, id uuid.UUID) (GameData, error)
+	Update(ctx context.Context, id uuid.UUID, data GameData) (GameData, error)
+	Delete(ctx context.Context, id uuid.UUID) (GameData, error)
+	Close() error
+}
+
+type GameData struct {
+	ID   uuid.UUID
+	Data []byte
+}
+
 type GameRepository interface {
 	Create(ctx context.Context, game Game) (Game, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Game, error)
 	GetAllByUser(ctx context.Context, userID uuid.UUID) ([]Game, error)
 	GetAll(ctx context.Context) ([]Game, error)
-	Update(ctx context.Context, id uuid.UUID, sesh Game) (Game, error)
+	Update(ctx context.Context, id uuid.UUID, game Game) (Game, error)
 	Delete(ctx context.Context, id uuid.UUID) (Game, error)
 	Close() error
 }
 
 type Game struct {
-	ID      uuid.UUID
-	UserID  uuid.UUID
-	Created time.Time
+	ID              uuid.UUID
+	UserID          uuid.UUID
+	Name            string
+	Version         string
+	Description     string
+	Created         time.Time
+	Modified        time.Time
+	LocalPath       string
+	LastLocalAccess time.Time
+
+	// Storage is the location where it is stored in long-term storage.
+	// will be in form sqlite/engine:local/server-ip:params
 	Storage string
 }
 
@@ -69,6 +91,8 @@ type SessionRepository interface {
 	Close() error
 }
 
+// these can also be in localstorage for unauthed users (but we will store up
+// to 5 per guest, to be nice)
 type Session struct {
 	ID      uuid.UUID
 	UserID  uuid.UUID
@@ -81,7 +105,7 @@ type RegistrationRepository interface {
 	Create(ctx context.Context, reg Registration) (Registration, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Registration, error)
 	GetAll(ctx context.Context) ([]Registration, error)
-	GetAllByUserID(ctx context.Context, userID uuid.UUID) ([]Registration, error)
+	GetAllByUser(ctx context.Context, userID uuid.UUID) ([]Registration, error)
 	Update(ctx context.Context, id uuid.UUID, reg Registration) (Registration, error)
 	Delete(ctx context.Context, id uuid.UUID) (Registration, error)
 	Close() error

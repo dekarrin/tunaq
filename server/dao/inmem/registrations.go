@@ -60,7 +60,7 @@ func (imur *InMemoryRegistrationsRepository) GetAll(ctx context.Context) ([]dao.
 	return all, nil
 }
 
-func (imur *InMemoryRegistrationsRepository) GetAllByUserID(ctx context.Context, id uuid.UUID) ([]dao.Registration, error) {
+func (imur *InMemoryRegistrationsRepository) GetAllByUser(ctx context.Context, id uuid.UUID) ([]dao.Registration, error) {
 	byUser := imur.byUserIDIndex[id]
 	if len(byUser) < 1 {
 		return nil, dao.ErrNotFound
