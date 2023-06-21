@@ -44,3 +44,10 @@ type UpdateString struct {
 	Update bool   `json:"u,omitempty"`
 	Value  string `json:"v,omitempty"`
 }
+
+type InfoModel struct {
+	Version struct {
+		Server    string `json:"server"`
+		TunaQuest string `json:"tunaquest"`
+	} `json:"version"`
+}
