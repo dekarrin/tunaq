@@ -39,7 +39,10 @@ func (imur *InMemoryUsersRepository) Create(ctx context.Context, user dao.User) 
 		return dao.User{}, dao.ErrConstraintViolation
 	}
 
-	user.LastLogoutTime = time.Now()
+	now := time.Now()
+	user.LastLogoutTime = now
+	user.Created = now
+	user.Modified = now
 
 	imur.users[user.ID] = user
 	imur.byUsernameIndex[user.Username] = user.ID
@@ -69,6 +72,8 @@ func (imur *InMemoryUsersRepository) Update(ctx context.Context, id uuid.UUID, u
 		return dao.User{}, dao.ErrNotFound
 	}
 
+	// check for conflicts on this table only
+	// (inmem does not support enforcement of foreign keys)
 	if user.Username != existing.Username {
 		// that's okay but we need to check it
 		if _, ok := imur.byUsernameIndex[user.Username]; ok {
@@ -76,11 +81,12 @@ func (imur *InMemoryUsersRepository) Update(ctx context.Context, id uuid.UUID, u
 		}
 	} else if user.ID != id {
 		// that's okay but we need to check it
-		if _, ok := imur.users[id]; ok {
+		if _, ok := imur.users[user.ID]; ok {
 			return dao.User{}, dao.ErrConstraintViolation
 		}
 	}
 
+	user.Modified = time.Now()
 	imur.users[user.ID] = user
 	imur.byUsernameIndex[user.Username] = user.ID
 	if user.ID != id {

@@ -32,7 +32,7 @@ func (tqs TunaQuestServer) requireJWT(ctx context.Context, req *http.Request) (d
 			return nil, fmt.Errorf("cannot parse subject UUID: %w", err)
 		}
 
-		user, err = tqs.db.Users.GetByID(ctx, id)
+		user, err = tqs.db.Users().GetByID(ctx, id)
 		if err != nil {
 			if err == dao.ErrNotFound {
 				return nil, fmt.Errorf("subject does not exist")

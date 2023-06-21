@@ -3,6 +3,7 @@ package dao
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/mail"
 	"strings"
@@ -12,38 +13,68 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	ErrConstraintViolation = errors.New("a uniqueness constraint was violated")
+	ErrNotFound            = errors.New("the requested resource was not found")
+	ErrDecodingFailure     = errors.New("field could not be decoded from DB storage format to model format")
+)
+
 // Store holds all the repositories.
-type Store struct {
-	Users         UserRepository
-	Registrations RegistrationRepository
-	Commands      CommnadRepository
-	Games         GameRepository
-	Sessions      SessionRepository
+type Store interface {
+	Users() UserRepository
+	Registrations() RegistrationRepository
+	Games() GameRepository
+	GameData() GameDataRepository
+	Commands() CommandRepository
+	Sessions() SessionRepository
+	Close() error
 }
 
-func (s Store) Close() []error {
-	errs := []error{}
-
-	errs = append(errs, s.Users.Close())
-
-	return errs
-}
-
-type CommnadRepository interface {
+type CommandRepository interface {
 	Create(ctx context.Context, reg Command) (Command, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Command, error)
-	GetAll(ctx context.Context) ([]Command, error)
-	GetAllByUser(ctx context.Context, userID uuid.UUID) ([]Command, error)
-	GetAllByDateRange(ctx context.Context, notBefore, notAfter time.Time) ([]Command, error)
+
+	// GetAll retrieves all Commands from persistence. If notBefore is non-nil,
+	// the commands are filtered such that only ones on or after that time are
+	// included. If notAfter is non-nil, the commands are filtered such that
+	// only ones on or before that time are included.
+	GetAll(ctx context.Context, notBefore *time.Time, notAfter *time.Time) ([]Command, error)
+
+	// GetAllByUser retrieves Commands for all sessions of a given user. If
+	// notBefore is non-nil, the commands are filtered such that only ones on or
+	// after that time are included. If notAfter is non-nil, the commands are
+	// filtered such that only ones on or before that time are included.
+	GetAllByUser(ctx context.Context, userID uuid.UUID, notBefore *time.Time, notAfter *time.Time) ([]Command, error)
+
+	// GetAllBySession retrieves all Commands for a given session from
+	// persistence. If notBefore is non-nil, the commands are filtered such that
+	// only ones on or after that time are included. If notAfter is non-nil, the
+	// commands are filtered such that only ones on or before that time are
+	// included.
+	GetAllBySession(ctx context.Context, sessionID uuid.UUID, notBefore *time.Time, notAfter *time.Time) ([]Command, error)
 	Update(ctx context.Context, id uuid.UUID, reg Command) (Command, error)
 	Delete(ctx context.Context, id uuid.UUID) (Command, error)
+	Close() error
 }
 
 type Command struct {
-	ID      uuid.UUID
-	UserID  uuid.UUID
-	Created time.Time
-	Command string
+	ID        uuid.UUID
+	SessionID uuid.UUID
+	Created   time.Time
+	Command   string
+}
+
+type GameDataRepository interface {
+	Create(ctx context.Context, data GameData) (GameData, error)
+	GetByID(ctx context.Context, id uuid.UUID) (GameData, error)
+	Update(ctx context.Context, id uuid.UUID, data GameData) (GameData, error)
+	Delete(ctx context.Context, id uuid.UUID) (GameData, error)
+	Close() error
+}
+
+type GameData struct {
+	ID   uuid.UUID
+	Data []byte
 }
 
 type GameRepository interface {
@@ -51,14 +82,24 @@ type GameRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (Game, error)
 	GetAllByUser(ctx context.Context, userID uuid.UUID) ([]Game, error)
 	GetAll(ctx context.Context) ([]Game, error)
-	Update(ctx context.Context, id uuid.UUID, sesh Game) (Game, error)
+	Update(ctx context.Context, id uuid.UUID, game Game) (Game, error)
 	Delete(ctx context.Context, id uuid.UUID) (Game, error)
+	Close() error
 }
 
 type Game struct {
-	ID      uuid.UUID
-	UserID  uuid.UUID
-	Created time.Time
+	ID              uuid.UUID
+	UserID          uuid.UUID
+	Name            string
+	Version         string
+	Description     string
+	Created         time.Time
+	Modified        time.Time
+	LocalPath       string
+	LastLocalAccess time.Time
+
+	// Storage is the location where it is stored in long-term storage.
+	// will be in form sqlite/engine:local/server-ip:params
 	Storage string
 }
 
@@ -70,8 +111,11 @@ type SessionRepository interface {
 	GetAll(ctx context.Context) ([]Session, error)
 	Update(ctx context.Context, id uuid.UUID, sesh Session) (Session, error)
 	Delete(ctx context.Context, id uuid.UUID) (Session, error)
+	Close() error
 }
 
+// these can also be in localstorage for unauthed users (but we will store up
+// to 5 per guest, to be nice)
 type Session struct {
 	ID      uuid.UUID
 	UserID  uuid.UUID
@@ -83,18 +127,19 @@ type Session struct {
 type RegistrationRepository interface {
 	Create(ctx context.Context, reg Registration) (Registration, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Registration, error)
-	GetByUserID(ctx context.Context, userID uuid.UUID) (Registration, error)
 	GetAll(ctx context.Context) ([]Registration, error)
+	GetAllByUser(ctx context.Context, userID uuid.UUID) ([]Registration, error)
 	Update(ctx context.Context, id uuid.UUID, reg Registration) (Registration, error)
 	Delete(ctx context.Context, id uuid.UUID) (Registration, error)
+	Close() error
 }
 
 type Registration struct {
-	ID      uuid.UUID
-	UserID  uuid.UUID
-	Code    []byte
-	Created time.Time
-	Expires time.Time
+	ID      uuid.UUID // PK, NOT NULL
+	UserID  uuid.UUID // FK (Many-to-One User.ID), NOT NULL
+	Code    string    // NOT NULL
+	Created time.Time // NOT NULL DEFAULT NOW()
+	Expires time.Time // NOT NULL
 }
 
 type UserRepository interface {
@@ -154,10 +199,13 @@ func ParseRole(s string) (Role, error) {
 }
 
 type User struct {
-	ID             uuid.UUID
-	Username       string
-	Password       string
-	Email          *mail.Address
-	Role           Role
-	LastLogoutTime time.Time
+	ID             uuid.UUID     // PK, NOT NULL
+	Username       string        // UNIQUE, NOT NULL
+	Password       string        // NOT NULL
+	Email          *mail.Address // NOT NULL
+	Role           Role          // NOT NULL
+	Created        time.Time     // NOT NULL
+	Modified       time.Time
+	LastLogoutTime time.Time // NOT NULL DEFAULT NOW()
+	LastLoginTime  time.Time // NOT NULL
 }

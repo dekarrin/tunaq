@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
+	"github.com/dekarrin/tunaq/server/serr"
 	"github.com/google/uuid"
 )
 
@@ -31,8 +33,8 @@ func (tqs TunaQuestServer) doEndpoint_Login_POST(req *http.Request) endpointResu
 	user, err := tqs.Login(req.Context(), loginData.Username, loginData.Password)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)
-		if errors.Is(err, ErrBadCredentials) {
-			return jsonUnauthorized(ErrBadCredentials.Error(), "user '%s': %s", loginData.Username, err.Error())
+		if errors.Is(err, serr.ErrBadCredentials) {
+			return jsonUnauthorized(serr.ErrBadCredentials.Error(), "user '%s': %s", loginData.Username, err.Error())
 		} else {
 			return jsonInternalServerError(err.Error())
 		}
@@ -88,7 +90,7 @@ func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.
 		time.Sleep(tqs.unauthedDelay)
 
 		var otherUserStr string
-		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		otherUser, err := tqs.db.Users().GetByID(req.Context(), id)
 		// if there was another user, find out now
 		if err != nil {
 			otherUserStr = fmt.Sprintf("%d", id)
@@ -101,7 +103,7 @@ func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.
 
 	loggedOutUser, err := tqs.Logout(req.Context(), id)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, serr.ErrNotFound) {
 			return jsonNotFound()
 		}
 		return jsonInternalServerError("could not log out user: " + err.Error())
@@ -152,9 +154,9 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) endpointResu
 
 	newUser, err := tqs.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
 	if err != nil {
-		if errors.Is(err, ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jsonConflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-		} else if errors.Is(err, ErrBadArgument) {
+		} else if errors.Is(err, serr.ErrBadArgument) {
 			return jsonBadRequest(err.Error(), err.Error())
 		} else {
 			return jsonInternalServerError(err.Error())
@@ -162,10 +164,14 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) endpointResu
 	}
 
 	resp := UserModel{
-		URI:      "/users/" + newUser.ID.String(),
-		ID:       newUser.ID.String(),
-		Username: newUser.Username,
-		Role:     newUser.Role.String(),
+		URI:            "/users/" + newUser.ID.String(),
+		ID:             newUser.ID.String(),
+		Username:       newUser.Username,
+		Role:           newUser.Role.String(),
+		Created:        newUser.Created.Format(time.RFC3339),
+		Modified:       newUser.Modified.Format(time.RFC3339),
+		LastLogoutTime: newUser.LastLogoutTime.Format(time.RFC3339),
+		LastLoginTime:  newUser.LastLoginTime.Format(time.RFC3339),
 	}
 
 	if newUser.Email != nil {
@@ -197,10 +203,14 @@ func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) endpointResul
 
 	for i := range users {
 		resp[i] = UserModel{
-			URI:      "/users/" + users[i].ID.String(),
-			ID:       users[i].ID.String(),
-			Username: users[i].Username,
-			Role:     users[i].Role.String(),
+			URI:            "/users/" + users[i].ID.String(),
+			ID:             users[i].ID.String(),
+			Username:       users[i].Username,
+			Role:           users[i].Role.String(),
+			Created:        users[i].Created.Format(time.RFC3339),
+			Modified:       users[i].Modified.Format(time.RFC3339),
+			LastLogoutTime: users[i].LastLogoutTime.Format(time.RFC3339),
+			LastLoginTime:  users[i].LastLoginTime.Format(time.RFC3339),
 		}
 		if users[i].Email != nil {
 			resp[i].Email = users[i].Email.Address
@@ -224,7 +234,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 		time.Sleep(tqs.unauthedDelay)
 
 		var otherUserStr string
-		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		otherUser, err := tqs.db.Users().GetByID(req.Context(), id)
 		// if there was another user, find out now
 		if err != nil {
 			otherUserStr = fmt.Sprintf("%d", id)
@@ -237,9 +247,9 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 
 	userInfo, err := tqs.GetUser(req.Context(), id.String())
 	if err != nil {
-		if errors.Is(err, ErrBadArgument) {
+		if errors.Is(err, serr.ErrBadArgument) {
 			return jsonBadRequest(err.Error(), err.Error())
-		} else if errors.Is(err, ErrNotFound) {
+		} else if errors.Is(err, serr.ErrNotFound) {
 			return jsonNotFound()
 		}
 		return jsonInternalServerError("could not get user: " + err.Error())
@@ -247,10 +257,14 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 
 	// put it into a model to return
 	resp := UserModel{
-		URI:      "/users/" + userInfo.ID.String(),
-		ID:       userInfo.ID.String(),
-		Username: userInfo.Username,
-		Role:     userInfo.Role.String(),
+		URI:            "/users/" + userInfo.ID.String(),
+		ID:             userInfo.ID.String(),
+		Username:       userInfo.Username,
+		Role:           userInfo.Role.String(),
+		Created:        userInfo.Created.Format(time.RFC3339),
+		Modified:       userInfo.Modified.Format(time.RFC3339),
+		LastLogoutTime: userInfo.LastLogoutTime.Format(time.RFC3339),
+		LastLoginTime:  userInfo.LastLoginTime.Format(time.RFC3339),
 	}
 	if userInfo.Email != nil {
 		resp.Email = userInfo.Email.Address
@@ -284,7 +298,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 		time.Sleep(tqs.unauthedDelay)
 
 		var otherUserStr string
-		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		otherUser, err := tqs.db.Users().GetByID(req.Context(), id)
 		// if there was another user, find out now
 		if err != nil {
 			otherUserStr = fmt.Sprintf("%d", id)
@@ -298,6 +312,15 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 	var updateReq UserUpdateRequest
 	err = parseJSON(req, &updateReq)
 	if err != nil {
+		if errors.Is(err, serr.ErrBodyUnmarshal) {
+			// did they send a normal user?
+			var normalUser UserModel
+			err2 := parseJSON(req, &normalUser)
+			if err2 == nil {
+				return jsonBadRequest("updated fields must be objects with keys {'u': true, 'v': NEW_VALUE}", "request is UserModel, not UserUpdateRequest")
+			}
+		}
+
 		return jsonBadRequest(err.Error(), err.Error())
 	}
 
@@ -313,7 +336,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 
 	existing, err := tqs.GetUser(req.Context(), id.String())
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, serr.ErrNotFound) {
 			return jsonNotFound()
 		}
 		return jsonInternalServerError(err.Error())
@@ -343,26 +366,30 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 	// transactions on dao.
 	updated, err := tqs.UpdateUser(req.Context(), id.String(), newID, newUsername, newEmail, newRole)
 	if err != nil {
-		if errors.Is(err, ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jsonConflict(err.Error(), err.Error())
-		} else if errors.Is(err, ErrNotFound) {
+		} else if errors.Is(err, serr.ErrNotFound) {
 			return jsonNotFound()
 		}
 		return jsonInternalServerError(err.Error())
 	}
 	if updateReq.Password.Update {
 		updated, err = tqs.UpdatePassword(req.Context(), updated.ID.String(), updateReq.Password.Value)
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, serr.ErrNotFound) {
 			return jsonNotFound()
 		}
 		return jsonInternalServerError(err.Error())
 	}
 
 	resp := UserModel{
-		URI:      "/users/" + updated.ID.String(),
-		ID:       updated.ID.String(),
-		Username: updated.Username,
-		Role:     updated.Role.String(),
+		URI:            "/users/" + updated.ID.String(),
+		ID:             updated.ID.String(),
+		Username:       updated.Username,
+		Role:           updated.Role.String(),
+		Created:        updated.Created.Format(time.RFC3339),
+		Modified:       updated.Modified.Format(time.RFC3339),
+		LastLogoutTime: updated.LastLogoutTime.Format(time.RFC3339),
+		LastLoginTime:  updated.LastLoginTime.Format(time.RFC3339),
 	}
 
 	if updated.Email != nil {
@@ -414,9 +441,9 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUI
 
 	newUser, err := tqs.CreateUser(req.Context(), createUser.Username, createUser.Password, createUser.Email, role)
 	if err != nil {
-		if errors.Is(err, ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jsonConflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-		} else if errors.Is(err, ErrBadArgument) {
+		} else if errors.Is(err, serr.ErrBadArgument) {
 			return jsonBadRequest(err.Error(), err.Error())
 		}
 		return jsonInternalServerError(err.Error())
@@ -425,19 +452,23 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUI
 	// but also update it immediately to set its user ID
 	newUser, err = tqs.UpdateUser(req.Context(), newUser.ID.String(), createUser.ID, newUser.Username, newUser.Email.Address, newUser.Role)
 	if err != nil {
-		if errors.Is(err, ErrAlreadyExists) {
+		if errors.Is(err, serr.ErrAlreadyExists) {
 			return jsonConflict("User with that username already exists", "user '%s' already exists", createUser.Username)
-		} else if errors.Is(err, ErrBadArgument) {
+		} else if errors.Is(err, serr.ErrBadArgument) {
 			return jsonBadRequest(err.Error(), err.Error())
 		}
 		return jsonInternalServerError(err.Error())
 	}
 
 	resp := UserModel{
-		URI:      "/users/" + newUser.ID.String(),
-		ID:       newUser.ID.String(),
-		Username: newUser.Username,
-		Role:     newUser.Role.String(),
+		URI:            "/users/" + newUser.ID.String(),
+		ID:             newUser.ID.String(),
+		Username:       newUser.Username,
+		Role:           newUser.Role.String(),
+		Created:        newUser.Created.Format(time.RFC3339),
+		Modified:       newUser.Modified.Format(time.RFC3339),
+		LastLogoutTime: newUser.LastLogoutTime.Format(time.RFC3339),
+		LastLoginTime:  newUser.LastLoginTime.Format(time.RFC3339),
 	}
 
 	if newUser.Email != nil {
@@ -461,7 +492,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.
 		time.Sleep(tqs.unauthedDelay)
 
 		var otherUserStr string
-		otherUser, err := tqs.db.Users.GetByID(req.Context(), id)
+		otherUser, err := tqs.db.Users().GetByID(req.Context(), id)
 		// if there was another user, find out now
 		if err != nil {
 			otherUserStr = fmt.Sprintf("%d", id)
@@ -473,8 +504,8 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.
 	}
 
 	deletedUser, err := tqs.DeleteUser(req.Context(), id.String())
-	if err != nil && !errors.Is(err, ErrNotFound) {
-		if errors.Is(err, ErrBadArgument) {
+	if err != nil && !errors.Is(err, serr.ErrNotFound) {
+		if errors.Is(err, serr.ErrBadArgument) {
 			return jsonBadRequest(err.Error(), err.Error())
 		}
 		return jsonInternalServerError("could not delete user: " + err.Error())
@@ -494,7 +525,9 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.
 	return jsonNoContent("user '%s' successfully deleted %s", user.Username, otherStr)
 }
 
-// v must be a pointer to a type.
+// v must be a pointer to a type. Will return error such that
+// errors.Is(err, ErrMalformedBody) returns true if it is problem decoding the
+// JSON itself.
 func parseJSON(req *http.Request, v interface{}) error {
 	contentType := req.Header.Get("Content-Type")
 
@@ -506,10 +539,14 @@ func parseJSON(req *http.Request, v interface{}) error {
 	if err != nil {
 		return fmt.Errorf("could not read request body: %w", err)
 	}
+	defer func() {
+		req.Body.Close()
+		req.Body = io.NopCloser(bytes.NewBuffer(bodyData))
+	}()
 
 	err = json.Unmarshal(bodyData, v)
 	if err != nil {
-		return fmt.Errorf("malformed JSON in request")
+		return serr.New("malformed JSON in request", err, serr.ErrBodyUnmarshal)
 	}
 
 	return nil

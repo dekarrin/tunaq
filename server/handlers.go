@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -49,6 +50,7 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 		case http.MethodPost:
 			result = tqs.doEndpoint_Login_POST(req)
 		default:
+			time.Sleep(tqs.unauthedDelay)
 			result = jsonMethodNotAllowed(req)
 		}
 	} else {
@@ -72,6 +74,7 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 		case http.MethodDelete:
 			result = tqs.doEndpoint_LoginID_DELETE(req, id)
 		default:
+			time.Sleep(tqs.unauthedDelay)
 			result = jsonMethodNotAllowed(req)
 		}
 	}
@@ -95,6 +98,7 @@ func (tqs TunaQuestServer) handlePathToken(w http.ResponseWriter, req *http.Requ
 		case http.MethodPost:
 			result = tqs.doEndpoint_Tokens_POST(req)
 		default:
+			time.Sleep(tqs.unauthedDelay)
 			result = jsonMethodNotAllowed(req)
 		}
 	} else {
@@ -122,6 +126,7 @@ func (tqs TunaQuestServer) handlePathUsers(w http.ResponseWriter, req *http.Requ
 		case http.MethodGet:
 			result = tqs.doEndpoint_Users_GET(req)
 		default:
+			time.Sleep(tqs.unauthedDelay)
 			result = jsonMethodNotAllowed(req)
 		}
 	} else {
@@ -151,6 +156,7 @@ func (tqs TunaQuestServer) handlePathUsers(w http.ResponseWriter, req *http.Requ
 		case http.MethodDelete:
 			result = tqs.doEndpoint_UsersID_DELETE(req, id)
 		default:
+			time.Sleep(tqs.unauthedDelay)
 			result = jsonMethodNotAllowed(req)
 		}
 	}

@@ -971,3 +971,12 @@ func (gs *State) concreteMatchesLatagList(concrete []string, latags []string) bo
 
 	return false
 }
+
+func (g State) MarshalBinary() (data []byte, err error) {
+	return []byte{0x00, 0x01}, nil
+}
+
+func (g *State) UnmarshalBinary(data []byte) error {
+	*g = State{}
+	return nil
+}

@@ -61,6 +61,7 @@ import (
 	"github.com/dekarrin/tunaq/internal/version"
 	"github.com/dekarrin/tunaq/server"
 	"github.com/dekarrin/tunaq/server/dao"
+	"github.com/dekarrin/tunaq/server/serr"
 	"github.com/spf13/pflag"
 )
 
@@ -113,7 +114,7 @@ func main() {
 			dbPath = ""
 		case "sqlite":
 			dbPath = dbParts[1]
-			err := os.MkdirAll(dbPath, 0644)
+			err := os.MkdirAll(dbPath, 0770)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Could not build data directory: %s\n", err)
 				os.Exit(1)
@@ -194,11 +195,11 @@ func main() {
 
 	// immediately create the admin user so we have someone we can log in as.
 	_, err = tqs.CreateUser(context.Background(), "admin", "password", "bogus@example.com", dao.Admin)
-	if err != nil && !errors.Is(err, server.ErrAlreadyExists) {
+	if err != nil && !errors.Is(err, serr.ErrAlreadyExists) {
 		log.Printf("ERROR could not create initial admin user: %v", err)
 		os.Exit(2)
 	}
-	if !errors.Is(err, server.ErrAlreadyExists) {
+	if !errors.Is(err, serr.ErrAlreadyExists) {
 		log.Printf("INFO  Added initial admin user with password 'password'...")
 	}
 
