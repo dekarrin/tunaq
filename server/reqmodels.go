@@ -27,6 +27,7 @@ type UserModel struct {
 	Email          string `json:"email,"`
 	Role           string `json:"role,omitempty"`
 	Created        string `json:"created,omitempty"`
+	Modified       string `json:"modified,omitempty"`
 	LastLogoutTime string `json:"last_logout,omitempty"`
 	LastLoginTime  string `json:"last_login,omitempty"`
 }

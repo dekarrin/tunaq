@@ -157,8 +157,9 @@ func (repo *UsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User) (d
 		user.Password,
 		convertToDB_Role(user.Role),
 		convertToDB_Email(user.Email),
-		user.LastLogoutTime.Unix(),
-		convertToDB_Time(user.LastLoginTime.Unix(),
+		convertToDB_Time(user.LastLogoutTime),
+		convertToDB_Time(user.LastLoginTime),
+		convertToDB_Time(time.Now()),
 		convertToDB_UUID(id),
 	)
 	if err != nil {
@@ -185,8 +186,9 @@ func (repo *UsersDB) GetByUsername(ctx context.Context, username string) (dao.Us
 	var logout int64
 	var login int64
 	var created int64
+	var modified int64
 
-	row := repo.db.QueryRowContext(ctx, `SELECT id, password, role, email, created, last_logout_time, last_login_time FROM users WHERE username = ?;`,
+	row := repo.db.QueryRowContext(ctx, `SELECT id, password, role, email, created, modified, last_logout_time, last_login_time FROM users WHERE username = ?;`,
 		username,
 	)
 	err := row.Scan(
@@ -195,6 +197,7 @@ func (repo *UsersDB) GetByUsername(ctx context.Context, username string) (dao.Us
 		&role,
 		&email,
 		&created,
+		&modified,
 		&logout,
 		&login,
 	)
@@ -223,6 +226,10 @@ func (repo *UsersDB) GetByUsername(ctx context.Context, username string) (dao.Us
 	if err != nil {
 		return user, fmt.Errorf("stored created time %d is invalid: %w", created, err)
 	}
+	err = convertFromDB_Time(modified, &user.Modified)
+	if err != nil {
+		return user, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
+	}
 	err = convertFromDB_Role(role, &user.Role)
 	if err != nil {
 		return user, fmt.Errorf("stored role %q is invalid: %w", role, err)
@@ -239,8 +246,9 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 	var logout int64
 	var login int64
 	var created int64
+	var modified int64
 
-	row := repo.db.QueryRowContext(ctx, `SELECT username, password, role, email, created, last_logout_time, last_login_time FROM users WHERE id = ?;`,
+	row := repo.db.QueryRowContext(ctx, `SELECT username, password, role, email, created, modified, last_logout_time, last_login_time FROM users WHERE id = ?;`,
 		convertToDB_UUID(id),
 	)
 	err := row.Scan(
@@ -249,6 +257,7 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 		&role,
 		&email,
 		&created,
+		&modified,
 		&logout,
 		&login,
 	)
@@ -272,6 +281,10 @@ func (repo *UsersDB) GetByID(ctx context.Context, id uuid.UUID) (dao.User, error
 	err = convertFromDB_Time(created, &user.Created)
 	if err != nil {
 		return user, fmt.Errorf("stored created time %d is invalid: %w", created, err)
+	}
+	err = convertFromDB_Time(modified, &user.Modified)
+	if err != nil {
+		return user, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
 	}
 	err = convertFromDB_Role(role, &user.Role)
 	if err != nil {

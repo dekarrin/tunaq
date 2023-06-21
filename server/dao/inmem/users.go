@@ -39,8 +39,10 @@ func (imur *InMemoryUsersRepository) Create(ctx context.Context, user dao.User) 
 		return dao.User{}, dao.ErrConstraintViolation
 	}
 
-	user.LastLogoutTime = time.Now()
-	user.Created = time.Now()
+	now := time.Now()
+	user.LastLogoutTime = now
+	user.Created = now
+	user.Modified = now
 
 	imur.users[user.ID] = user
 	imur.byUsernameIndex[user.Username] = user.ID
@@ -84,6 +86,7 @@ func (imur *InMemoryUsersRepository) Update(ctx context.Context, id uuid.UUID, u
 		}
 	}
 
+	user.Modified = time.Now()
 	imur.users[user.ID] = user
 	imur.byUsernameIndex[user.Username] = user.ID
 	if user.ID != id {
