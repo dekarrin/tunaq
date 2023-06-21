@@ -73,7 +73,6 @@ func (imur *InMemoryGamesRepository) GetAllByUser(ctx context.Context, id uuid.U
 
 	for i := range byUser {
 		all[i] = imur.games[byUser[i]]
-		i++
 	}
 
 	all = util.SortBy(all, func(l, r dao.Game) bool {

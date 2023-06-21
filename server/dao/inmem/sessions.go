@@ -76,7 +76,6 @@ func (imur *InMemorySessionsRepository) GetAllByUser(ctx context.Context, id uui
 
 	for i := range byUser {
 		all[i] = imur.seshes[byUser[i]]
-		i++
 	}
 
 	all = util.SortBy(all, func(l, r dao.Session) bool {
@@ -96,7 +95,6 @@ func (imur *InMemorySessionsRepository) GetAllByGame(ctx context.Context, id uui
 
 	for i := range byGame {
 		all[i] = imur.seshes[byGame[i]]
-		i++
 	}
 
 	all = util.SortBy(all, func(l, r dao.Session) bool {

@@ -70,7 +70,6 @@ func (imur *InMemoryRegistrationsRepository) GetAllByUser(ctx context.Context, i
 
 	for i := range byUser {
 		all[i] = imur.regs[byUser[i]]
-		i++
 	}
 
 	all = util.SortBy(all, func(l, r dao.Registration) bool {

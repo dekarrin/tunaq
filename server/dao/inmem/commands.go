@@ -60,7 +60,7 @@ func (imur *InMemoryCommandsRepository) Create(ctx context.Context, c dao.Comman
 	return c, nil
 }
 
-func (imur *InMemoryCommandsRepository) GetAll(ctx context.Context) ([]dao.Command, error) {
+func (imur *InMemoryCommandsRepository) GetAll(ctx context.Context, notBefore *time.Time, notAfter *time.Time) ([]dao.Command, error) {
 	all := make([]dao.Command, len(imur.coms))
 
 	i := 0
@@ -76,7 +76,7 @@ func (imur *InMemoryCommandsRepository) GetAll(ctx context.Context) ([]dao.Comma
 	return all, nil
 }
 
-func (imur *InMemoryCommandsRepository) GetAllByUser(ctx context.Context, id uuid.UUID) ([]dao.Command, error) {
+func (imur *InMemoryCommandsRepository) GetAllByUser(ctx context.Context, id uuid.UUID, notBefore *time.Time, notAfter *time.Time) ([]dao.Command, error) {
 	if imur.seshRepo == nil {
 		return nil, nil
 	}
@@ -88,27 +88,30 @@ func (imur *InMemoryCommandsRepository) GetAllByUser(ctx context.Context, id uui
 
 	allCommands := []dao.Command{}
 	for _, sesh := range userSessions {
-		seshCommands, err := imur.GetAllBySession(ctx, sesh.ID)
+		seshCommands, err := imur.GetAllBySession(ctx, sesh.ID, notBefore, notAfter)
 		if err != nil {
 			return nil, err
 		}
+
 		allCommands = append(allCommands, seshCommands...)
 	}
 
 	return allCommands, nil
 }
 
-func (imur *InMemoryCommandsRepository) GetAllBySession(ctx context.Context, id uuid.UUID) ([]dao.Command, error) {
+func (imur *InMemoryCommandsRepository) GetAllBySession(ctx context.Context, id uuid.UUID, notBefore *time.Time, notAfter *time.Time) ([]dao.Command, error) {
 	bySesh := imur.bySeshIDIndex[id]
 	if len(bySesh) < 1 {
 		return nil, dao.ErrNotFound
 	}
 
-	all := make([]dao.Command, len(bySesh))
+	all := make([]dao.Command, 0)
 
-	for i := range bySesh {
-		all[i] = imur.coms[bySesh[i]]
-		i++
+	for _, comID := range bySesh {
+		com := imur.coms[comID]
+		if (notBefore == nil || !(*notBefore).After(com.Created)) && (notAfter == nil || !com.Created.After(*notAfter)) {
+			all = append(all, com)
+		}
 	}
 
 	all = util.SortBy(all, func(l, r dao.Command) bool {

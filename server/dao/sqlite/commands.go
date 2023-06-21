@@ -75,8 +75,28 @@ func (repo *CommandsDB) Create(ctx context.Context, c dao.Command) (dao.Command,
 	return repo.GetByID(ctx, newUUID)
 }
 
-func (repo *CommandsDB) GetAll(ctx context.Context) ([]dao.Command, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, session_id, content, created FROM commands;`)
+func (repo *CommandsDB) GetAll(ctx context.Context, notBefore *time.Time, notAfter *time.Time) ([]dao.Command, error) {
+	// change query based on filters
+	baseQuery := `SELECT id, session_id, content, created FROM commands`
+	var rows *sql.Rows
+	var err error
+	if notBefore == nil && notAfter == nil {
+		rows, err = repo.db.QueryContext(ctx, baseQuery+`;`)
+	} else if notBefore == nil && notAfter != nil {
+		rows, err = repo.db.QueryContext(ctx, baseQuery+` WHERE created <= ?;`,
+			convertToDB_Time(*notAfter),
+		)
+	} else if notBefore != nil && notAfter == nil {
+		rows, err = repo.db.QueryContext(ctx, baseQuery+` WHERE created >= ?;`,
+			convertToDB_Time(*notBefore),
+		)
+	} else {
+		// both non-nil
+		rows, err = repo.db.QueryContext(ctx, baseQuery+` WHERE created >= ? AND created <= ?;`,
+			convertToDB_Time(*notBefore),
+			convertToDB_Time(*notAfter),
+		)
+	}
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
@@ -123,21 +143,43 @@ func (repo *CommandsDB) GetAll(ctx context.Context) ([]dao.Command, error) {
 	return all, nil
 }
 
-func (repo *CommandsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.Command, error) {
+func (repo *CommandsDB) GetAllByUser(ctx context.Context, userID uuid.UUID, notBefore *time.Time, notAfter *time.Time) ([]dao.Command, error) {
 	// this function is impossible unless it has been inited with fk support
 	if !repo.multiTable {
 		return nil, fmt.Errorf("cannot do cross-table join query without multi-table support")
 	}
-
-	rows, err := repo.db.QueryContext(ctx, `
+	baseQuery := `
 		SELECT C.id, C.session_id, C.content, C.created
 		FROM commands AS C
 		INNER JOIN sessions AS S
 			ON S.id = C.session_id
 		WHERE C.user_id=?
-	;`,
-		convertToDB_UUID(userID),
-	)
+	`
+	var rows *sql.Rows
+	var err error
+	if notBefore == nil && notAfter == nil {
+		rows, err = repo.db.QueryContext(ctx, baseQuery+`;`,
+			convertToDB_UUID(userID),
+		)
+	} else if notBefore == nil && notAfter != nil {
+		rows, err = repo.db.QueryContext(ctx, baseQuery+` AND C.created <= ?;`,
+			convertToDB_UUID(userID),
+			convertToDB_Time(*notAfter),
+		)
+	} else if notBefore != nil && notAfter == nil {
+		rows, err = repo.db.QueryContext(ctx, baseQuery+` AND C.created >= ?;`,
+			convertToDB_UUID(userID),
+			convertToDB_Time(*notBefore),
+		)
+	} else {
+		// both non-nil
+		rows, err = repo.db.QueryContext(ctx, baseQuery+` AND C.created >= ? AND C.created <= ?;`,
+			convertToDB_UUID(userID),
+			convertToDB_Time(*notBefore),
+			convertToDB_Time(*notAfter),
+		)
+	}
+
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
@@ -184,8 +226,32 @@ func (repo *CommandsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]d
 	return all, nil
 }
 
-func (repo *CommandsDB) GetAllBySession(ctx context.Context, sessionID uuid.UUID) ([]dao.Command, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, content, created FROM commands;`)
+func (repo *CommandsDB) GetAllBySession(ctx context.Context, sessionID uuid.UUID, notBefore *time.Time, notAfter *time.Time) ([]dao.Command, error) {
+	baseQuery := `SELECT id, content, created FROM commands WHERE session_id=?`
+	var rows *sql.Rows
+	var err error
+	if notBefore == nil && notAfter == nil {
+		rows, err = repo.db.QueryContext(ctx, baseQuery+`;`,
+			convertToDB_UUID(sessionID),
+		)
+	} else if notBefore == nil && notAfter != nil {
+		rows, err = repo.db.QueryContext(ctx, baseQuery+` AND C.created <= ?;`,
+			convertToDB_UUID(sessionID),
+			convertToDB_Time(*notAfter),
+		)
+	} else if notBefore != nil && notAfter == nil {
+		rows, err = repo.db.QueryContext(ctx, baseQuery+` AND C.created >= ?;`,
+			convertToDB_UUID(sessionID),
+			convertToDB_Time(*notBefore),
+		)
+	} else {
+		// both non-nil
+		rows, err = repo.db.QueryContext(ctx, baseQuery+` AND C.created >= ? AND C.created <= ?;`,
+			convertToDB_UUID(sessionID),
+			convertToDB_Time(*notBefore),
+			convertToDB_Time(*notAfter),
+		)
+	}
 	if err != nil {
 		return nil, wrapDBError(err)
 	}

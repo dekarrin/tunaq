@@ -33,9 +33,25 @@ type Store interface {
 type CommandRepository interface {
 	Create(ctx context.Context, reg Command) (Command, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Command, error)
-	GetAll(ctx context.Context) ([]Command, error)
-	GetAllByUser(ctx context.Context, userID uuid.UUID) ([]Command, error)
-	GetAllBySession(ctx context.Context, sessionID uuid.UUID) ([]Command, error)
+
+	// GetAll retrieves all Commands from persistence. If notBefore is non-nil,
+	// the commands are filtered such that only ones on or after that time are
+	// included. If notAfter is non-nil, the commands are filtered such that
+	// only ones on or before that time are included.
+	GetAll(ctx context.Context, notBefore *time.Time, notAfter *time.Time) ([]Command, error)
+
+	// GetAllByUser retrieves Commands for all sessions of a given user. If
+	// notBefore is non-nil, the commands are filtered such that only ones on or
+	// after that time are included. If notAfter is non-nil, the commands are
+	// filtered such that only ones on or before that time are included.
+	GetAllByUser(ctx context.Context, userID uuid.UUID, notBefore *time.Time, notAfter *time.Time) ([]Command, error)
+
+	// GetAllBySession retrieves all Commands for a given session from
+	// persistence. If notBefore is non-nil, the commands are filtered such that
+	// only ones on or after that time are included. If notAfter is non-nil, the
+	// commands are filtered such that only ones on or before that time are
+	// included.
+	GetAllBySession(ctx context.Context, sessionID uuid.UUID, notBefore *time.Time, notAfter *time.Time) ([]Command, error)
 	Update(ctx context.Context, id uuid.UUID, reg Command) (Command, error)
 	Delete(ctx context.Context, id uuid.UUID) (Command, error)
 	Close() error
