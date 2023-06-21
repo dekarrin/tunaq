@@ -205,6 +205,7 @@ type User struct {
 	Email          *mail.Address // NOT NULL
 	Role           Role          // NOT NULL
 	Created        time.Time     // NOT NULL
-	LastLogoutTime time.Time     // NOT NULL DEFAULT NOW()
-	LastLoginTime  time.Time     // NOT NULL
+	Modified       time.Time
+	LastLogoutTime time.Time // NOT NULL DEFAULT NOW()
+	LastLoginTime  time.Time // NOT NULL
 }

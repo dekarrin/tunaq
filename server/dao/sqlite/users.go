@@ -34,6 +34,7 @@ func (repo *UsersDB) init() error {
 		role INTEGER NOT NULL,
 		email TEXT NOT NULL,
 		created INTEGER NOT NULL,
+		modified INTEGER NOT NULL,
 		last_logout_time INTEGER NOT NULL,
 		last_login_time INTEGER NOT NULL
 	);`)
@@ -50,7 +51,7 @@ func (repo *UsersDB) Create(ctx context.Context, user dao.User) (dao.User, error
 		return dao.User{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
-	stmt, err := repo.db.Prepare(`INSERT INTO users (id, username, password, role, email, created, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+	stmt, err := repo.db.Prepare(`INSERT INTO users (id, username, password, role, email, created, modified, last_logout_time, last_login_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return dao.User{}, wrapDBError(err)
 	}
@@ -65,6 +66,7 @@ func (repo *UsersDB) Create(ctx context.Context, user dao.User) (dao.User, error
 		convertToDB_Email(user.Email),
 		convertToDB_Time(now),
 		convertToDB_Time(now),
+		convertToDB_Time(now),
 		convertToDB_Time(time.Time{}),
 	)
 	if err != nil {
@@ -75,7 +77,7 @@ func (repo *UsersDB) Create(ctx context.Context, user dao.User) (dao.User, error
 }
 
 func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, username, password, role, email, created, last_logout_time, last_login_time FROM users;`)
+	rows, err := repo.db.QueryContext(ctx, `SELECT id, username, password, role, email, created, modified, last_logout_time, last_login_time FROM users;`)
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
@@ -89,6 +91,7 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 		var logoutTime int64
 		var loginTime int64
 		var created int64
+		var modified int64
 		var role string
 		var id string
 		err = rows.Scan(
@@ -98,6 +101,7 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 			&role,
 			&email,
 			&created,
+			&modified,
 			&logoutTime,
 			&loginTime,
 		)
@@ -126,6 +130,10 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 		if err != nil {
 			return all, fmt.Errorf("stored created time %d is invalid: %w", created, err)
 		}
+		err = convertFromDB_Time(modified, &user.Modified)
+		if err != nil {
+			return all, fmt.Errorf("stored modified time %d is invalid: %w", modified, err)
+		}
 		err = convertFromDB_Role(role, &user.Role)
 		if err != nil {
 			return all, fmt.Errorf("stored role %q is invalid: %w", role, err)
@@ -143,14 +151,14 @@ func (repo *UsersDB) GetAll(ctx context.Context) ([]dao.User, error) {
 
 func (repo *UsersDB) Update(ctx context.Context, id uuid.UUID, user dao.User) (dao.User, error) {
 	// deliberately not updating created
-	res, err := repo.db.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=? WHERE id=?;`,
+	res, err := repo.db.ExecContext(ctx, `UPDATE users SET id=?, username=?, password=?, role=?, email=?, last_logout_time=?, last_login_time=?, modified=? WHERE id=?;`,
 		convertToDB_UUID(user.ID),
 		user.Username,
 		user.Password,
 		convertToDB_Role(user.Role),
 		convertToDB_Email(user.Email),
 		user.LastLogoutTime.Unix(),
-		user.LastLoginTime.Unix(),
+		convertToDB_Time(user.LastLoginTime.Unix(),
 		convertToDB_UUID(id),
 	)
 	if err != nil {
