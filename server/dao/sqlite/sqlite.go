@@ -29,6 +29,7 @@ type store struct {
 	games  *GamesDB
 	gd     *GameDatasDB
 	seshes *SessionsDB
+	coms   *CommandsDB
 }
 
 func NewDatastore(storageDir string) (dao.Store, error) {
@@ -65,6 +66,9 @@ func NewDatastore(storageDir string) (dao.Store, error) {
 	st.seshes = &SessionsDB{db: st.db}
 	st.seshes.init(true)
 
+	st.coms = &CommandsDB{db: st.db}
+	st.coms.init(true)
+
 	return st, nil
 }
 
@@ -86,6 +90,10 @@ func (s *store) GameData() dao.GameDataRepository {
 
 func (s *store) Sessions() dao.SessionRepository {
 	return s.seshes
+}
+
+func (s *store) Commands() dao.CommandRepository {
+	return s.coms
 }
 
 func (s *store) Close() error {

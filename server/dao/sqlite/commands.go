@@ -23,17 +23,19 @@ func NewCommandsDBConn(file string) (*CommandsDB, error) {
 }
 
 type CommandsDB struct {
-	db *sql.DB
+	db         *sql.DB
+	multiTable bool
 }
 
 func (repo *CommandsDB) init(fk bool) error {
-	// FKs not possible due to separate table files.
+	repo.multiTable = fk
+
 	stmt := `CREATE TABLE IF NOT EXISTS sessions (
 		id TEXT NOT NULL PRIMARY KEY,
 		session_id TEXT NOT NULL`
 
 	if fk {
-		stmt += ` REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE`
+		stmt += ` REFERENCES sessions(id) ON DELETE CASCADE ON UPDATE CASCADE`
 	}
 
 	stmt += `,
@@ -47,54 +49,50 @@ func (repo *CommandsDB) init(fk bool) error {
 	return nil
 }
 
-func (repo *SessionsDB) Create(ctx context.Context, s dao.Session) (dao.Session, error) {
+func (repo *CommandsDB) Create(ctx context.Context, c dao.Command) (dao.Command, error) {
 	newUUID, err := uuid.NewRandom()
 	if err != nil {
-		return dao.Session{}, fmt.Errorf("could not generate ID: %w", err)
+		return dao.Command{}, fmt.Errorf("could not generate ID: %w", err)
 	}
 
-	stmt, err := repo.db.Prepare(`INSERT INTO sessions (id, user_id, game_id, state, created) VALUES (?, ?, ?, ?, ?)`)
+	stmt, err := repo.db.Prepare(`INSERT INTO commands (id, session_id, content, created) VALUES (?, ?, ?, ?)`)
 	if err != nil {
-		return dao.Session{}, wrapDBError(err)
+		return dao.Command{}, wrapDBError(err)
 	}
 	now := time.Now()
 
 	_, err = stmt.ExecContext(
 		ctx,
 		convertToDB_UUID(newUUID),
-		convertToDB_UUID(s.UserID),
-		convertToDB_UUID(s.GameID),
-		convertToDB_GameStatePtr(s.State),
+		convertToDB_UUID(c.SessionID),
+		c.Command,
 		convertToDB_Time(now),
 	)
 	if err != nil {
-		return dao.Session{}, wrapDBError(err)
+		return dao.Command{}, wrapDBError(err)
 	}
 
 	return repo.GetByID(ctx, newUUID)
 }
 
-func (repo *SessionsDB) GetAll(ctx context.Context) ([]dao.Session, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, user_id, game_id, state, created FROM sessions;`)
+func (repo *CommandsDB) GetAll(ctx context.Context) ([]dao.Command, error) {
+	rows, err := repo.db.QueryContext(ctx, `SELECT id, session_id, content, created FROM commands;`)
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
 	defer rows.Close()
 
-	var all []dao.Session
+	var all []dao.Command
 
 	for rows.Next() {
-		var s dao.Session
+		var c dao.Command
 		var id string
-		var userID string
-		var gameID string
-		var encState string
+		var seshID string
 		var created int64
 		err = rows.Scan(
 			&id,
-			&userID,
-			&gameID,
-			&encState,
+			&seshID,
+			&c.Command,
 			&created,
 		)
 
@@ -102,28 +100,20 @@ func (repo *SessionsDB) GetAll(ctx context.Context) ([]dao.Session, error) {
 			return nil, wrapDBError(err)
 		}
 
-		err = convertFromDB_UUID(id, &s.ID)
+		err = convertFromDB_UUID(id, &c.ID)
 		if err != nil {
 			return all, fmt.Errorf("stored ID %q is invalid: %w", id, err)
 		}
-		err = convertFromDB_UUID(userID, &s.UserID)
+		err = convertFromDB_UUID(seshID, &c.SessionID)
 		if err != nil {
-			return all, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
+			return all, fmt.Errorf("stored user ID %q is invalid: %w", seshID, err)
 		}
-		err = convertFromDB_UUID(gameID, &s.GameID)
+		err = convertFromDB_Time(created, &c.Created)
 		if err != nil {
-			return all, fmt.Errorf("stored game ID %q is invalid: %w", gameID, err)
-		}
-		err = convertFromDB_Time(created, &s.Created)
-		if err != nil {
-			return all, fmt.Errorf("stored created time %q is invalid: %w", created, err)
-		}
-		err = convertFromDB_GameStatePtr(encState, &s.State)
-		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: %w", s.ID.String(), err)
+			return all, fmt.Errorf("stored created time %d is invalid: %w", created, err)
 		}
 
-		all = append(all, s)
+		all = append(all, c)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -133,8 +123,19 @@ func (repo *SessionsDB) GetAll(ctx context.Context) ([]dao.Session, error) {
 	return all, nil
 }
 
-func (repo *SessionsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.Session, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, game_id, state, created FROM sessions WHERE user_id=?;`,
+func (repo *CommandsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]dao.Command, error) {
+	// this function is impossible unless it has been inited with fk support
+	if !repo.multiTable {
+		return nil, fmt.Errorf("cannot do cross-table join query without multi-table support")
+	}
+
+	rows, err := repo.db.QueryContext(ctx, `
+		SELECT C.id, C.session_id, C.content, C.created
+		FROM commands AS C
+		INNER JOIN sessions AS S
+			ON S.id = C.session_id
+		WHERE C.user_id=?
+	;`,
 		convertToDB_UUID(userID),
 	)
 	if err != nil {
@@ -142,20 +143,17 @@ func (repo *SessionsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]d
 	}
 	defer rows.Close()
 
-	var all []dao.Session
+	var all []dao.Command
 
 	for rows.Next() {
-		s := dao.Session{
-			UserID: userID,
-		}
+		var c dao.Command
 		var id string
-		var gameID string
-		var encState string
+		var seshID string
 		var created int64
 		err = rows.Scan(
 			&id,
-			&gameID,
-			&encState,
+			&seshID,
+			&c.Command,
 			&created,
 		)
 
@@ -163,24 +161,20 @@ func (repo *SessionsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]d
 			return nil, wrapDBError(err)
 		}
 
-		err = convertFromDB_UUID(id, &s.ID)
+		err = convertFromDB_UUID(id, &c.ID)
 		if err != nil {
 			return all, fmt.Errorf("stored ID %q is invalid: %w", id, err)
 		}
-		err = convertFromDB_UUID(gameID, &s.GameID)
+		err = convertFromDB_UUID(seshID, &c.SessionID)
 		if err != nil {
-			return all, fmt.Errorf("stored game ID %q is invalid: %w", gameID, err)
+			return all, fmt.Errorf("stored session ID %q is invalid: %w", seshID, err)
 		}
-		err = convertFromDB_Time(created, &s.Created)
+		err = convertFromDB_Time(created, &c.Created)
 		if err != nil {
-			return all, fmt.Errorf("stored created time %q is invalid: %w", created, err)
-		}
-		err = convertFromDB_GameStatePtr(encState, &s.State)
-		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: %w", s.ID.String(), err)
+			return all, fmt.Errorf("stored created time %d is invalid: %w", created, err)
 		}
 
-		all = append(all, s)
+		all = append(all, c)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -190,29 +184,24 @@ func (repo *SessionsDB) GetAllByUser(ctx context.Context, userID uuid.UUID) ([]d
 	return all, nil
 }
 
-func (repo *SessionsDB) GetAllByGame(ctx context.Context, gameID uuid.UUID) ([]dao.Session, error) {
-	rows, err := repo.db.QueryContext(ctx, `SELECT id, user_id, state, created FROM sessions WHERE game_id=?;`,
-		convertToDB_UUID(gameID),
-	)
+func (repo *CommandsDB) GetAllBySession(ctx context.Context, sessionID uuid.UUID) ([]dao.Command, error) {
+	rows, err := repo.db.QueryContext(ctx, `SELECT id, content, created FROM commands;`)
 	if err != nil {
 		return nil, wrapDBError(err)
 	}
 	defer rows.Close()
 
-	var all []dao.Session
+	var all []dao.Command
 
 	for rows.Next() {
-		s := dao.Session{
-			GameID: gameID,
+		c := dao.Command{
+			SessionID: sessionID,
 		}
 		var id string
-		var userID string
-		var encState string
 		var created int64
 		err = rows.Scan(
 			&id,
-			&userID,
-			&encState,
+			&c.Command,
 			&created,
 		)
 
@@ -220,24 +209,16 @@ func (repo *SessionsDB) GetAllByGame(ctx context.Context, gameID uuid.UUID) ([]d
 			return nil, wrapDBError(err)
 		}
 
-		err = convertFromDB_UUID(id, &s.ID)
+		err = convertFromDB_UUID(id, &c.ID)
 		if err != nil {
 			return all, fmt.Errorf("stored ID %q is invalid: %w", id, err)
 		}
-		err = convertFromDB_UUID(userID, &s.UserID)
+		err = convertFromDB_Time(created, &c.Created)
 		if err != nil {
-			return all, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
-		}
-		err = convertFromDB_Time(created, &s.Created)
-		if err != nil {
-			return all, fmt.Errorf("stored created time %q is invalid: %w", created, err)
-		}
-		err = convertFromDB_GameStatePtr(encState, &s.State)
-		if err != nil {
-			return all, fmt.Errorf("stored game state for %s is invalid: %w", s.ID.String(), err)
+			return all, fmt.Errorf("stored created time %d is invalid: %w", created, err)
 		}
 
-		all = append(all, s)
+		all = append(all, c)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -247,81 +228,68 @@ func (repo *SessionsDB) GetAllByGame(ctx context.Context, gameID uuid.UUID) ([]d
 	return all, nil
 }
 
-func (repo *SessionsDB) Update(ctx context.Context, id uuid.UUID, s dao.Session) (dao.Session, error) {
-	// TODO: check all to ensure that 'Created' remains a dao-enforced constant
-	// and that nothing is allowed to update it.
-
-	res, err := repo.db.ExecContext(ctx, `UPDATE sessions SET id=?, user_id=?, game_id=?, state=? WHERE id=?;`,
-		convertToDB_UUID(s.ID),
-		convertToDB_UUID(s.UserID),
-		convertToDB_UUID(s.GameID),
-		convertToDB_GameStatePtr(s.State),
+func (repo *CommandsDB) Update(ctx context.Context, id uuid.UUID, c dao.Command) (dao.Command, error) {
+	res, err := repo.db.ExecContext(ctx, `UPDATE commands SET id=?, session_id=?, content=? WHERE id=?;`,
+		convertToDB_UUID(c.ID),
+		convertToDB_UUID(c.SessionID),
+		c.Command,
 		convertToDB_UUID(id),
 	)
 	if err != nil {
-		return dao.Session{}, wrapDBError(err)
+		return dao.Command{}, wrapDBError(err)
 	}
 	rowsAff, err := res.RowsAffected()
 	if err != nil {
-		return dao.Session{}, wrapDBError(err)
+		return dao.Command{}, wrapDBError(err)
 	}
 	if rowsAff < 1 {
-		return dao.Session{}, dao.ErrNotFound
+		return dao.Command{}, dao.ErrNotFound
 	}
 
-	return repo.GetByID(ctx, s.ID)
+	return repo.GetByID(ctx, c.ID)
 }
 
-func (repo *SessionsDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Session, error) {
-	s := dao.Session{
+func (repo *CommandsDB) GetByID(ctx context.Context, id uuid.UUID) (dao.Command, error) {
+	c := dao.Command{
 		ID: id,
 	}
-	var userID string
-	var gameID string
-	var encState string
+	var seshID string
 	var created int64
 
-	row := repo.db.QueryRowContext(ctx, `SELECT user_id, game_id, state, created FROM sessions WHERE id = ?;`,
+	row := repo.db.QueryRowContext(ctx, `SELECT session_id, content, created FROM commands WHERE id = ?;`,
 		convertToDB_UUID(id),
 	)
 	err := row.Scan(
-		&userID,
-		&gameID,
-		&encState,
+		&seshID,
+		&c.Command,
 		&created,
 	)
 
 	if err != nil {
-		return s, wrapDBError(err)
+		return c, wrapDBError(err)
 	}
 
-	err = convertFromDB_UUID(userID, &s.UserID)
+	err = convertFromDB_UUID(seshID, &c.SessionID)
 	if err != nil {
-		return s, fmt.Errorf("stored user ID %q is invalid: %w", userID, err)
+		return c, fmt.Errorf("stored session ID %q is invalid: %w", seshID, err)
 	}
-	err = convertFromDB_UUID(gameID, &s.GameID)
+	err = convertFromDB_Time(created, &c.Created)
 	if err != nil {
-		return s, fmt.Errorf("stored game ID %q is invalid: %w", gameID, err)
-	}
-	err = convertFromDB_Time(created, &s.Created)
-	if err != nil {
-		return s, fmt.Errorf("stored created time %q is invalid: %w", created, err)
-	}
-	err = convertFromDB_GameStatePtr(encState, &s.State)
-	if err != nil {
-		return s, fmt.Errorf("stored game state for %s is invalid: %w", s.ID.String(), err)
+		return c, fmt.Errorf("stored created time %q is invalid: %w", created, err)
 	}
 
-	return s, nil
+	return c, nil
 }
 
-func (repo *SessionsDB) Delete(ctx context.Context, id uuid.UUID) (dao.Session, error) {
+func (repo *CommandsDB) Delete(ctx context.Context, id uuid.UUID) (dao.Command, error) {
 	curVal, err := repo.GetByID(ctx, id)
 	if err != nil {
 		return curVal, err
 	}
 
-	res, err := repo.db.ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, convertToDB_UUID(id))
+	res, err := repo.db.ExecContext(ctx, `DELETE FROM commands WHERE id = ?`,
+		convertToDB_UUID(id),
+	)
 	if err != nil {
 		return curVal, wrapDBError(err)
 	}
@@ -336,6 +304,6 @@ func (repo *SessionsDB) Delete(ctx context.Context, id uuid.UUID) (dao.Session, 
 	return curVal, nil
 }
 
-func (repo *SessionsDB) Close() error {
+func (repo *CommandsDB) Close() error {
 	return repo.db.Close()
 }

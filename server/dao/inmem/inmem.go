@@ -12,16 +12,19 @@ type store struct {
 	games  *InMemoryGamesRepository
 	gd     *InMemoryGameDatasRepository
 	seshes *InMemorySessionsRepository
+	coms   *InMemoryCommandsRepository
 }
 
 func NewDatastore() dao.Store {
-	return &store{
+	st := &store{
 		users:  NewUsersRepository(),
 		regs:   NewRegistrationsRepository(),
 		games:  NewGamesRepository(),
 		gd:     NewGameDatasRepository(),
 		seshes: NewSessionsRepository(),
 	}
+	st.coms = NewCommandsRepository(st.seshes)
+	return st
 }
 
 func (s *store) Users() dao.UserRepository {
@@ -42,6 +45,10 @@ func (s *store) GameData() dao.GameDataRepository {
 
 func (s *store) Sessions() dao.SessionRepository {
 	return s.seshes
+}
+
+func (s *store) Commands() dao.CommandRepository {
+	return s.coms
 }
 
 func (s *store) Close() error {
