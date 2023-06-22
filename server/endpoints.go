@@ -525,6 +525,45 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.
 	return jsonNoContent("user '%s' successfully deleted %s", user.Username, otherStr)
 }
 
+// GET /users: get all users (admin auth required).
+func (tqs TunaQuestServer) doEndpoint_Info_GET(req *http.Request) endpointResult {
+	user, err := tqs.requireJWT(req.Context(), req)
+	if err != nil {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonUnauthorized("", err.Error())
+	}
+
+	if user.Role != dao.Admin {
+		time.Sleep(tqs.unauthedDelay)
+		return jsonForbidden("user '%s' (role %s): forbidden", user.Username, user.Role)
+	}
+
+	users, err := tqs.GetAllUsers(req.Context())
+	if err != nil {
+		return jsonInternalServerError(err.Error())
+	}
+
+	resp := make([]UserModel, len(users))
+
+	for i := range users {
+		resp[i] = UserModel{
+			URI:            APIPathPrefix + "/users/" + users[i].ID.String(),
+			ID:             users[i].ID.String(),
+			Username:       users[i].Username,
+			Role:           users[i].Role.String(),
+			Created:        users[i].Created.Format(time.RFC3339),
+			Modified:       users[i].Modified.Format(time.RFC3339),
+			LastLogoutTime: users[i].LastLogoutTime.Format(time.RFC3339),
+			LastLoginTime:  users[i].LastLoginTime.Format(time.RFC3339),
+		}
+		if users[i].Email != nil {
+			resp[i].Email = users[i].Email.Address
+		}
+	}
+
+	return jsonOK(resp, "user '%s' got all users", user.Username)
+}
+
 // v must be a pointer to a type. Will return error such that
 // errors.Is(err, ErrMalformedBody) returns true if it is problem decoding the
 // JSON itself.

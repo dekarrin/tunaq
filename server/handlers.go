@@ -22,7 +22,8 @@ func (tqs *TunaQuestServer) initHandlers() {
 	tqs.srv.HandleFunc(APIPathPrefix+"/tokens/", tqs.handlePathToken)
 	tqs.srv.HandleFunc(APIPathPrefix+"/users", tqs.handlePathUsers)
 	tqs.srv.HandleFunc(APIPathPrefix+"/users/", tqs.handlePathUsers)
-	tqs.srv.HandleFunc(APIPathPrefix+"/info", tqs.handle)
+	tqs.srv.HandleFunc(APIPathPrefix+"/info", tqs.handlePathInfo)
+	tqs.srv.HandleFunc(APIPathPrefix+"/info/", tqs.handlePathInfo)
 }
 
 func (tqs TunaQuestServer) handlePathInfo(w http.ResponseWriter, req *http.Request) {
@@ -34,7 +35,19 @@ func (tqs TunaQuestServer) handlePathInfo(w http.ResponseWriter, req *http.Reque
 		result.writeResponse(w, req)
 	}()
 
-	result = jsonNotFound()
+	if req.URL.Path == APIPathPrefix+"/info/" || req.URL.Path == APIPathPrefix+"/info" {
+
+		// ---------------------------------------------- //
+		// DISPATCH FOR: /info                            //
+		// ---------------------------------------------- //
+		switch req.Method {
+		case http.MethodGet:
+			result = tqs.doEndpoint_Info_GET(req)
+		default:
+			time.Sleep(tqs.unauthedDelay)
+			result = jsonMethodNotAllowed(req)
+		}
+	}
 }
 
 func (tqs TunaQuestServer) handlePathRoot(w http.ResponseWriter, req *http.Request) {
