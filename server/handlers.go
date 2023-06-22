@@ -17,11 +17,11 @@ const (
 func (tqs *TunaQuestServer) initHandlers() {
 	tqs.srv.HandleFunc("/", tqs.handlePathRoot)
 	tqs.srv.HandleFunc(APIPathPrefix+"/login", tqs.handlePathLogin)
-	tqs.srv.HandleFunc(APIPathPrefix+"/api/v1/login/", tqs.handlePathLogin)
-	tqs.srv.HandleFunc(APIPathPrefix+"/api/v1/tokens", tqs.handlePathToken)
-	tqs.srv.HandleFunc(APIPathPrefix+"/api/v1/tokens/", tqs.handlePathToken)
-	tqs.srv.HandleFunc(APIPathPrefix+"/api/v1/users", tqs.handlePathUsers)
-	tqs.srv.HandleFunc(APIPathPrefix+"/api/v1/users/", tqs.handlePathUsers)
+	tqs.srv.HandleFunc(APIPathPrefix+"/login/", tqs.handlePathLogin)
+	tqs.srv.HandleFunc(APIPathPrefix+"/tokens", tqs.handlePathToken)
+	tqs.srv.HandleFunc(APIPathPrefix+"/tokens/", tqs.handlePathToken)
+	tqs.srv.HandleFunc(APIPathPrefix+"/users", tqs.handlePathUsers)
+	tqs.srv.HandleFunc(APIPathPrefix+"/users/", tqs.handlePathUsers)
 }
 
 func (tqs TunaQuestServer) handlePathRoot(w http.ResponseWriter, req *http.Request) {
