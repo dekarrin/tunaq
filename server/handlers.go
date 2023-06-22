@@ -22,6 +22,19 @@ func (tqs *TunaQuestServer) initHandlers() {
 	tqs.srv.HandleFunc(APIPathPrefix+"/tokens/", tqs.handlePathToken)
 	tqs.srv.HandleFunc(APIPathPrefix+"/users", tqs.handlePathUsers)
 	tqs.srv.HandleFunc(APIPathPrefix+"/users/", tqs.handlePathUsers)
+	tqs.srv.HandleFunc(APIPathPrefix+"/info", tqs.handle)
+}
+
+func (tqs TunaQuestServer) handlePathInfo(w http.ResponseWriter, req *http.Request) {
+	// this must be at the top of every handlePath* method to convert panics to
+	// HTTP-500
+	defer panicTo500(w, req)
+	var result endpointResult
+	defer func() {
+		result.writeResponse(w, req)
+	}()
+
+	result = jsonNotFound()
 }
 
 func (tqs TunaQuestServer) handlePathRoot(w http.ResponseWriter, req *http.Request) {
