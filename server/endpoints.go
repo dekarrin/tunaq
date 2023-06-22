@@ -164,7 +164,7 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) endpointResu
 	}
 
 	resp := UserModel{
-		URI:            "/users/" + newUser.ID.String(),
+		URI:            APIPathPrefix + "/users/" + newUser.ID.String(),
 		ID:             newUser.ID.String(),
 		Username:       newUser.Username,
 		Role:           newUser.Role.String(),
@@ -203,7 +203,7 @@ func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) endpointResul
 
 	for i := range users {
 		resp[i] = UserModel{
-			URI:            "/users/" + users[i].ID.String(),
+			URI:            APIPathPrefix + "/users/" + users[i].ID.String(),
 			ID:             users[i].ID.String(),
 			Username:       users[i].Username,
 			Role:           users[i].Role.String(),
@@ -257,7 +257,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 
 	// put it into a model to return
 	resp := UserModel{
-		URI:            "/users/" + userInfo.ID.String(),
+		URI:            APIPathPrefix + "/users/" + userInfo.ID.String(),
 		ID:             userInfo.ID.String(),
 		Username:       userInfo.Username,
 		Role:           userInfo.Role.String(),
@@ -382,7 +382,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 	}
 
 	resp := UserModel{
-		URI:            "/users/" + updated.ID.String(),
+		URI:            APIPathPrefix + "/users/" + updated.ID.String(),
 		ID:             updated.ID.String(),
 		Username:       updated.Username,
 		Role:           updated.Role.String(),
@@ -461,7 +461,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUI
 	}
 
 	resp := UserModel{
-		URI:            "/users/" + newUser.ID.String(),
+		URI:            APIPathPrefix + "/users/" + newUser.ID.String(),
 		ID:             newUser.ID.String(),
 		Username:       newUser.Username,
 		Role:           newUser.Role.String(),

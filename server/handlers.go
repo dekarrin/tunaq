@@ -10,14 +10,18 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	APIPathPrefix = "/api/v1"
+)
+
 func (tqs *TunaQuestServer) initHandlers() {
 	tqs.srv.HandleFunc("/", tqs.handlePathRoot)
-	tqs.srv.HandleFunc("/login", tqs.handlePathLogin)
-	tqs.srv.HandleFunc("/login/", tqs.handlePathLogin)
-	tqs.srv.HandleFunc("/tokens", tqs.handlePathToken)
-	tqs.srv.HandleFunc("/tokens/", tqs.handlePathToken)
-	tqs.srv.HandleFunc("/users", tqs.handlePathUsers)
-	tqs.srv.HandleFunc("/users/", tqs.handlePathUsers)
+	tqs.srv.HandleFunc(APIPathPrefix+"/login", tqs.handlePathLogin)
+	tqs.srv.HandleFunc(APIPathPrefix+"/api/v1/login/", tqs.handlePathLogin)
+	tqs.srv.HandleFunc(APIPathPrefix+"/api/v1/tokens", tqs.handlePathToken)
+	tqs.srv.HandleFunc(APIPathPrefix+"/api/v1/tokens/", tqs.handlePathToken)
+	tqs.srv.HandleFunc(APIPathPrefix+"/api/v1/users", tqs.handlePathUsers)
+	tqs.srv.HandleFunc(APIPathPrefix+"/api/v1/users/", tqs.handlePathUsers)
 }
 
 func (tqs TunaQuestServer) handlePathRoot(w http.ResponseWriter, req *http.Request) {
@@ -41,7 +45,7 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 		result.writeResponse(w, req)
 	}()
 
-	if req.URL.Path == "/login/" || req.URL.Path == "/login" {
+	if req.URL.Path == APIPathPrefix+"/login/" || req.URL.Path == APIPathPrefix+"/login" {
 
 		// ---------------------------------------------- //
 		// DISPATCH FOR: /login                           //
@@ -89,7 +93,7 @@ func (tqs TunaQuestServer) handlePathToken(w http.ResponseWriter, req *http.Requ
 		result.writeResponse(w, req)
 	}()
 
-	if req.URL.Path == "/tokens/" || req.URL.Path == "/tokens" {
+	if req.URL.Path == APIPathPrefix+"/tokens/" || req.URL.Path == APIPathPrefix+"/tokens" {
 
 		// ---------------------------------------------- //
 		// DISPATCH FOR: /tokens                          //
@@ -115,7 +119,7 @@ func (tqs TunaQuestServer) handlePathUsers(w http.ResponseWriter, req *http.Requ
 		result.writeResponse(w, req)
 	}()
 
-	if req.URL.Path == "/users/" || req.URL.Path == "/users" {
+	if req.URL.Path == APIPathPrefix+"/users/" || req.URL.Path == APIPathPrefix+"/users" {
 
 		// ---------------------------------------------- //
 		// DISPATCH FOR: /users                           //
