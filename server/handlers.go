@@ -61,15 +61,23 @@ func newAPIRouter(service *TunaQuestServer) chi.Router {
 	r := chi.NewRouter()
 
 	login := newLoginRouter(service)
-	//tokens := newTokensRouter(service)
+	tokens := newTokensRouter(service)
 	//users := newUsersRouter(service)
 	info := newInfoRouter(service)
 
 	r.Mount("/login", login)
-	// r.Mount("/tokens", tokens)
+	r.Mount("/tokens", tokens)
 	// r.Mount("/users", users)
 	r.Mount("/info", info)
 	r.HandleFunc("/info/", RedirectNoTrailingSlash)
+
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		jsonNotFound().writeResponse(w, r)
+	})
+	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(service.unauthedDelay)
+		jsonMethodNotAllowed(r).writeResponse(w, r)
+	})
 
 	return r
 }
@@ -79,60 +87,15 @@ func newLoginRouter(service *TunaQuestServer) chi.Router {
 
 	r.Post("/", Endpoint(service.doEndpoint_Login_POST).ServeHTTP)
 	r.Delete("/"+p("id:uuid"), Endpoint(service.deleteLogin).ServeHTTP)
+	r.HandleFunc("/"+p("id:uuid")+"/", RedirectNoTrailingSlash)
 
 	return r
 }
 
-func (tqs TunaQuestServer) adfadsf(w http.ResponseWriter, req *http.Request) {
-	// this must be at the top of every handlePath* method to convert panics to
-	// HTTP-500
-	defer panicTo500(w, req)
-	var result EndpointResult
-	defer func() {
-		result.writeResponse(w, req)
-	}()
-
-	if req.URL.Path == APIPathPrefix+"/login/" || req.URL.Path == APIPathPrefix+"/login" {
-
-		// ---------------------------------------------- //
-		// DISPATCH FOR: /login                           //
-		// ---------------------------------------------- //
-		switch req.Method {
-		case http.MethodPost:
-			result = tqs.doEndpoint_Login_POST(req)
-		default:
-			time.Sleep(tqs.unauthedDelay)
-			result = jsonMethodNotAllowed(req)
-		}
-	} else {
-		// check for /login/{id}
-		pathParts := strings.Split(strings.Trim(req.URL.Path, "/"), "/")
-		if len(pathParts) != 2 {
-			result = jsonNotFound()
-			return
-		}
-
-		id, err := uuid.Parse(pathParts[1])
-		if err != nil {
-			result = jsonNotFound()
-			return
-		}
-
-		// ---------------------------------------------- //
-		// DISPATCH FOR: /login/{id}                      //
-		// ---------------------------------------------- //
-		switch req.Method {
-		case http.MethodDelete:
-			result = tqs.doEndpoint_LoginID_DELETE(req, id)
-		default:
-			time.Sleep(tqs.unauthedDelay)
-			result = jsonMethodNotAllowed(req)
-		}
-	}
-}
-
 func newTokensRouter(service *TunaQuestServer) chi.Router {
 	r := chi.NewRouter()
+
+	r.Post("/", Endpoint(service.doEndpoint_Tokens_POST).ServeHTTP)
 
 	return r
 }

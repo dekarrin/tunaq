@@ -65,8 +65,6 @@ func New(tokenSecret []byte, dbPath string) (TunaQuestServer, error) {
 		unauthedDelay: time.Second,
 	}
 
-	tqs.router = newRouter(&tqs)
-
 	var err error
 	if dbPath != "" {
 		tqs.db, err = sqlite.NewDatastore(dbPath)
@@ -77,6 +75,7 @@ func New(tokenSecret []byte, dbPath string) (TunaQuestServer, error) {
 		tqs.db = inmem.NewDatastore()
 	}
 
+	tqs.router = newRouter(&tqs)
 	tqs.initHandlers()
 
 	return tqs, nil
