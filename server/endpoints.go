@@ -17,8 +17,29 @@ import (
 	"github.com/google/uuid"
 )
 
-func getURLParam(r *http.Request, key string) interface{} {
-	return chi.URLParam(r, key)
+// requireIDParam gets the ID of the main entity being referenced in the URI and
+// returns it. It panics if the key is not there or is not parsable.
+func requireIDParam(r *http.Request) uuid.UUID {
+	id, err := getURLParam(r, URLParamKeyID, uuid.Parse)
+	if err != nil {
+		panic(err.Error())
+	}
+	return id
+}
+
+func getURLParam[E any](r *http.Request, key string, parse func(string) (E, error)) (val E, err error) {
+	valStr := chi.URLParam(r, key)
+	if valStr == "" {
+		// either it does not exist or it is nil; treat both as the same and
+		// return an error
+		return val, fmt.Errorf("parameter does not exist")
+	}
+
+	val, err = parse(valStr)
+	if err != nil {
+		return val, serr.New("", serr.ErrBadArgument)
+	}
+	return val, nil
 }
 
 type EndpointFunc func(req *http.Request) EndpointResult
@@ -33,12 +54,8 @@ func Endpoint(ep EndpointFunc) http.Handler {
 
 func (eh endpointHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer panicTo500(w, req)
-	var result EndpointResult
-	defer func() {
-		result.writeResponse(w, req)
-	}()
-
-	result = eh.fn(req)
+	result := eh.fn(req)
+	result.writeResponse(w, req)
 }
 
 // POST /login: create a new login with token
@@ -100,9 +117,17 @@ func (tqs TunaQuestServer) doEndpoint_Tokens_POST(req *http.Request) EndpointRes
 	return jsonCreated(resp, "user '"+user.Username+"' successfully created new token")
 }
 
+func (tqs TunaQuestServer) deleteLogin(req *http.Request) EndpointResult {
+	id := requireIDParam(req)
+	return tqs.doEndpoint_LoginID_DELETE(req, id)
+}
+
 // DELETE /login/{id}: remove a login for some user (log out). Requires auth for
 // access at all. Requires auth by user with role Admin to log out anybody but
 // self.
+//
+// TODO: move core functionality to deleteLogin and deprecate this once everyfin
+// is fully swapped to chi router.
 func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.UUID) EndpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
@@ -551,7 +576,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.
 	return jsonNoContent("user '%s' successfully deleted %s", user.Username, otherStr)
 }
 
-// GET /users: get all users (admin auth required).
+// GET /info: get server info
 func (tqs TunaQuestServer) doEndpoint_Info_GET(req *http.Request) EndpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
@@ -567,7 +592,7 @@ func (tqs TunaQuestServer) doEndpoint_Info_GET(req *http.Request) EndpointResult
 	if err == nil {
 		userStr = "user '" + user.Username + "'"
 	}
-	return jsonOK(resp, "got API info", userStr)
+	return jsonOK(resp, "%s got API info", userStr)
 }
 
 // v must be a pointer to a type. Will return error such that

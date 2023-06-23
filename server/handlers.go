@@ -15,6 +15,40 @@ const (
 	APIPathPrefix = "/api/v1"
 )
 
+var (
+	paramTypePats = map[string]string{
+		"uuid": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+	}
+)
+
+const (
+	URLParamKeyID = "id"
+)
+
+// p is a quick parameter in a URI, made very small to ease readability in route
+// listings.
+func p(nameType string) string {
+	var name string
+	var pat string
+
+	parts := strings.SplitN(nameType, ":", 2)
+	name = parts[0]
+	if len(parts) == 2 {
+		// we have a type, if it's a name in the paramTypePats map use that else
+		// treat it as a normal pattern
+		pat = parts[1]
+
+		if translatedPat, ok := paramTypePats[parts[1]]; ok {
+			pat = translatedPat
+		}
+	}
+
+	if pat == "" {
+		return "{" + name + "}"
+	}
+	return "{" + name + ":" + pat + "}"
+}
+
 func newRouter(service *TunaQuestServer) chi.Router {
 	r := chi.NewRouter()
 
@@ -26,12 +60,12 @@ func newRouter(service *TunaQuestServer) chi.Router {
 func newAPIRouter(service *TunaQuestServer) chi.Router {
 	r := chi.NewRouter()
 
-	//login := newLoginRouter()
-	//tokens := newTokensRouter()
-	//users := newUsersRouter()
+	login := newLoginRouter(service)
+	//tokens := newTokensRouter(service)
+	//users := newUsersRouter(service)
 	info := newInfoRouter(service)
 
-	// r.Mount("/login", login)
+	r.Mount("/login", login)
 	// r.Mount("/tokens", tokens)
 	// r.Mount("/users", users)
 	r.Mount("/info", info)
@@ -43,7 +77,58 @@ func newAPIRouter(service *TunaQuestServer) chi.Router {
 func newLoginRouter(service *TunaQuestServer) chi.Router {
 	r := chi.NewRouter()
 
+	r.Post("/", Endpoint(service.doEndpoint_Login_POST).ServeHTTP)
+	r.Delete("/"+p("id:uuid"), Endpoint(service.deleteLogin).ServeHTTP)
+
 	return r
+}
+
+func (tqs TunaQuestServer) adfadsf(w http.ResponseWriter, req *http.Request) {
+	// this must be at the top of every handlePath* method to convert panics to
+	// HTTP-500
+	defer panicTo500(w, req)
+	var result EndpointResult
+	defer func() {
+		result.writeResponse(w, req)
+	}()
+
+	if req.URL.Path == APIPathPrefix+"/login/" || req.URL.Path == APIPathPrefix+"/login" {
+
+		// ---------------------------------------------- //
+		// DISPATCH FOR: /login                           //
+		// ---------------------------------------------- //
+		switch req.Method {
+		case http.MethodPost:
+			result = tqs.doEndpoint_Login_POST(req)
+		default:
+			time.Sleep(tqs.unauthedDelay)
+			result = jsonMethodNotAllowed(req)
+		}
+	} else {
+		// check for /login/{id}
+		pathParts := strings.Split(strings.Trim(req.URL.Path, "/"), "/")
+		if len(pathParts) != 2 {
+			result = jsonNotFound()
+			return
+		}
+
+		id, err := uuid.Parse(pathParts[1])
+		if err != nil {
+			result = jsonNotFound()
+			return
+		}
+
+		// ---------------------------------------------- //
+		// DISPATCH FOR: /login/{id}                      //
+		// ---------------------------------------------- //
+		switch req.Method {
+		case http.MethodDelete:
+			result = tqs.doEndpoint_LoginID_DELETE(req, id)
+		default:
+			time.Sleep(tqs.unauthedDelay)
+			result = jsonMethodNotAllowed(req)
+		}
+	}
 }
 
 func newTokensRouter(service *TunaQuestServer) chi.Router {
@@ -251,12 +336,14 @@ func (tqs TunaQuestServer) handlePathUsers(w http.ResponseWriter, req *http.Requ
 	}
 }
 
-func panicTo500(w http.ResponseWriter, req *http.Request) {
+func panicTo500(w http.ResponseWriter, req *http.Request) (panicRecovered bool) {
 	if panicErr := recover(); panicErr != nil {
 		textErr(
 			http.StatusInternalServerError,
 			"An internal server error occurred",
-			fmt.Sprintf("panic: %v\n%s", panicErr, string(debug.Stack())),
+			fmt.Sprintf("panic: %v\nSTACK TRACE: %s", panicErr, string(debug.Stack())),
 		).writeResponse(w, req)
+		return true
 	}
+	return false
 }

@@ -252,6 +252,7 @@ func (r EndpointResult) writeResponse(w http.ResponseWriter, req *http.Request) 
 		if err != nil {
 			res := jsonErr(r.status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
 			res.writeResponse(w, req)
+			return
 		}
 	}
 
