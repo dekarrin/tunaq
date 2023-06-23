@@ -11,7 +11,7 @@ import (
 // jsonOK returns an endpointResult containing an HTTP-200 along with a more
 // detailed message (if desired; if none is provided it defaults to a generic
 // one) that is not displayed to the user.
-func jsonOK(respObj interface{}, internalMsg ...interface{}) endpointResult {
+func jsonOK(respObj interface{}, internalMsg ...interface{}) EndpointResult {
 	internalMsgFmt := "OK"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -25,7 +25,7 @@ func jsonOK(respObj interface{}, internalMsg ...interface{}) endpointResult {
 // jsonNoContent returns an endpointResult containing an HTTP-204 along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func jsonNoContent(internalMsg ...interface{}) endpointResult {
+func jsonNoContent(internalMsg ...interface{}) EndpointResult {
 	internalMsgFmt := "no content"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -39,7 +39,7 @@ func jsonNoContent(internalMsg ...interface{}) endpointResult {
 // jsonCreated returns an endpointResult containing an HTTP-201 along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func jsonCreated(respObj interface{}, internalMsg ...interface{}) endpointResult {
+func jsonCreated(respObj interface{}, internalMsg ...interface{}) EndpointResult {
 	internalMsgFmt := "created"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -53,7 +53,7 @@ func jsonCreated(respObj interface{}, internalMsg ...interface{}) endpointResult
 // jsonConflict returns an endpointResult containing an HTTP-409 along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func jsonConflict(userMsg string, internalMsg ...interface{}) endpointResult {
+func jsonConflict(userMsg string, internalMsg ...interface{}) EndpointResult {
 	internalMsgFmt := "conflict"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -67,7 +67,7 @@ func jsonConflict(userMsg string, internalMsg ...interface{}) endpointResult {
 // jsonBadRequest returns an endpointResult containing an HTTP-400 along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func jsonBadRequest(userMsg string, internalMsg ...interface{}) endpointResult {
+func jsonBadRequest(userMsg string, internalMsg ...interface{}) EndpointResult {
 	internalMsgFmt := "bad request"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -81,7 +81,7 @@ func jsonBadRequest(userMsg string, internalMsg ...interface{}) endpointResult {
 // jsonMethodNotAllowed returns an endpointResult containing an HTTP-405 along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func jsonMethodNotAllowed(req *http.Request, internalMsg ...interface{}) endpointResult {
+func jsonMethodNotAllowed(req *http.Request, internalMsg ...interface{}) EndpointResult {
 	internalMsgFmt := "method not allowed"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -97,7 +97,7 @@ func jsonMethodNotAllowed(req *http.Request, internalMsg ...interface{}) endpoin
 // jsonNotFound returns an endpointResult containing an HTTP-404 response along
 // with a more detailed message (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func jsonNotFound(internalMsg ...interface{}) endpointResult {
+func jsonNotFound(internalMsg ...interface{}) EndpointResult {
 	internalMsgFmt := "not found"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -112,7 +112,7 @@ func jsonNotFound(internalMsg ...interface{}) endpointResult {
 // internalMsg is a detailed error message  (if desired; if none is provided it
 // defaults to
 // a generic one) that is not displayed to the user.
-func jsonForbidden(internalMsg ...interface{}) endpointResult {
+func jsonForbidden(internalMsg ...interface{}) EndpointResult {
 	internalMsgFmt := "forbidden"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -127,7 +127,7 @@ func jsonForbidden(internalMsg ...interface{}) endpointResult {
 // along with the proper WWW-Authenticate header. internalMsg is a detailed
 // error message  (if desired; if none is provided it defaults to
 // a generic one) that is not displayed to the user.
-func jsonUnauthorized(userMsg string, internalMsg ...interface{}) endpointResult {
+func jsonUnauthorized(userMsg string, internalMsg ...interface{}) EndpointResult {
 	internalMsgFmt := "unauthorized"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -148,7 +148,7 @@ func jsonUnauthorized(userMsg string, internalMsg ...interface{}) endpointResult
 // user. If internalMsg is provided the first argument must be a string that is
 // the format string and any subsequent args are passed to Sprintf with the
 // first as the format string.
-func jsonInternalServerError(internalMsg ...interface{}) endpointResult {
+func jsonInternalServerError(internalMsg ...interface{}) EndpointResult {
 	internalMsgFmt := "internal server error"
 	var msgArgs []interface{}
 	if len(internalMsg) >= 1 {
@@ -162,9 +162,9 @@ func jsonInternalServerError(internalMsg ...interface{}) endpointResult {
 // if status is http.StatusNoContent, respObj will not be read and may be nil.
 // Otherwise, respObj MUST NOT be nil. If additional values are provided they
 // are given to internalMsg as a format string.
-func jsonResponse(status int, respObj interface{}, internalMsg string, v ...interface{}) endpointResult {
+func jsonResponse(status int, respObj interface{}, internalMsg string, v ...interface{}) EndpointResult {
 	msg := fmt.Sprintf(internalMsg, v...)
-	return endpointResult{
+	return EndpointResult{
 		isJSON:      true,
 		isErr:       false,
 		status:      status,
@@ -175,9 +175,9 @@ func jsonResponse(status int, respObj interface{}, internalMsg string, v ...inte
 
 // If additional values are provided they are given to internalMsg as a format
 // string.
-func jsonErr(status int, userMsg, internalMsg string, v ...interface{}) endpointResult {
+func jsonErr(status int, userMsg, internalMsg string, v ...interface{}) EndpointResult {
 	msg := fmt.Sprintf(internalMsg, v...)
-	return endpointResult{
+	return EndpointResult{
 		isJSON:      true,
 		isErr:       true,
 		status:      status,
@@ -192,9 +192,9 @@ func jsonErr(status int, userMsg, internalMsg string, v ...interface{}) endpoint
 // textErr is like jsonErr but it avoids JSON encoding of any kind and writes
 // the output as plain text. If additional values are provided they are given to
 // internalMsg as a format string.
-func textErr(status int, userMsg, internalMsg string, v ...interface{}) endpointResult {
+func textErr(status int, userMsg, internalMsg string, v ...interface{}) EndpointResult {
 	msg := fmt.Sprintf(internalMsg, v...)
-	return endpointResult{
+	return EndpointResult{
 		isJSON:      false,
 		isErr:       true,
 		status:      status,
@@ -203,7 +203,7 @@ func textErr(status int, userMsg, internalMsg string, v ...interface{}) endpoint
 	}
 }
 
-type endpointResult struct {
+type EndpointResult struct {
 	isErr       bool
 	isJSON      bool
 	status      int
@@ -212,8 +212,8 @@ type endpointResult struct {
 	hdrs        [][2]string
 }
 
-func (r endpointResult) withHeader(name, val string) endpointResult {
-	erCopy := endpointResult{
+func (r EndpointResult) withHeader(name, val string) EndpointResult {
+	erCopy := EndpointResult{
 		isErr:       r.isErr,
 		isJSON:      r.isJSON,
 		status:      r.status,
@@ -226,7 +226,7 @@ func (r endpointResult) withHeader(name, val string) endpointResult {
 	return erCopy
 }
 
-func (r endpointResult) writeResponse(w http.ResponseWriter, req *http.Request) {
+func (r EndpointResult) writeResponse(w http.ResponseWriter, req *http.Request) {
 	// if this hasn't been properly created, output error directly and do not
 	// try to read properties
 	if r.status == 0 {

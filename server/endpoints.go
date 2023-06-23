@@ -15,8 +15,35 @@ import (
 	"github.com/google/uuid"
 )
 
+type EndpointKey int64
+
+const (
+	EndpointParams EndpointKey = iota
+)
+
+type endpointHandler struct {
+	fn EndpointFunc
+}
+
+func Endpoint(ep EndpointFunc) http.Handler {
+	return endpointHandler{fn: ep}
+}
+
+func (eh endpointHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	defer panicTo500(w, req)
+	var result EndpointResult
+	defer func() {
+		result.writeResponse(w, req)
+	}()
+
+	params := req.Context().Value(EndpointParams)
+	paramsMap := params.(map[string]any)
+
+	result = eh.fn(req, paramsMap)
+}
+
 // POST /login: create a new login with token
-func (tqs TunaQuestServer) doEndpoint_Login_POST(req *http.Request) endpointResult {
+func (tqs TunaQuestServer) doEndpoint_Login_POST(req *http.Request) EndpointResult {
 	loginData := LoginRequest{}
 	err := parseJSON(req, &loginData)
 	if err != nil {
@@ -55,7 +82,7 @@ func (tqs TunaQuestServer) doEndpoint_Login_POST(req *http.Request) endpointResu
 }
 
 // POST /tokens: create a new token for self (auth required)
-func (tqs TunaQuestServer) doEndpoint_Tokens_POST(req *http.Request) endpointResult {
+func (tqs TunaQuestServer) doEndpoint_Tokens_POST(req *http.Request) EndpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)
@@ -77,7 +104,7 @@ func (tqs TunaQuestServer) doEndpoint_Tokens_POST(req *http.Request) endpointRes
 // DELETE /login/{id}: remove a login for some user (log out). Requires auth for
 // access at all. Requires auth by user with role Admin to log out anybody but
 // self.
-func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.UUID) endpointResult {
+func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.UUID) EndpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)
@@ -120,7 +147,7 @@ func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.
 }
 
 // POST /users: create a new user (admin auth required)
-func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) endpointResult {
+func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) EndpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)
@@ -182,7 +209,7 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) endpointResu
 }
 
 // GET /users: get all users (admin auth required).
-func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) endpointResult {
+func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) EndpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)
@@ -222,7 +249,7 @@ func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) endpointResul
 
 // GET /users/{id}: get info on a user. Requires auth. Requires admin auth for
 // any but own ID.
-func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUID) endpointResult {
+func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUID) EndpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)
@@ -287,7 +314,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 // PATCH /users/{id}: perform a partial update on an existing user with the
 // given ID. Auth required. Admin auth required for modifying someone else's
 // user.
-func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.UUID) endpointResult {
+func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.UUID) EndpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)
@@ -401,7 +428,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 
 // PUT /users/{id}: create an existing user with the given ID (admin auth
 // required)
-func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUID) endpointResult {
+func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUID) EndpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)
@@ -480,7 +507,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUI
 
 // DELETE /users/{id}: delete a user. Requires auth. Requires admin auth for any
 // but own ID.
-func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.UUID) endpointResult {
+func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.UUID) EndpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)
@@ -526,7 +553,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.
 }
 
 // GET /users: get all users (admin auth required).
-func (tqs TunaQuestServer) doEndpoint_Info_GET(req *http.Request) endpointResult {
+func (tqs TunaQuestServer) doEndpoint_Info_GET(req *http.Request) EndpointResult {
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)

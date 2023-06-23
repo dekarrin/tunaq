@@ -14,6 +14,8 @@ const (
 	APIPathPrefix = "/api/v1"
 )
 
+type EndpointFunc func(req *http.Request, uriParams map[string]any) EndpointResult
+
 func (tqs *TunaQuestServer) initHandlers() {
 	tqs.srv.HandleFunc("/", tqs.handlePathRoot)
 	tqs.srv.HandleFunc(APIPathPrefix+"/login", tqs.handlePathLogin)
@@ -30,7 +32,7 @@ func (tqs TunaQuestServer) handlePathInfo(w http.ResponseWriter, req *http.Reque
 	// this must be at the top of every handlePath* method to convert panics to
 	// HTTP-500
 	defer panicTo500(w, req)
-	var result endpointResult
+	var result EndpointResult
 	defer func() {
 		result.writeResponse(w, req)
 	}()
@@ -54,7 +56,7 @@ func (tqs TunaQuestServer) handlePathRoot(w http.ResponseWriter, req *http.Reque
 	// this must be at the top of every handlePath* method to convert panics to
 	// HTTP-500
 	defer panicTo500(w, req)
-	var result endpointResult
+	var result EndpointResult
 	defer func() {
 		result.writeResponse(w, req)
 	}()
@@ -66,7 +68,7 @@ func (tqs TunaQuestServer) handlePathLogin(w http.ResponseWriter, req *http.Requ
 	// this must be at the top of every handlePath* method to convert panics to
 	// HTTP-500
 	defer panicTo500(w, req)
-	var result endpointResult
+	var result EndpointResult
 	defer func() {
 		result.writeResponse(w, req)
 	}()
@@ -114,7 +116,7 @@ func (tqs TunaQuestServer) handlePathToken(w http.ResponseWriter, req *http.Requ
 	// this must be at the top of every handlePath* method to convert panics to
 	// HTTP-500
 	defer panicTo500(w, req)
-	var result endpointResult
+	var result EndpointResult
 	defer func() {
 		result.writeResponse(w, req)
 	}()
@@ -140,7 +142,7 @@ func (tqs TunaQuestServer) handlePathUsers(w http.ResponseWriter, req *http.Requ
 	// this must be at the top of every handlePath* method to convert panics to
 	// HTTP-500
 	defer panicTo500(w, req)
-	var result endpointResult
+	var result EndpointResult
 	defer func() {
 		result.writeResponse(w, req)
 	}()
