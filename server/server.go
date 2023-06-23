@@ -76,7 +76,6 @@ func New(tokenSecret []byte, dbPath string) (TunaQuestServer, error) {
 	}
 
 	tqs.router = newRouter(&tqs)
-	tqs.initHandlers()
 
 	return tqs, nil
 }

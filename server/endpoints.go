@@ -271,6 +271,11 @@ func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) EndpointResul
 	return jsonOK(resp, "user '%s' got all users", user.Username)
 }
 
+func (tqs TunaQuestServer) getUser(req *http.Request) EndpointResult {
+	id := requireIDParam(req)
+	return tqs.doEndpoint_UsersID_GET(req, id)
+}
+
 // GET /users/{id}: get info on a user. Requires auth. Requires admin auth for
 // any but own ID.
 func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUID) EndpointResult {
@@ -333,6 +338,11 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 	}
 
 	return jsonOK(resp, "user '%s' successfully got %s", user.Username, otherStr)
+}
+
+func (tqs TunaQuestServer) updateUser(req *http.Request) EndpointResult {
+	id := requireIDParam(req)
+	return tqs.doEndpoint_UsersID_PATCH(req, id)
 }
 
 // PATCH /users/{id}: perform a partial update on an existing user with the
@@ -450,6 +460,11 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 	return jsonCreated(resp, "user '%s' (%s) updated", resp.Username, resp.ID)
 }
 
+func (tqs TunaQuestServer) createExistingUser(req *http.Request) EndpointResult {
+	id := requireIDParam(req)
+	return tqs.doEndpoint_UsersID_PUT(req, id)
+}
+
 // PUT /users/{id}: create an existing user with the given ID (admin auth
 // required)
 func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUID) EndpointResult {
@@ -527,6 +542,11 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUI
 	}
 
 	return jsonCreated(resp, "user '%s' (%s) created", resp.Username, resp.ID)
+}
+
+func (tqs TunaQuestServer) deleteUser(req *http.Request) EndpointResult {
+	id := requireIDParam(req)
+	return tqs.doEndpoint_UsersID_DELETE(req, id)
 }
 
 // DELETE /users/{id}: delete a user. Requires auth. Requires admin auth for any
