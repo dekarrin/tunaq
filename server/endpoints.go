@@ -17,6 +17,16 @@ import (
 	"github.com/google/uuid"
 )
 
+type EndpointFunc func(req *http.Request) EndpointResult
+
+func Endpoint(ep EndpointFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		defer panicTo500(w, req)
+		result := ep(req)
+		result.writeResponse(w, req)
+	}
+}
+
 // requireIDParam gets the ID of the main entity being referenced in the URI and
 // returns it. It panics if the key is not there or is not parsable.
 func requireIDParam(r *http.Request) uuid.UUID {
@@ -40,22 +50,6 @@ func getURLParam[E any](r *http.Request, key string, parse func(string) (E, erro
 		return val, serr.New("", serr.ErrBadArgument)
 	}
 	return val, nil
-}
-
-type EndpointFunc func(req *http.Request) EndpointResult
-
-type endpointHandler struct {
-	fn EndpointFunc
-}
-
-func Endpoint(ep EndpointFunc) http.Handler {
-	return endpointHandler{fn: ep}
-}
-
-func (eh endpointHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	defer panicTo500(w, req)
-	result := eh.fn(req)
-	result.writeResponse(w, req)
 }
 
 // POST /login: create a new login with token
@@ -99,11 +93,7 @@ func (tqs TunaQuestServer) doEndpoint_Login_POST(req *http.Request) EndpointResu
 
 // POST /tokens: create a new token for self (auth required)
 func (tqs TunaQuestServer) doEndpoint_Tokens_POST(req *http.Request) EndpointResult {
-	user, err := tqs.requireJWT(req.Context(), req)
-	if err != nil {
-		time.Sleep(tqs.unauthedDelay)
-		return jsonUnauthorized("", err.Error())
-	}
+	user := req.Context().Value(AuthUser).(dao.User)
 
 	tok, err := tqs.generateJWT(user)
 	if err != nil {
@@ -172,11 +162,7 @@ func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.
 
 // POST /users: create a new user (admin auth required)
 func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) EndpointResult {
-	user, err := tqs.requireJWT(req.Context(), req)
-	if err != nil {
-		time.Sleep(tqs.unauthedDelay)
-		return jsonUnauthorized("", err.Error())
-	}
+	user := req.Context().Value(AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
 		time.Sleep(tqs.unauthedDelay)
@@ -184,7 +170,7 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) EndpointResu
 	}
 
 	var createUser UserModel
-	err = parseJSON(req, &createUser)
+	err := parseJSON(req, &createUser)
 	if err != nil {
 		return jsonBadRequest(err.Error(), err.Error())
 	}
@@ -234,11 +220,7 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) EndpointResu
 
 // GET /users: get all users (admin auth required).
 func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) EndpointResult {
-	user, err := tqs.requireJWT(req.Context(), req)
-	if err != nil {
-		time.Sleep(tqs.unauthedDelay)
-		return jsonUnauthorized("", err.Error())
-	}
+	user := req.Context().Value(AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
 		time.Sleep(tqs.unauthedDelay)
@@ -279,11 +261,7 @@ func (tqs TunaQuestServer) getUser(req *http.Request) EndpointResult {
 // GET /users/{id}: get info on a user. Requires auth. Requires admin auth for
 // any but own ID.
 func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUID) EndpointResult {
-	user, err := tqs.requireJWT(req.Context(), req)
-	if err != nil {
-		time.Sleep(tqs.unauthedDelay)
-		return jsonUnauthorized("", err.Error())
-	}
+	user := req.Context().Value(AuthUser).(dao.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
 	if id != user.ID && user.Role != dao.Admin {
@@ -349,11 +327,7 @@ func (tqs TunaQuestServer) updateUser(req *http.Request) EndpointResult {
 // given ID. Auth required. Admin auth required for modifying someone else's
 // user.
 func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.UUID) EndpointResult {
-	user, err := tqs.requireJWT(req.Context(), req)
-	if err != nil {
-		time.Sleep(tqs.unauthedDelay)
-		return jsonUnauthorized("", err.Error())
-	}
+	user := req.Context().Value(AuthUser).(dao.User)
 
 	if id != user.ID && user.Role != dao.Admin {
 		time.Sleep(tqs.unauthedDelay)
@@ -371,7 +345,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 	}
 
 	var updateReq UserUpdateRequest
-	err = parseJSON(req, &updateReq)
+	err := parseJSON(req, &updateReq)
 	if err != nil {
 		if errors.Is(err, serr.ErrBodyUnmarshal) {
 			// did they send a normal user?
@@ -468,11 +442,7 @@ func (tqs TunaQuestServer) createExistingUser(req *http.Request) EndpointResult 
 // PUT /users/{id}: create an existing user with the given ID (admin auth
 // required)
 func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUID) EndpointResult {
-	user, err := tqs.requireJWT(req.Context(), req)
-	if err != nil {
-		time.Sleep(tqs.unauthedDelay)
-		return jsonUnauthorized("", err.Error())
-	}
+	user := req.Context().Value(AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
 		time.Sleep(tqs.unauthedDelay)
@@ -480,7 +450,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUI
 	}
 
 	var createUser UserModel
-	err = parseJSON(req, &createUser)
+	err := parseJSON(req, &createUser)
 	if err != nil {
 		return jsonBadRequest(err.Error(), err.Error())
 	}
@@ -552,11 +522,7 @@ func (tqs TunaQuestServer) deleteUser(req *http.Request) EndpointResult {
 // DELETE /users/{id}: delete a user. Requires auth. Requires admin auth for any
 // but own ID.
 func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.UUID) EndpointResult {
-	user, err := tqs.requireJWT(req.Context(), req)
-	if err != nil {
-		time.Sleep(tqs.unauthedDelay)
-		return jsonUnauthorized("", err.Error())
-	}
+	user := req.Context().Value(AuthUser).(dao.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
 	if id != user.ID && user.Role != dao.Admin {

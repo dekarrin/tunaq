@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -84,32 +85,38 @@ func newAPIRouter(service *TunaQuestServer) chi.Router {
 func newLoginRouter(service *TunaQuestServer) chi.Router {
 	r := chi.NewRouter()
 
-	r.Post("/", Endpoint(service.doEndpoint_Login_POST).ServeHTTP)
-	r.Delete("/"+p("id:uuid"), Endpoint(service.deleteLogin).ServeHTTP)
+	r.Post("/", Endpoint(service.doEndpoint_Login_POST))
+	r.Delete("/"+p("id:uuid"), Endpoint(service.deleteLogin))
 	r.HandleFunc("/"+p("id:uuid")+"/", RedirectNoTrailingSlash)
 
 	return r
 }
 
 func newTokensRouter(service *TunaQuestServer) chi.Router {
+	reqAuth := RequireAuth(service.db.Users(), service.jwtSecret, service.unauthedDelay, dao.User{})
+
 	r := chi.NewRouter()
 
-	r.Post("/", Endpoint(service.doEndpoint_Tokens_POST).ServeHTTP)
+	r.With(reqAuth).Post("/", Endpoint(service.doEndpoint_Tokens_POST))
 
 	return r
 }
 
 func newUsersRouter(service *TunaQuestServer) chi.Router {
+	reqAuth := RequireAuth(service.db.Users(), service.jwtSecret, service.unauthedDelay, dao.User{})
+
 	r := chi.NewRouter()
 
-	r.Get("/", Endpoint(service.doEndpoint_Users_GET).ServeHTTP)
-	r.Post("/", Endpoint(service.doEndpoint_Users_POST).ServeHTTP)
+	r.Use(reqAuth)
+
+	r.Get("/", Endpoint(service.doEndpoint_Users_GET))
+	r.Post("/", Endpoint(service.doEndpoint_Users_POST))
 
 	r.Route("/"+p("id:uuid"), func(r chi.Router) {
-		r.Get("/", Endpoint(service.getUser).ServeHTTP)
-		r.Put("/", Endpoint(service.createExistingUser).ServeHTTP)
-		r.Patch("/", Endpoint(service.updateUser).ServeHTTP)
-		r.Delete("/", Endpoint(service.deleteUser).ServeHTTP)
+		r.Get("/", Endpoint(service.getUser))
+		r.Put("/", Endpoint(service.createExistingUser))
+		r.Patch("/", Endpoint(service.updateUser))
+		r.Delete("/", Endpoint(service.deleteUser))
 	})
 
 	return r
@@ -118,7 +125,7 @@ func newUsersRouter(service *TunaQuestServer) chi.Router {
 func newInfoRouter(service *TunaQuestServer) chi.Router {
 	r := chi.NewRouter()
 
-	r.Get("/", Endpoint(service.doEndpoint_Info_GET).ServeHTTP)
+	r.Get("/", Endpoint(service.doEndpoint_Info_GET))
 
 	return r
 }
