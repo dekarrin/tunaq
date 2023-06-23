@@ -10,16 +10,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dekarrin/tunaq/internal/version"
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/dekarrin/tunaq/server/serr"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
-type EndpointKey int64
+func getURLParam(r *http.Request, key string) interface{} {
+	return chi.URLParam(r, key)
+}
 
-const (
-	EndpointParams EndpointKey = iota
-)
+type EndpointFunc func(req *http.Request) EndpointResult
 
 type endpointHandler struct {
 	fn EndpointFunc
@@ -36,10 +38,7 @@ func (eh endpointHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		result.writeResponse(w, req)
 	}()
 
-	params := req.Context().Value(EndpointParams)
-	paramsMap := params.(map[string]any)
-
-	result = eh.fn(req, paramsMap)
+	result = eh.fn(req)
 }
 
 // POST /login: create a new login with token
@@ -557,38 +556,18 @@ func (tqs TunaQuestServer) doEndpoint_Info_GET(req *http.Request) EndpointResult
 	user, err := tqs.requireJWT(req.Context(), req)
 	if err != nil {
 		time.Sleep(tqs.unauthedDelay)
-		return jsonUnauthorized("", err.Error())
+		// *not* unauthorized even if unauthenticated tho; they just gotta wait longer
 	}
 
-	if user.Role != dao.Admin {
-		time.Sleep(tqs.unauthedDelay)
-		return jsonForbidden("user '%s' (role %s): forbidden", user.Username, user.Role)
+	var resp InfoModel
+	resp.Version.Server = version.ServerCurrent
+	resp.Version.TunaQuest = version.Current
+
+	userStr := "unauthed client"
+	if err == nil {
+		userStr = "user '" + user.Username + "'"
 	}
-
-	users, err := tqs.GetAllUsers(req.Context())
-	if err != nil {
-		return jsonInternalServerError(err.Error())
-	}
-
-	resp := make([]UserModel, len(users))
-
-	for i := range users {
-		resp[i] = UserModel{
-			URI:            APIPathPrefix + "/users/" + users[i].ID.String(),
-			ID:             users[i].ID.String(),
-			Username:       users[i].Username,
-			Role:           users[i].Role.String(),
-			Created:        users[i].Created.Format(time.RFC3339),
-			Modified:       users[i].Modified.Format(time.RFC3339),
-			LastLogoutTime: users[i].LastLogoutTime.Format(time.RFC3339),
-			LastLoginTime:  users[i].LastLoginTime.Format(time.RFC3339),
-		}
-		if users[i].Email != nil {
-			resp[i].Email = users[i].Email.Address
-		}
-	}
-
-	return jsonOK(resp, "user '%s' got all users", user.Username)
+	return jsonOK(resp, "got API info", userStr)
 }
 
 // v must be a pointer to a type. Will return error such that

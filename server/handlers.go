@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
@@ -14,7 +15,56 @@ const (
 	APIPathPrefix = "/api/v1"
 )
 
-type EndpointFunc func(req *http.Request, uriParams map[string]any) EndpointResult
+func newRouter(service *TunaQuestServer) chi.Router {
+	r := chi.NewRouter()
+
+	r.Mount(APIPathPrefix, newAPIRouter(service))
+
+	return r
+}
+
+func newAPIRouter(service *TunaQuestServer) chi.Router {
+	r := chi.NewRouter()
+
+	//login := newLoginRouter()
+	//tokens := newTokensRouter()
+	//users := newUsersRouter()
+	info := newInfoRouter(service)
+
+	// r.Mount("/login", login)
+	// r.Mount("/tokens", tokens)
+	// r.Mount("/users", users)
+	r.Mount("/info", info)
+	r.HandleFunc("/info/", RedirectNoTrailingSlash)
+
+	return r
+}
+
+func newLoginRouter(service *TunaQuestServer) chi.Router {
+	r := chi.NewRouter()
+
+	return r
+}
+
+func newTokensRouter(service *TunaQuestServer) chi.Router {
+	r := chi.NewRouter()
+
+	return r
+}
+
+func newUsersRouter(service *TunaQuestServer) chi.Router {
+	r := chi.NewRouter()
+
+	return r
+}
+
+func newInfoRouter(service *TunaQuestServer) chi.Router {
+	r := chi.NewRouter()
+
+	r.Get("/", Endpoint(service.doEndpoint_Info_GET).ServeHTTP)
+
+	return r
+}
 
 func (tqs *TunaQuestServer) initHandlers() {
 	tqs.srv.HandleFunc("/", tqs.handlePathRoot)
@@ -26,6 +76,13 @@ func (tqs *TunaQuestServer) initHandlers() {
 	tqs.srv.HandleFunc(APIPathPrefix+"/users/", tqs.handlePathUsers)
 	tqs.srv.HandleFunc(APIPathPrefix+"/info", tqs.handlePathInfo)
 	tqs.srv.HandleFunc(APIPathPrefix+"/info/", tqs.handlePathInfo)
+}
+
+// RedirectNoTrailingSlash is an http.HandlerFunc that redirects to the same URL as the
+// request but with no trailing slash.
+func RedirectNoTrailingSlash(w http.ResponseWriter, req *http.Request) {
+	redirPath := strings.TrimRight(req.URL.Path, "/")
+	redirection(redirPath).writeResponse(w, req)
 }
 
 func (tqs TunaQuestServer) handlePathInfo(w http.ResponseWriter, req *http.Request) {

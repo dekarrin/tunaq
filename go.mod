@@ -8,6 +8,7 @@ require (
 	github.com/dekarrin/ictiobus v1.0.0
 	github.com/dekarrin/rezi v1.0.1
 	github.com/dekarrin/rosed v1.2.1
+	github.com/go-chi/chi/v5 v5.0.8
 	github.com/golang-jwt/jwt/v5 v5.0.0
 	github.com/google/uuid v1.3.0
 	github.com/spf13/pflag v1.0.5

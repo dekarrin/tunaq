@@ -14,6 +14,7 @@ import (
 	"github.com/dekarrin/tunaq/server/dao/inmem"
 	"github.com/dekarrin/tunaq/server/dao/sqlite"
 	"github.com/dekarrin/tunaq/server/serr"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -48,6 +49,7 @@ import (
 // associated resources. The zero-value of a TunaQuestServer should not be used
 // directly; call New() to get one ready for use.
 type TunaQuestServer struct {
+	router        chi.Router
 	srv           *http.ServeMux
 	db            dao.Store
 	unauthedDelay time.Duration
@@ -62,6 +64,8 @@ func New(tokenSecret []byte, dbPath string) (TunaQuestServer, error) {
 		jwtSecret:     tokenSecret,
 		unauthedDelay: time.Second,
 	}
+
+	tqs.router = newRouter(&tqs)
 
 	var err error
 	if dbPath != "" {
@@ -91,7 +95,7 @@ func (tqs TunaQuestServer) ServeForever(address string, port int) {
 
 	listenAddress := fmt.Sprintf("%s:%d", address, port)
 	log.Printf("INFO  Listening on %s", listenAddress)
-	log.Fatalf("FATAL %v", http.ListenAndServe(listenAddress, tqs.srv))
+	log.Fatalf("FATAL %v", http.ListenAndServe(listenAddress, tqs.router))
 }
 
 // Login verifies the provided username and password against the existing user

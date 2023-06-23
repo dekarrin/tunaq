@@ -189,6 +189,15 @@ func jsonErr(status int, userMsg, internalMsg string, v ...interface{}) Endpoint
 	}
 }
 
+func redirection(uri string) EndpointResult {
+	msg := fmt.Sprintf("redirect -> %s", uri)
+	return EndpointResult{
+		status:      http.StatusPermanentRedirect,
+		internalMsg: msg,
+		redir:       uri,
+	}
+}
+
 // textErr is like jsonErr but it avoids JSON encoding of any kind and writes
 // the output as plain text. If additional values are provided they are given to
 // internalMsg as a format string.
@@ -209,6 +218,7 @@ type EndpointResult struct {
 	status      int
 	internalMsg string
 	resp        interface{}
+	redir       string // only used for redirects
 	hdrs        [][2]string
 }
 
@@ -236,7 +246,7 @@ func (r EndpointResult) writeResponse(w http.ResponseWriter, req *http.Request) 
 	}
 
 	var respJSON []byte
-	if r.isJSON && r.status != http.StatusNoContent {
+	if r.isJSON && r.status != http.StatusNoContent && r.redir == "" {
 		var err error
 		respJSON, err = json.Marshal(r.resp)
 		if err != nil {
@@ -256,13 +266,20 @@ func (r EndpointResult) writeResponse(w http.ResponseWriter, req *http.Request) 
 	if r.isJSON {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		respBytes = respJSON
+		if r.redir == "" {
+			respBytes = respJSON
+		}
 	} else {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		if r.status != http.StatusNoContent {
+		if r.status != http.StatusNoContent && r.redir == "" {
 			respBytes = []byte(fmt.Sprintf("%v", r.resp))
 		}
+	}
+
+	// if there is a redir, handle that now
+	if r.redir != "" {
+		w.Header().Set("Location", r.redir)
 	}
 
 	for i := range r.hdrs {
