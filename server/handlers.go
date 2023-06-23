@@ -105,11 +105,12 @@ func newUsersRouter(service *TunaQuestServer) chi.Router {
 	r.Get("/", Endpoint(service.doEndpoint_Users_GET).ServeHTTP)
 	r.Post("/", Endpoint(service.doEndpoint_Users_POST).ServeHTTP)
 
-	r.Get("/"+p("id:uuid"), Endpoint(service.getUser).ServeHTTP)
-	r.Put("/"+p("id:uuid"), Endpoint(service.createExistingUser).ServeHTTP)
-	r.Patch("/"+p("id:uuid"), Endpoint(service.updateUser).ServeHTTP)
-	r.Delete("/"+p("id:uuid"), Endpoint(service.deleteUser).ServeHTTP)
-	r.HandleFunc("/"+p("id:uuid")+"/", RedirectNoTrailingSlash)
+	r.Route("/"+p("id:uuid"), func(r chi.Router) {
+		r.Get("/", Endpoint(service.getUser).ServeHTTP)
+		r.Put("/", Endpoint(service.createExistingUser).ServeHTTP)
+		r.Patch("/", Endpoint(service.updateUser).ServeHTTP)
+		r.Delete("/", Endpoint(service.deleteUser).ServeHTTP)
+	})
 
 	return r
 }
