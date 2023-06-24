@@ -8,13 +8,9 @@ import (
 	"log"
 	"net/http"
 	"net/mail"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
-	"github.com/dekarrin/tunaq/server/dao/inmem"
-	"github.com/dekarrin/tunaq/server/dao/sqlite"
 	"github.com/dekarrin/tunaq/server/serr"
 	"github.com/dekarrin/tunaq/server/tunas"
 	"github.com/go-chi/chi/v5"
@@ -48,159 +44,6 @@ import (
 //  - GET    /info           - get version info on the game and engine itself.
 //
 
-// DBType is the type of a Database connection.
-type DBType string
-
-func (dbt DBType) String() string {
-	return string(dbt)
-}
-
-const (
-	DatabaseNone     DBType = "none"
-	DatabaseSQLite   DBType = "sqlite"
-	DatabaseInMemory DBType = "inmem"
-)
-
-// ParseDBType parses a string found in a connection string into a DBType.
-func ParseDBType(s string) (DBType, error) {
-	sLower := strings.ToLower(s)
-
-	switch sLower {
-	case DatabaseSQLite.String():
-		return DatabaseSQLite, nil
-	case DatabaseInMemory.String():
-		return DatabaseInMemory, nil
-	default:
-		return DatabaseNone, fmt.Errorf("DB type not one of 'sqlite' or 'inmem': %q", s)
-	}
-}
-
-// Database contains configuration settings for connecting to a persistence
-// layer.
-type Database struct {
-	// Type is the type of database the config refers to. It also determines
-	// which of its other fields are valid.
-	Type DBType
-
-	// DataDir is the path on disk to a directory to use to store data in. This
-	// is only applicable for certain DB types: SQLite.
-	DataDir string
-}
-
-// Connect performs all logic needed to connect to the configured DB and
-// initialize the store for use.
-func (db Database) Connect() (dao.Store, error) {
-	switch db.Type {
-	case DatabaseInMemory:
-		return inmem.NewDatastore(), nil
-	case DatabaseSQLite:
-		err := os.MkdirAll(db.DataDir, 0770)
-		if err != nil {
-			return nil, fmt.Errorf("create data dir: %w", err)
-		}
-
-		store, err := sqlite.NewDatastore(db.DataDir)
-		if err != nil {
-			return nil, fmt.Errorf("initialize sqlite: %w", err)
-		}
-
-		return store, nil
-	case DatabaseNone:
-		return nil, fmt.Errorf("cannot connect to 'none' DB")
-	default:
-		return nil, fmt.Errorf("unknown database type: %q", db.Type.String())
-	}
-}
-
-// Validate returns an error if the Database does not have the correct fields
-// set. Its type will be checked to ensure that it is a valid type to use and
-// any fields necessary for connecting to that type of DB are also checked.
-func (db Database) Validate() error {
-	switch db.Type {
-	case DatabaseInMemory:
-		// nothing else to check
-		return nil
-	case DatabaseSQLite:
-		if db.DataDir == "" {
-			return fmt.Errorf("DataDir not set to path")
-		}
-		return nil
-	case DatabaseNone:
-		return fmt.Errorf("'none' DB is not valid")
-	default:
-		return fmt.Errorf("unknown database type: %q", db.Type.String())
-	}
-}
-
-// ParseDBConnString parses a database connection string of the form
-// "engine:params" (or just "engine" if no other params are required) into a
-// valid Database config object. For example, "sqlite:/data" would give the DB
-// type of DatabaseSQLite that stores persistence in files located in the given
-// dir, and "inmem" would give the DB type of DatabaseInMemory.
-func ParseDBConnString(s string) (Database, error) {
-	var paramStr string
-	dbParts := strings.SplitN(s, ":", 2)
-
-	if len(dbParts) == 2 {
-		paramStr = strings.TrimSpace(dbParts[1])
-	}
-
-	// parse the first section into a type, from there we can determine if
-	// further params are required.
-	dbEng, err := ParseDBType(strings.TrimSpace(dbParts[0]))
-	if err != nil {
-		return Database{}, fmt.Errorf("unsupported DB engine: %w", err)
-	}
-
-	switch dbEng {
-	case DatabaseInMemory:
-		// there cannot be any other options
-		if paramStr != "" {
-			return Database{}, fmt.Errorf("unsupported param(s) for in-memory DB engine: %s", paramStr)
-		}
-
-		return Database{Type: DatabaseInMemory}, nil
-	case DatabaseSQLite:
-		// there must be options
-		if paramStr == "" {
-			return Database{}, fmt.Errorf("sqlite DB engine requires path to data directory after ':'")
-		}
-
-		// the only option is the DB path, as long as the param str isn't
-		// literally blank, it can be used.
-		return Database{Type: DatabaseSQLite, DataDir: paramStr}, nil
-	case DatabaseNone:
-		// not allowed
-		return Database{}, fmt.Errorf("cannot specify DB engine 'none' (perhaps you wanted 'inmem'?)")
-	default:
-		// unknown
-		return Database{}, fmt.Errorf("unknown DB engine: %q", dbEng.String())
-	}
-}
-
-// Config is a configuration for a server. It contains all parameters that can
-// be used to configure the operation of a TunaQuestServer.
-type Config struct {
-
-	// TokenSecret is the secret used for signing tokens. If not provided, one
-	// will be automatically generated. If a generated secret is used for token
-	// signing, they will all become invalid at the completion of the server.
-	TokenSecret []byte
-
-	// Database is the configuration to use for connecting to the database. If
-	// not provided, it will be set to a configuration for using an in-memory
-	// persistence layer.
-	DB Database
-
-	// UnauthDelayMS is the amount of additional time to wait (in milliseconds)
-	// before sending a response that indicates either that the client was
-	// unauthorized or the client was unauthenticated. This is something of an
-	// "anti-flood" for naive clients attempting non-parallel connections. If
-	// not set it will default to 1 second. Set this to any negative number to
-	// disable the delay.
-	UnauthDelayMS int
-}
-
 // TunaQuestServer is an HTTP REST server that provides TunaQuest games and
 // associated resources. The zero-value of a TunaQuestServer should not be used
 // directly; call New() to get one ready for use.
@@ -213,35 +56,38 @@ type TunaQuestServer struct {
 	jwtSecret     []byte
 }
 
-// New creates a new TunaQuestServer. tokenSecret is used for signing issued
-// tokens and dbPath is the path on disk to a data directory to use for
-// persistence files; if empty the server will use an in-memory datastore
-// instead.
-func New(tokenSecret []byte, dbPath string) (TunaQuestServer, error) {
+// New creates a new TunaQuestServer. If cfg is non-nil, any set values in it
+// are used to configure the behavior of the server.
+func New(cfg *Config) (TunaQuestServer, error) {
+	// check config
+	if cfg == nil {
+		cfg = &Config{}
+	}
+	*cfg = cfg.FillDefaults()
+	if err := cfg.Validate(); err != nil {
+		return TunaQuestServer{}, fmt.Errorf("config: %w", err)
+	}
+
 	// connect DB
-	var err error
-	var db dao.Store
-
-	if dbPath != "" {
-		db, err = sqlite.NewDatastore(dbPath)
-		if err != nil {
-			return TunaQuestServer{}, err
-		}
-	} else {
-		db = inmem.NewDatastore()
+	db, err := cfg.DB.Connect()
+	if err != nil {
+		return TunaQuestServer{}, nil
 	}
 
-	tqs := TunaQuestServer{
-		api: API{
-			Backend: tunas.Service{},
+	tqAPI := API{
+		Secret:      cfg.TokenSecret,
+		UnauthDelay: cfg.UnauthDelay(),
+		Backend: tunas.Service{
+			DB: db,
 		},
-		jwtSecret:     tokenSecret,
-		unauthedDelay: time.Second,
 	}
 
-	tqs.router = newRouter(&tqs)
+	router := newRouter(tqAPI)
 
-	return tqs, nil
+	return TunaQuestServer{
+		api:    tqAPI,
+		router: router,
+	}, nil
 }
 
 // ServeForever begins listening on the given address and port for HTTP REST

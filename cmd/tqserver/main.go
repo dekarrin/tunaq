@@ -93,6 +93,33 @@ func main() {
 		os.Exit(1)
 	}
 
+	// get address info
+	port := 0
+	addr := ""
+	listenAddr := os.Getenv(EnvListen)
+	if pflag.Lookup("listen").Changed {
+		listenAddr = *flagListen
+	}
+	if listenAddr != "" {
+		bindParts := strings.SplitN(listenAddr, ":", 2)
+		if len(bindParts) != 2 {
+			fmt.Fprintf(os.Stderr, "Listen address is not in ADDRESS:PORT or :PORT format.\nDo -h for help.\n")
+			os.Exit(1)
+		}
+
+		var err error
+
+		addr = bindParts[0]
+		port, err = strconv.Atoi(bindParts[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%q is not a valid port number.\nDo -h for help.\n", bindParts[1])
+			os.Exit(1)
+		}
+	}
+
+	// assemble a server config
+	var cfg server.Config
+
 	// look at db connection string
 	dbPath := ""
 	dbConnStr := os.Getenv(EnvDB)
@@ -121,30 +148,6 @@ func main() {
 			}
 		default:
 			fmt.Fprintf(os.Stderr, "unsupported DB engine: %q\n", dbParts[0])
-			os.Exit(1)
-		}
-	}
-
-	// get address info
-	port := 0
-	addr := ""
-	listenAddr := os.Getenv(EnvListen)
-	if pflag.Lookup("listen").Changed {
-		listenAddr = *flagListen
-	}
-	if listenAddr != "" {
-		bindParts := strings.SplitN(listenAddr, ":", 2)
-		if len(bindParts) != 2 {
-			fmt.Fprintf(os.Stderr, "Listen address is not in ADDRESS:PORT or :PORT format.\nDo -h for help.\n")
-			os.Exit(1)
-		}
-
-		var err error
-
-		addr = bindParts[0]
-		port, err = strconv.Atoi(bindParts[1])
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "%q is not a valid port number.\nDo -h for help.\n", bindParts[1])
 			os.Exit(1)
 		}
 	}
