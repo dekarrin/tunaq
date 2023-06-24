@@ -75,7 +75,7 @@ var (
 	flagVersion = pflag.BoolP("version", "v", false, "Give the current version of TunaQuest server and then exit.")
 	flagListen  = pflag.StringP("listen", "l", "", "Listen on the given address.")
 	flagSecret  = pflag.StringP("secret", "s", "", "Use the given secret for token generation.")
-	flagDB      = pflag.String("db", "", "Use the given secret for token generation.")
+	flagDB      = pflag.String("db", "inmem", "Use connection string for DB.")
 )
 
 func main() {
@@ -117,39 +117,16 @@ func main() {
 		}
 	}
 
-	// assemble a server config
-	var cfg server.Config
-
 	// look at db connection string
-	dbPath := ""
-	dbConnStr := os.Getenv(EnvDB)
-	if pflag.Lookup("db").Changed {
+	dbConnStr, envSet := os.LookupEnv(EnvDB)
+	if pflag.Lookup("db").Changed || !envSet {
 		dbConnStr = *flagDB
 	}
-	if dbConnStr != "" {
-		dbParts := strings.SplitN(*flagDB, ":", 2)
-		if len(dbParts) != 2 && *flagDB != "inmem" {
-			fmt.Fprintf(os.Stderr, "Not a valid DB string: %q\nDo -h for help.\n", *flagDB)
-			os.Exit(1)
-		}
-		if len(dbParts) != 2 {
-			dbParts = []string{"inmem", ""}
-		}
-
-		switch strings.ToLower(dbParts[0]) {
-		case "inmem":
-			dbPath = ""
-		case "sqlite":
-			dbPath = dbParts[1]
-			err := os.MkdirAll(dbPath, 0770)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Could not build data directory: %s\n", err)
-				os.Exit(1)
-			}
-		default:
-			fmt.Fprintf(os.Stderr, "unsupported DB engine: %q\n", dbParts[0])
-			os.Exit(1)
-		}
+	// parse conn string
+	db, err := server.ParseDBConnString(dbConnStr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\nDo -h for help.\n", err.Error())
+		os.Exit(1)
 	}
 
 	// get token secret
@@ -163,14 +140,14 @@ func main() {
 		// if so, validate it
 		tokSecret = []byte(tokSecStr)
 
-		for len(tokSecret) < 32 {
+		for len(tokSecret) < server.MinSecretSize {
 			doubledTokSecret := make([]byte, len(tokSecret)*2)
 			copy(doubledTokSecret, tokSecret)
 			copy(doubledTokSecret[len(tokSecret):], tokSecret)
 			tokSecret = doubledTokSecret
 		}
 
-		if len(tokSecret) > 64 {
+		if len(tokSecret) > server.MaxSecretSize {
 			// keys would be chopped at 64, so rather than the user thinking
 			// they have more security by giving a longer key, refuse to start.
 			fmt.Fprintf(os.Stderr, "Token secret is %d bytes, but it must be <= 64 bytes\nDo -h for help.\n", len(tokSecret))
@@ -178,8 +155,8 @@ func main() {
 	} else {
 		// generate a new one
 
-		// use all 64 possible bytes if doing a generated secret
-		tokSecret = make([]byte, 64)
+		// use all possible bytes if doing a generated secret
+		tokSecret = make([]byte, server.MaxSecretSize)
 		_, err := rand.Read(tokSecret)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Could not generate token secret: %s\n", err.Error())
@@ -189,15 +166,23 @@ func main() {
 		log.Printf("WARN  Using generated token secret; all tokens issued will become invalid at shutdown")
 	}
 
+	// assemble server config
+	cfg := &server.Config{
+		TokenSecret: tokSecret,
+		DB:          db,
+	}
+
 	// configuration complete, initialize the server
-	tqs, err := server.New(tokSecret, dbPath)
+	restServer, err := server.New(cfg)
 	if err != nil {
 		log.Fatalf("FATAL could not start server: %s", err.Error())
 	}
 	log.Printf("DEBUG Server initialized")
 
+	be := restServer.Backend()
+
 	// immediately create the admin user so we have someone we can log in as.
-	_, err = tqs.CreateUser(context.Background(), "admin", "password", "bogus@example.com", dao.Admin)
+	_, err = be.CreateUser(context.Background(), "admin", "password", "bogus@example.com", dao.Admin)
 	if err != nil && !errors.Is(err, serr.ErrAlreadyExists) {
 		log.Printf("ERROR could not create initial admin user: %v", err)
 		os.Exit(2)
@@ -208,5 +193,5 @@ func main() {
 
 	// okay, now actually launch it
 	log.Printf("INFO  Starting TunaQuest server %s...", version.ServerCurrent)
-	tqs.ServeForever(addr, port)
+	restServer.ServeForever(addr, port)
 }
