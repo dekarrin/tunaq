@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/dekarrin/tunaq/server/api"
 	"github.com/dekarrin/tunaq/server/tunas"
 	"github.com/go-chi/chi/v5"
 )
@@ -40,7 +41,7 @@ import (
 // directly; call New() to get one ready for use.
 type TunaQuestRESTServer struct {
 	router chi.Router
-	api    API
+	api    api.API
 }
 
 // New creates a new TunaQuestServer. If cfg is non-nil, any set values in it
@@ -61,7 +62,7 @@ func New(cfg *Config) (TunaQuestRESTServer, error) {
 		return TunaQuestRESTServer{}, nil
 	}
 
-	tqAPI := API{
+	tqAPI := api.API{
 		Secret:      cfg.TokenSecret,
 		UnauthDelay: cfg.UnauthDelay(),
 		Backend: tunas.Service{

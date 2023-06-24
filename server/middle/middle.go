@@ -1,4 +1,5 @@
-package server
+// Package middle contains middleware for use with the TunaQuest server.
+package middle
 
 import (
 	"context"
@@ -6,6 +7,8 @@ import (
 	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
+	"github.com/dekarrin/tunaq/server/result"
+	"github.com/dekarrin/tunaq/server/token"
 )
 
 // Middleware is a function that takes a handler and returns a new handler which
@@ -42,7 +45,7 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	var loggedIn bool
 	user := ah.defaultUser
 
-	tok, err := getJWT(req)
+	tok, err := token.Get(req)
 	if err != nil {
 		// deliberately leaving as embedded if instead of &&
 		if ah.required {
@@ -50,23 +53,23 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			// expected format, which for all intents and purposes is non-existent).
 			// This is not okay if auth is required.
 
-			result := jsonUnauthorized("", err.Error())
+			result := result.Unauthorized("", err.Error())
 			time.Sleep(ah.unauthedDelay)
-			result.writeResponse(w, req)
+			result.WriteResponse(w, req)
 			return
 		}
 	} else {
 		// validate the token
-		lookupUser, err := validateAndLookupJWTUser(req.Context(), tok, ah.secret, ah.db)
+		lookupUser, err := token.Validate(req.Context(), tok, ah.secret, ah.db)
 		if err != nil {
 			// deliberately leaving as embedded if instead of &&
 			if ah.required {
 				// there was a validation error. the user does not count as logged in.
 				// if logging in is required, that's not okay.
 
-				result := jsonUnauthorized("", err.Error())
+				result := result.Unauthorized("", err.Error())
 				time.Sleep(ah.unauthedDelay)
-				result.writeResponse(w, req)
+				result.WriteResponse(w, req)
 				return
 			}
 		} else {

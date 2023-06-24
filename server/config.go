@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -136,7 +137,10 @@ func ParseDBConnString(s string) (Database, error) {
 
 		// the only option is the DB path, as long as the param str isn't
 		// literally blank, it can be used.
-		return Database{Type: DatabaseSQLite, DataDir: paramStr}, nil
+
+		// convert slashes to correct type
+		dd := filepath.FromSlash(paramStr)
+		return Database{Type: DatabaseSQLite, DataDir: dd}, nil
 	case DatabaseNone:
 		// not allowed
 		return Database{}, fmt.Errorf("cannot specify DB engine 'none' (perhaps you wanted 'inmem'?)")

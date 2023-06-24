@@ -1,18 +1,13 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
-	"runtime/debug"
 	"strings"
 	"time"
 
+	httpapi "github.com/dekarrin/tunaq/server/api"
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/go-chi/chi/v5"
-)
-
-const (
-	APIPathPrefix = "/api/v1"
 )
 
 var (
@@ -45,15 +40,15 @@ func p(nameType string) string {
 	return "{" + name + ":" + pat + "}"
 }
 
-func newRouter(api API) chi.Router {
+func newRouter(api httpapi.API) chi.Router {
 	r := chi.NewRouter()
 
-	r.Mount(APIPathPrefix, newAPIRouter(api))
+	r.Mount(httpapi.PathPrefix, newAPIRouter(api))
 
 	return r
 }
 
-func newAPIRouter(api API) chi.Router {
+func newAPIRouter(api httpapi.API) chi.Router {
 	r := chi.NewRouter()
 
 	login := newLoginRouter(api)
@@ -78,7 +73,7 @@ func newAPIRouter(api API) chi.Router {
 	return r
 }
 
-func newLoginRouter(api API) chi.Router {
+func newLoginRouter(api httpapi.API) chi.Router {
 	reqAuth := RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
@@ -90,7 +85,7 @@ func newLoginRouter(api API) chi.Router {
 	return r
 }
 
-func newTokensRouter(api API) chi.Router {
+func newTokensRouter(api httpapi.API) chi.Router {
 	reqAuth := RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
@@ -100,7 +95,7 @@ func newTokensRouter(api API) chi.Router {
 	return r
 }
 
-func newUsersRouter(api API) chi.Router {
+func newUsersRouter(api httpapi.API) chi.Router {
 	reqAuth := RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
@@ -120,12 +115,12 @@ func newUsersRouter(api API) chi.Router {
 	return r
 }
 
-func newInfoRouter(api API) chi.Router {
+func newInfoRouter(api httpapi.API) chi.Router {
 	optAuth := OptionalAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
-	r.With(optAuth).Get("/", Endpoint(api.epGetInfo))
+	r.With(optAuth).Get("/", api.HTTPGetInfo())
 
 	return r
 }
@@ -135,16 +130,4 @@ func newInfoRouter(api API) chi.Router {
 func RedirectNoTrailingSlash(w http.ResponseWriter, req *http.Request) {
 	redirPath := strings.TrimRight(req.URL.Path, "/")
 	redirection(redirPath).writeResponse(w, req)
-}
-
-func panicTo500(w http.ResponseWriter, req *http.Request) (panicRecovered bool) {
-	if panicErr := recover(); panicErr != nil {
-		textErr(
-			http.StatusInternalServerError,
-			"An internal server error occurred",
-			fmt.Sprintf("panic: %v\nSTACK TRACE: %s", panicErr, string(debug.Stack())),
-		).writeResponse(w, req)
-		return true
-	}
-	return false
 }

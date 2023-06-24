@@ -1,4 +1,4 @@
-package server
+package token
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func validateAndLookupJWTUser(ctx context.Context, tok string, secret []byte, db dao.UserRepository) (dao.User, error) {
+func Validate(ctx context.Context, tok string, secret []byte, db dao.UserRepository) (dao.User, error) {
 	var user dao.User
 
 	_, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
@@ -50,7 +50,7 @@ func validateAndLookupJWTUser(ctx context.Context, tok string, secret []byte, db
 	return user, nil
 }
 
-func getJWT(req *http.Request) (string, error) {
+func Get(req *http.Request) (string, error) {
 	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
 
 	if authHeader == "" {
@@ -72,7 +72,7 @@ func getJWT(req *http.Request) (string, error) {
 	return token, nil
 }
 
-func generateJWT(secret []byte, u dao.User) (string, error) {
+func Generate(secret []byte, u dao.User) (string, error) {
 	claims := &jwt.MapClaims{
 		"iss":        "tqs",
 		"exp":        time.Now().Add(time.Hour).Unix(),
