@@ -53,7 +53,7 @@ func getURLParam[E any](r *http.Request, key string, parse func(string) (E, erro
 }
 
 // POST /login: create a new login with token
-func (tqs TunaQuestServer) doEndpoint_Login_POST(req *http.Request) EndpointResult {
+func (tqs TunaQuestServer) epCreateLogin(req *http.Request) EndpointResult {
 	loginData := LoginRequest{}
 	err := parseJSON(req, &loginData)
 	if err != nil {
@@ -92,7 +92,7 @@ func (tqs TunaQuestServer) doEndpoint_Login_POST(req *http.Request) EndpointResu
 }
 
 // POST /tokens: create a new token for self (auth required)
-func (tqs TunaQuestServer) doEndpoint_Tokens_POST(req *http.Request) EndpointResult {
+func (tqs TunaQuestServer) epCreateToken(req *http.Request) EndpointResult {
 	user := req.Context().Value(AuthUser).(dao.User)
 
 	tok, err := tqs.generateJWT(user)
@@ -107,23 +107,15 @@ func (tqs TunaQuestServer) doEndpoint_Tokens_POST(req *http.Request) EndpointRes
 	return jsonCreated(resp, "user '"+user.Username+"' successfully created new token")
 }
 
-func (tqs TunaQuestServer) deleteLogin(req *http.Request) EndpointResult {
-	id := requireIDParam(req)
-	return tqs.doEndpoint_LoginID_DELETE(req, id)
-}
-
 // DELETE /login/{id}: remove a login for some user (log out). Requires auth for
 // access at all. Requires auth by user with role Admin to log out anybody but
 // self.
 //
-// TODO: move core functionality to deleteLogin and deprecate this once everyfin
+// TODO: move core functionality to epDeleteLogin and deprecate this once everyfin
 // is fully swapped to chi router.
-func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.UUID) EndpointResult {
-	user, err := tqs.requireJWT(req.Context(), req)
-	if err != nil {
-		time.Sleep(tqs.unauthedDelay)
-		return jsonUnauthorized("", err.Error())
-	}
+func (tqs TunaQuestServer) epDeleteLogin(req *http.Request) EndpointResult {
+	id := requireIDParam(req)
+	user := req.Context().Value(AuthUser).(dao.User)
 
 	// is the user trying to delete someone else's login? they'd betta be the
 	// admin if so!
@@ -161,7 +153,7 @@ func (tqs TunaQuestServer) doEndpoint_LoginID_DELETE(req *http.Request, id uuid.
 }
 
 // POST /users: create a new user (admin auth required)
-func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) EndpointResult {
+func (tqs TunaQuestServer) epCreateNewUser(req *http.Request) EndpointResult {
 	user := req.Context().Value(AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
@@ -219,7 +211,7 @@ func (tqs TunaQuestServer) doEndpoint_Users_POST(req *http.Request) EndpointResu
 }
 
 // GET /users: get all users (admin auth required).
-func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) EndpointResult {
+func (tqs TunaQuestServer) epGetAllUsers(req *http.Request) EndpointResult {
 	user := req.Context().Value(AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
@@ -253,14 +245,8 @@ func (tqs TunaQuestServer) doEndpoint_Users_GET(req *http.Request) EndpointResul
 	return jsonOK(resp, "user '%s' got all users", user.Username)
 }
 
-func (tqs TunaQuestServer) getUser(req *http.Request) EndpointResult {
+func (tqs TunaQuestServer) epGetUser(req *http.Request) EndpointResult {
 	id := requireIDParam(req)
-	return tqs.doEndpoint_UsersID_GET(req, id)
-}
-
-// GET /users/{id}: get info on a user. Requires auth. Requires admin auth for
-// any but own ID.
-func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUID) EndpointResult {
 	user := req.Context().Value(AuthUser).(dao.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
@@ -318,15 +304,8 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_GET(req *http.Request, id uuid.UUI
 	return jsonOK(resp, "user '%s' successfully got %s", user.Username, otherStr)
 }
 
-func (tqs TunaQuestServer) updateUser(req *http.Request) EndpointResult {
+func (tqs TunaQuestServer) epUpdateUser(req *http.Request) EndpointResult {
 	id := requireIDParam(req)
-	return tqs.doEndpoint_UsersID_PATCH(req, id)
-}
-
-// PATCH /users/{id}: perform a partial update on an existing user with the
-// given ID. Auth required. Admin auth required for modifying someone else's
-// user.
-func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.UUID) EndpointResult {
 	user := req.Context().Value(AuthUser).(dao.User)
 
 	if id != user.ID && user.Role != dao.Admin {
@@ -434,14 +413,8 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PATCH(req *http.Request, id uuid.U
 	return jsonCreated(resp, "user '%s' (%s) updated", resp.Username, resp.ID)
 }
 
-func (tqs TunaQuestServer) createExistingUser(req *http.Request) EndpointResult {
+func (tqs TunaQuestServer) epCreateExistingUser(req *http.Request) EndpointResult {
 	id := requireIDParam(req)
-	return tqs.doEndpoint_UsersID_PUT(req, id)
-}
-
-// PUT /users/{id}: create an existing user with the given ID (admin auth
-// required)
-func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUID) EndpointResult {
 	user := req.Context().Value(AuthUser).(dao.User)
 
 	if user.Role != dao.Admin {
@@ -514,14 +487,8 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_PUT(req *http.Request, id uuid.UUI
 	return jsonCreated(resp, "user '%s' (%s) created", resp.Username, resp.ID)
 }
 
-func (tqs TunaQuestServer) deleteUser(req *http.Request) EndpointResult {
+func (tqs TunaQuestServer) epDeleteUser(req *http.Request) EndpointResult {
 	id := requireIDParam(req)
-	return tqs.doEndpoint_UsersID_DELETE(req, id)
-}
-
-// DELETE /users/{id}: delete a user. Requires auth. Requires admin auth for any
-// but own ID.
-func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.UUID) EndpointResult {
 	user := req.Context().Value(AuthUser).(dao.User)
 
 	// is the user trying to delete someone else? they'd betta be the admin if so!
@@ -564,11 +531,7 @@ func (tqs TunaQuestServer) doEndpoint_UsersID_DELETE(req *http.Request, id uuid.
 
 // GET /info: get server info
 func (tqs TunaQuestServer) doEndpoint_Info_GET(req *http.Request) EndpointResult {
-	user, err := tqs.requireJWT(req.Context(), req)
-	if err != nil {
-		time.Sleep(tqs.unauthedDelay)
-		// *not* unauthorized even if unauthenticated tho; they just gotta wait longer
-	}
+	loggedIn := 
 
 	var resp InfoModel
 	resp.Version.Server = version.ServerCurrent

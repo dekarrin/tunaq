@@ -95,7 +95,7 @@ func RequireAuth(db dao.UserRepository, secret []byte, unauthDelay time.Duration
 	}
 }
 
-func OptionalAuth(db dao.UserRepository, secret []byte, unauthDelay time.Duration, defaultUser dao.User, next http.Handler) Middleware {
+func OptionalAuth(db dao.UserRepository, secret []byte, unauthDelay time.Duration, defaultUser dao.User) Middleware {
 	return func(next http.Handler) http.Handler {
 		return &AuthHandler{
 			db:            db,
