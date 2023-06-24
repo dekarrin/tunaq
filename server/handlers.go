@@ -7,6 +7,8 @@ import (
 
 	httpapi "github.com/dekarrin/tunaq/server/api"
 	"github.com/dekarrin/tunaq/server/dao"
+	"github.com/dekarrin/tunaq/server/middle"
+	"github.com/dekarrin/tunaq/server/result"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -63,18 +65,18 @@ func newAPIRouter(api httpapi.API) chi.Router {
 	r.HandleFunc("/info/", RedirectNoTrailingSlash)
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		jsonNotFound().writeResponse(w, r)
+		result.NotFound().WriteResponse(w, r)
 	})
 	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(api.UnauthDelay)
-		jsonMethodNotAllowed(r).writeResponse(w, r)
+		result.MethodNotAllowed(r).WriteResponse(w, r)
 	})
 
 	return r
 }
 
 func newLoginRouter(api httpapi.API) chi.Router {
-	reqAuth := RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
+	reqAuth := middle.RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
@@ -86,7 +88,7 @@ func newLoginRouter(api httpapi.API) chi.Router {
 }
 
 func newTokensRouter(api httpapi.API) chi.Router {
-	reqAuth := RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
+	reqAuth := middle.RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
@@ -96,7 +98,7 @@ func newTokensRouter(api httpapi.API) chi.Router {
 }
 
 func newUsersRouter(api httpapi.API) chi.Router {
-	reqAuth := RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
+	reqAuth := middle.RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
@@ -116,7 +118,7 @@ func newUsersRouter(api httpapi.API) chi.Router {
 }
 
 func newInfoRouter(api httpapi.API) chi.Router {
-	optAuth := OptionalAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
+	optAuth := middle.OptionalAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
@@ -129,5 +131,5 @@ func newInfoRouter(api httpapi.API) chi.Router {
 // request but with no trailing slash.
 func RedirectNoTrailingSlash(w http.ResponseWriter, req *http.Request) {
 	redirPath := strings.TrimRight(req.URL.Path, "/")
-	redirection(redirPath).writeResponse(w, req)
+	result.Redirection(redirPath).WriteResponse(w, req)
 }
