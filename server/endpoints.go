@@ -591,6 +591,82 @@ func (api API) epReplaceUser(req *http.Request) EndpointResult {
 	return jsonCreated(resp, "user '%s' (%s) created", resp.Username, resp.ID)
 }
 
+// HTTPDeleteUser returns a HandlerFunc that deletes a user entity. All users
+// may delete themselves, but only an admin user may delete another user.
+//
+// The handler has requirements for the request context it receives, and if the
+// requirements are not met it may return an HTTP-500. The context must contain
+// the ID of the user being deleted and the logged-in user of the client making
+// the request.
+func (api API) HTTPDeleteUser() http.HandlerFunc {
+	return Endpoint(api.epDeleteUser)
+}
+
+func (api API) epDeleteUser(req *http.Request) EndpointResult {
+	id := requireIDParam(req)
+	user := req.Context().Value(AuthUser).(dao.User)
+
+	// is the user trying to delete someone else? they'd betta be the admin if so!
+	if id != user.ID && user.Role != dao.Admin {
+		var otherUserStr string
+		otherUser, err := api.Backend.GetUser(req.Context(), id.String())
+		// if there was another user, find out now
+		if err != nil {
+			otherUserStr = fmt.Sprintf("%d", id)
+		} else {
+			otherUserStr = "'" + otherUser.Username + "'"
+		}
+
+		return jsonForbidden("user '%s' (role %s) delete user %s: forbidden", user.Username, user.Role, otherUserStr)
+	}
+
+	deletedUser, err := api.Backend.DeleteUser(req.Context(), id.String())
+	if err != nil && !errors.Is(err, serr.ErrNotFound) {
+		if errors.Is(err, serr.ErrBadArgument) {
+			return jsonBadRequest(err.Error(), err.Error())
+		}
+		return jsonInternalServerError("could not delete user: " + err.Error())
+	}
+
+	var otherStr string
+	if id != user.ID {
+		if deletedUser.Username != "" {
+			otherStr = "user '" + deletedUser.Username + "'"
+		} else {
+			otherStr = "user " + id.String() + " (no-op)"
+		}
+	} else {
+		otherStr = "self"
+	}
+
+	return jsonNoContent("user '%s' successfully deleted %s", user.Username, otherStr)
+}
+
+// HTTPGetInfo returns a HandlerFunc that retrieves information on the API and
+// server.
+//
+// The handler has requirements for the request context it receives, and if the
+// requirements are not met it may return an HTTP-500. The context must contain
+// a value denoting whether the client making the request is logged-in.
+func (api API) HTTPGetInfo() http.HandlerFunc {
+	return Endpoint(api.epGetInfo)
+}
+
+func (api API) epGetInfo(req *http.Request) EndpointResult {
+	loggedIn := req.Context().Value(AuthLoggedIn).(bool)
+
+	var resp InfoModel
+	resp.Version.Server = version.ServerCurrent
+	resp.Version.TunaQuest = version.Current
+
+	userStr := "unauthed client"
+	if loggedIn {
+		user := req.Context().Value(AuthUser).(dao.User)
+		userStr = "user '" + user.Username + "'"
+	}
+	return jsonOK(resp, "%s got API info", userStr)
+}
+
 // -----------------------------------
 // OLD SERVER BELOW
 // -----------------------------------
