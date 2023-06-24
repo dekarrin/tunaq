@@ -43,7 +43,7 @@ func Endpoint(ep EndpointFunc) http.HandlerFunc {
 // requireIDParam gets the ID of the main entity being referenced in the URI and
 // returns it. It panics if the key is not there or is not parsable.
 func requireIDParam(r *http.Request) uuid.UUID {
-	id, err := getURLParam(r, URLParamKeyID, uuid.Parse)
+	id, err := getURLParam(r, "id", uuid.Parse)
 	if err != nil {
 		panic(err.Error())
 	}

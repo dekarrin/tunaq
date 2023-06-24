@@ -21,10 +21,6 @@ var (
 	}
 )
 
-const (
-	URLParamKeyID = "id"
-)
-
 // p is a quick parameter in a URI, made very small to ease readability in route
 // listings.
 func p(nameType string) string {
@@ -49,21 +45,21 @@ func p(nameType string) string {
 	return "{" + name + ":" + pat + "}"
 }
 
-func newRouter(service *TunaQuestServer) chi.Router {
+func newRouter(api API) chi.Router {
 	r := chi.NewRouter()
 
-	r.Mount(APIPathPrefix, newAPIRouter(service))
+	r.Mount(APIPathPrefix, newAPIRouter(api))
 
 	return r
 }
 
-func newAPIRouter(service *TunaQuestServer) chi.Router {
+func newAPIRouter(api API) chi.Router {
 	r := chi.NewRouter()
 
-	login := newLoginRouter(service)
-	tokens := newTokensRouter(service)
-	users := newUsersRouter(service)
-	info := newInfoRouter(service)
+	login := newLoginRouter(api)
+	tokens := newTokensRouter(api)
+	users := newUsersRouter(api)
+	info := newInfoRouter(api)
 
 	r.Mount("/login", login)
 	r.Mount("/tokens", tokens)
@@ -75,61 +71,61 @@ func newAPIRouter(service *TunaQuestServer) chi.Router {
 		jsonNotFound().writeResponse(w, r)
 	})
 	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(service.unauthedDelay)
+		time.Sleep(api.UnauthDelay)
 		jsonMethodNotAllowed(r).writeResponse(w, r)
 	})
 
 	return r
 }
 
-func newLoginRouter(service *TunaQuestServer) chi.Router {
-	reqAuth := RequireAuth(service.db.Users(), service.jwtSecret, service.unauthedDelay, dao.User{})
+func newLoginRouter(api API) chi.Router {
+	reqAuth := RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
-	r.Post("/", Endpoint(service.epCreateLogin))
-	r.With(reqAuth).Delete("/"+p("id:uuid"), Endpoint(service.epDeleteLogin))
+	r.Post("/", api.HTTPCreateLogin())
+	r.With(reqAuth).Delete("/"+p("id:uuid"), api.HTTPDeleteLogin())
 	r.HandleFunc("/"+p("id:uuid")+"/", RedirectNoTrailingSlash)
 
 	return r
 }
 
-func newTokensRouter(service *TunaQuestServer) chi.Router {
-	reqAuth := RequireAuth(service.db.Users(), service.jwtSecret, service.unauthedDelay, dao.User{})
+func newTokensRouter(api API) chi.Router {
+	reqAuth := RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
-	r.With(reqAuth).Post("/", Endpoint(service.epCreateToken))
+	r.With(reqAuth).Post("/", api.HTTPCreateToken())
 
 	return r
 }
 
-func newUsersRouter(service *TunaQuestServer) chi.Router {
-	reqAuth := RequireAuth(service.db.Users(), service.jwtSecret, service.unauthedDelay, dao.User{})
+func newUsersRouter(api API) chi.Router {
+	reqAuth := RequireAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
 	r.Use(reqAuth)
 
-	r.Get("/", Endpoint(service.epGetAllUsers))
-	r.Post("/", Endpoint(service.epCreateNewUser))
+	r.Get("/", api.HTTPGetAllUsers())
+	r.Post("/", api.HTTPCreateUser())
 
 	r.Route("/"+p("id:uuid"), func(r chi.Router) {
-		r.Get("/", Endpoint(service.epGetUser))
-		r.Put("/", Endpoint(service.epCreateExistingUser))
-		r.Patch("/", Endpoint(service.epUpdateUser))
-		r.Delete("/", Endpoint(service.epDeleteUser))
+		r.Get("/", api.HTTPGetUser())
+		r.Put("/", api.HTTPReplaceUser())
+		r.Patch("/", api.HTTPUpdateUser())
+		r.Delete("/", api.HTTPDeleteUser())
 	})
 
 	return r
 }
 
-func newInfoRouter(service *TunaQuestServer) chi.Router {
-	optAuth := OptionalAuth(service.db.Users(), service.jwtSecret, service.unauthedDelay, dao.User{})
+func newInfoRouter(api API) chi.Router {
+	optAuth := OptionalAuth(api.Backend.DB.Users(), api.Secret, api.UnauthDelay, dao.User{})
 
 	r := chi.NewRouter()
 
-	r.With(optAuth).Get("/", Endpoint(service.epGetInfo))
+	r.With(optAuth).Get("/", Endpoint(api.epGetInfo))
 
 	return r
 }
