@@ -19,7 +19,7 @@ import (
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
 func (api API) HTTPGetAllUsers() http.HandlerFunc {
-	return Endpoint(api.epGetAllUsers)
+	return httpEndpoint(api.UnauthDelay, api.epGetAllUsers)
 }
 
 // GET /users: get all users (admin auth required).
@@ -63,7 +63,7 @@ func (api API) epGetAllUsers(req *http.Request) result.Result {
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
 func (api API) HTTPCreateUser() http.HandlerFunc {
-	return Endpoint(api.epCreateUser)
+	return httpEndpoint(api.UnauthDelay, api.epCreateUser)
 }
 
 func (api API) epCreateUser(req *http.Request) result.Result {
@@ -131,7 +131,7 @@ func (api API) epCreateUser(req *http.Request) result.Result {
 // the ID of the user being operated on and the logged-in user of the client
 // making the request.
 func (api API) HTTPGetUser() http.HandlerFunc {
-	return Endpoint(api.epGetUser)
+	return httpEndpoint(api.UnauthDelay, api.epGetUser)
 }
 
 func (api API) epGetUser(req *http.Request) result.Result {
@@ -202,7 +202,7 @@ func (api API) epGetUser(req *http.Request) result.Result {
 // the ID of the user being operated on and the logged-in user of the client
 // making the request.
 func (api API) HTTPUpdateUser() http.HandlerFunc {
-	return Endpoint(api.epUpdateUser)
+	return httpEndpoint(api.UnauthDelay, api.epUpdateUser)
 }
 
 func (api API) epUpdateUser(req *http.Request) result.Result {
@@ -321,7 +321,7 @@ func (api API) epUpdateUser(req *http.Request) result.Result {
 // the ID of the user being replaced and the logged-in user of the client making
 // the request.
 func (api API) HTTPReplaceUser() http.HandlerFunc {
-	return Endpoint(api.epReplaceUser)
+	return httpEndpoint(api.UnauthDelay, api.epReplaceUser)
 }
 
 func (api API) epReplaceUser(req *http.Request) result.Result {
@@ -405,7 +405,7 @@ func (api API) epReplaceUser(req *http.Request) result.Result {
 // the ID of the user being deleted and the logged-in user of the client making
 // the request.
 func (api API) HTTPDeleteUser() http.HandlerFunc {
-	return Endpoint(api.epDeleteUser)
+	return httpEndpoint(api.UnauthDelay, api.epDeleteUser)
 }
 
 func (api API) epDeleteUser(req *http.Request) result.Result {

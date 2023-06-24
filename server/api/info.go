@@ -16,7 +16,7 @@ import (
 // requirements are not met it may return an HTTP-500. The context must contain
 // a value denoting whether the client making the request is logged-in.
 func (api API) HTTPGetInfo() http.HandlerFunc {
-	return Endpoint(api.epGetInfo)
+	return httpEndpoint(api.UnauthDelay, api.epGetInfo)
 }
 
 func (api API) epGetInfo(req *http.Request) result.Result {

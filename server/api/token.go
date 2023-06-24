@@ -16,7 +16,7 @@ import (
 // requirements are not met it may return an HTTP-500. The context must contain
 // the logged-in user of the client making the request.
 func (api API) HTTPCreateToken() http.HandlerFunc {
-	return Endpoint(api.epCreateToken)
+	return httpEndpoint(api.UnauthDelay, api.epCreateToken)
 }
 
 func (api API) epCreateToken(req *http.Request) result.Result {

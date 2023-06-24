@@ -24,28 +24,6 @@ const (
 	PathPrefix = "/api/v1"
 )
 
-type EndpointFunc func(req *http.Request) result.Result
-
-func Endpoint(ep EndpointFunc) http.HandlerFunc {
-	unauthTimeout := time.Second
-
-	return func(w http.ResponseWriter, req *http.Request) {
-		defer panicTo500(w, req)
-		result := ep(req)
-
-		if result.Status == http.StatusUnauthorized || result.Status == http.StatusForbidden || result.Status == http.StatusInternalServerError {
-			// if it's one of these statusus, either the user is improperly
-			// logging in or tried to access a forbidden resource, both of which
-			// should force the wait time before responding.
-			time.Sleep(unauthTimeout)
-		}
-
-		// TODO: pull logging out of writeResponse and do that immediately after
-		// getting the result so it isn't subject to the wait time.
-		result.WriteResponse(w, req)
-	}
-}
-
 // requireIDParam gets the ID of the main entity being referenced in the URI and
 // returns it. It panics if the key is not there or is not parsable.
 func requireIDParam(r *http.Request) uuid.UUID {
@@ -118,6 +96,26 @@ func parseJSON(req *http.Request, v interface{}) error {
 	}
 
 	return nil
+}
+
+type EndpointFunc func(req *http.Request) result.Result
+
+func httpEndpoint(unauthDelay time.Duration, ep EndpointFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		defer panicTo500(w, req)
+		result := ep(req)
+
+		if result.Status == http.StatusUnauthorized || result.Status == http.StatusForbidden || result.Status == http.StatusInternalServerError {
+			// if it's one of these statusus, either the user is improperly
+			// logging in or tried to access a forbidden resource, both of which
+			// should force the wait time before responding.
+			time.Sleep(unauthDelay)
+		}
+
+		// TODO: pull logging out of writeResponse and do that immediately after
+		// getting the result so it isn't subject to the wait time.
+		result.WriteResponse(w, req)
+	}
 }
 
 func panicTo500(w http.ResponseWriter, req *http.Request) (panicRecovered bool) {

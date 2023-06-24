@@ -15,7 +15,7 @@ import (
 // HTTPCreateLogin returns a HandlerFunc that uses the API to log in a user with
 // a username and password and return the auth token for that user.
 func (api API) HTTPCreateLogin() http.HandlerFunc {
-	return Endpoint(api.epCreateLogin)
+	return httpEndpoint(api.UnauthDelay, api.epCreateLogin)
 }
 
 func (api API) epCreateLogin(req *http.Request) result.Result {
@@ -63,7 +63,7 @@ func (api API) epCreateLogin(req *http.Request) result.Result {
 // the ID of the user to log out and the logged-in user of the client making the
 // request.
 func (api API) HTTPDeleteLogin() http.HandlerFunc {
-	return Endpoint(api.epDeleteLogin)
+	return httpEndpoint(api.UnauthDelay, api.epDeleteLogin)
 }
 
 func (api API) epDeleteLogin(req *http.Request) result.Result {
