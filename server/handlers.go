@@ -129,7 +129,7 @@ func newInfoRouter(service *TunaQuestServer) chi.Router {
 
 	r := chi.NewRouter()
 
-	r.With(optAuth).Get("/", Endpoint(service.doEndpoint_Info_GET))
+	r.With(optAuth).Get("/", Endpoint(service.epGetInfo))
 
 	return r
 }

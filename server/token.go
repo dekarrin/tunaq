@@ -50,15 +50,6 @@ func validateAndLookupJWTUser(ctx context.Context, tok string, secret []byte, db
 	return user, nil
 }
 
-func (tqs TunaQuestServer) requireJWT(ctx context.Context, req *http.Request) (dao.User, error) {
-	tok, err := getJWT(req)
-	if err != nil {
-		return dao.User{}, err
-	}
-
-	return validateAndLookupJWTUser(ctx, tok, tqs.jwtSecret, tqs.db.Users())
-}
-
 func getJWT(req *http.Request) (string, error) {
 	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
 
@@ -81,7 +72,7 @@ func getJWT(req *http.Request) (string, error) {
 	return token, nil
 }
 
-func (tqs TunaQuestServer) generateJWT(u dao.User) (string, error) {
+func generateJWT(secret []byte, u dao.User) (string, error) {
 	claims := &jwt.MapClaims{
 		"iss":        "tqs",
 		"exp":        time.Now().Add(time.Hour).Unix(),
@@ -91,7 +82,7 @@ func (tqs TunaQuestServer) generateJWT(u dao.User) (string, error) {
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
 
 	var signKey []byte
-	signKey = append(signKey, tqs.jwtSecret...)
+	signKey = append(signKey, secret...)
 	signKey = append(signKey, []byte(u.Password)...)
 	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogoutTime.Unix()))...)
 
