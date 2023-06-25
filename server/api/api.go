@@ -103,16 +103,15 @@ type EndpointFunc func(req *http.Request) result.Result
 
 func httpEndpoint(unauthDelay time.Duration, ep EndpointFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		// TODO: ship out to other things
 		defer panicTo500(w, req)
 		r := ep(req)
 
-		PrepHTTPResponse(w, req, &r)
-
-		if r.IsErr {
-			logHttpResponse("ERROR", req, r.Status, r.InternalMsg)
-		} else {
-			logHttpResponse("INFO", req, r.Status, r.InternalMsg)
+		if err := PrepHTTPResponse(w, req, &r); err != nil {
+			return
 		}
+
+		LogResponse(req, r)
 
 		if r.Status == http.StatusUnauthorized || r.Status == http.StatusForbidden || r.Status == http.StatusInternalServerError {
 			// if it's one of these statusus, either the user is improperly
@@ -148,17 +147,13 @@ func PrepHTTPResponse(w http.ResponseWriter, req *http.Request, r *result.Result
 	// pre-call PrepareMarshaledResponse bc if it fails in call to
 	// WriteResponse, it will panic.
 	if err := r.PrepareMarshaledResponse(); err != nil {
-		printErr := "could not marshal JSON response: " + err.Error()
-
-		newResp := result.Err(r.Status, "An internal server error occurred", "%s", err.Error())
-		// not pre-callin PrepareMarshaledResponse here; if our generalized
-		// Err response causes panic to marshal, well, we need to just fix
-		// that and panicTo500 will convert it into a raw text error with
-		// no marshaling needed.
-
+		marshalErr := fmt.Errorf("could not marshal JSON response: %w", err)
+		newResp := result.Err(r.Status, "An internal server error occurred", "%s", marshalErr.Error())
 		newResp.WriteResponse(w)
-		return fmt.Errorf("could not marshal JSON response")
+		return marshalErr
 	}
+
+	return nil
 }
 
 func panicTo500(w http.ResponseWriter, req *http.Request) (panicVal interface{}) {
@@ -173,7 +168,15 @@ func panicTo500(w http.ResponseWriter, req *http.Request) (panicVal interface{})
 	return false
 }
 
-func logHttpResponse(level string, req *http.Request, respStatus int, msg string) {
+func LogResponse(req *http.Request, r result.Result) {
+	if r.IsErr {
+		logHTTPResponse("ERROR", req, r.Status, r.InternalMsg)
+	} else {
+		logHTTPResponse("INFO", req, r.Status, r.InternalMsg)
+	}
+}
+
+func logHTTPResponse(level string, req *http.Request, respStatus int, msg string) {
 	if len(level) > 5 {
 		level = level[0:5]
 	}
