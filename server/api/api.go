@@ -106,26 +106,7 @@ func httpEndpoint(unauthDelay time.Duration, ep EndpointFunc) http.HandlerFunc {
 		defer panicTo500(w, req)
 		r := ep(req)
 
-		// if this hasn't been properly created, output error directly and do not
-		// try to read properties
-		if r.Status == 0 {
-			logHttpResponse("ERROR", req, http.StatusInternalServerError, "endpoint result was never populated")
-			http.Error(w, "An internal server error occurred", http.StatusInternalServerError)
-			return
-		}
-
-		// pre-call PrepareMarshaledResponse bc if it fails in call to
-		// WriteResponse, it will panic.
-		if err := r.PrepareMarshaledResponse(); err != nil {
-			newResp := result.Err(r.Status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
-			// not pre-callin PrepareMarshaledResponse here; if our generalized
-			// Err response causes panic to marshal, well, we need to just fix
-			// that and panicTo500 will convert it into a raw text error with
-			// no marshaling needed.
-
-			newResp.WriteResponse(w, req)
-			return
-		}
+		PrepHTTPResponse(w, req, &r)
 
 		if r.IsErr {
 			logHttpResponse("ERROR", req, r.Status, r.InternalMsg)
@@ -151,9 +132,33 @@ func httpEndpoint(unauthDelay time.Duration, ep EndpointFunc) http.HandlerFunc {
 //
 // If this function ever returns a non-nil error, the caller should assume that
 // an HTTP response indicating the error has already been sent to the user, and
-// should not send any furhter response.
-func PrepHTTPResponse(w http.ResponseWriter, req *http.Request, r result.Result) {
+// should not send any further response.
+//
+// If this function returns a nil error, it is safe to write the response.
+func PrepHTTPResponse(w http.ResponseWriter, req *http.Request, r *result.Result) error {
 
+	// if this hasn't been properly created, output error directly and do not
+	// try to read properties
+	if r.Status == 0 {
+		err := fmt.Errorf("endpoint result was never populated")
+		http.Error(w, "An internal server error occurred", http.StatusInternalServerError)
+		return err
+	}
+
+	// pre-call PrepareMarshaledResponse bc if it fails in call to
+	// WriteResponse, it will panic.
+	if err := r.PrepareMarshaledResponse(); err != nil {
+		printErr := "could not marshal JSON response: " + err.Error()
+
+		newResp := result.Err(r.Status, "An internal server error occurred", "%s", err.Error())
+		// not pre-callin PrepareMarshaledResponse here; if our generalized
+		// Err response causes panic to marshal, well, we need to just fix
+		// that and panicTo500 will convert it into a raw text error with
+		// no marshaling needed.
+
+		newResp.WriteResponse(w)
+		return fmt.Errorf("could not marshal JSON response")
+	}
 }
 
 func panicTo500(w http.ResponseWriter, req *http.Request) (panicVal interface{}) {
