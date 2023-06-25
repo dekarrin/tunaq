@@ -1,4 +1,4 @@
-package server
+package api
 
 // note that these are *not* the DAO models; those are distinct and closer to
 // the DB format they are in. Rather these are the models that are received from
@@ -12,11 +12,6 @@ type LoginResponse struct {
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
-}
-
-type ErrorResponse struct {
-	Error  string `json:"error"`
-	Status int    `json:"status"`
 }
 
 type UserModel struct {
@@ -43,4 +38,11 @@ type UserUpdateRequest struct {
 type UpdateString struct {
 	Update bool   `json:"u,omitempty"`
 	Value  string `json:"v,omitempty"`
+}
+
+type InfoModel struct {
+	Version struct {
+		Server    string `json:"server"`
+		TunaQuest string `json:"tunaquest"`
+	} `json:"version"`
 }

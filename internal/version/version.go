@@ -5,6 +5,6 @@ package version
 // Current is the string representing the current version of TunaQuest.
 const Current = "0.3.0"
 
-// ServerCurrent is the string representing the current versoin of the TunaQuest
+// ServerCurrent is the string representing the current version of the TunaQuest
 // server.
 const ServerCurrent = "0.3.0"

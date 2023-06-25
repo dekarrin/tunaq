@@ -1,4 +1,4 @@
-package server
+package token
 
 import (
 	"context"
@@ -12,15 +12,10 @@ import (
 	"github.com/google/uuid"
 )
 
-func (tqs TunaQuestServer) requireJWT(ctx context.Context, req *http.Request) (dao.User, error) {
+func Validate(ctx context.Context, tok string, secret []byte, db dao.UserRepository) (dao.User, error) {
 	var user dao.User
 
-	tok, err := getJWT(req)
-	if err != nil {
-		return dao.User{}, err
-	}
-
-	_, err = jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
+	_, err := jwt.Parse(tok, func(t *jwt.Token) (interface{}, error) {
 		// who is the user? we need this for further verification
 		subj, err := t.Claims.GetSubject()
 		if err != nil {
@@ -32,7 +27,7 @@ func (tqs TunaQuestServer) requireJWT(ctx context.Context, req *http.Request) (d
 			return nil, fmt.Errorf("cannot parse subject UUID: %w", err)
 		}
 
-		user, err = tqs.db.Users().GetByID(ctx, id)
+		user, err = db.GetByID(ctx, id)
 		if err != nil {
 			if err == dao.ErrNotFound {
 				return nil, fmt.Errorf("subject does not exist")
@@ -42,7 +37,7 @@ func (tqs TunaQuestServer) requireJWT(ctx context.Context, req *http.Request) (d
 		}
 
 		var signKey []byte
-		signKey = append(signKey, tqs.jwtSecret...)
+		signKey = append(signKey, secret...)
 		signKey = append(signKey, []byte(user.Password)...)
 		signKey = append(signKey, []byte(fmt.Sprintf("%d", user.LastLogoutTime.Unix()))...)
 		return signKey, nil
@@ -55,7 +50,7 @@ func (tqs TunaQuestServer) requireJWT(ctx context.Context, req *http.Request) (d
 	return user, nil
 }
 
-func getJWT(req *http.Request) (string, error) {
+func Get(req *http.Request) (string, error) {
 	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
 
 	if authHeader == "" {
@@ -77,7 +72,7 @@ func getJWT(req *http.Request) (string, error) {
 	return token, nil
 }
 
-func (tqs TunaQuestServer) generateJWT(u dao.User) (string, error) {
+func Generate(secret []byte, u dao.User) (string, error) {
 	claims := &jwt.MapClaims{
 		"iss":        "tqs",
 		"exp":        time.Now().Add(time.Hour).Unix(),
@@ -87,7 +82,7 @@ func (tqs TunaQuestServer) generateJWT(u dao.User) (string, error) {
 	tok := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
 
 	var signKey []byte
-	signKey = append(signKey, tqs.jwtSecret...)
+	signKey = append(signKey, secret...)
 	signKey = append(signKey, []byte(u.Password)...)
 	signKey = append(signKey, []byte(fmt.Sprintf("%d", u.LastLogoutTime.Unix()))...)
 

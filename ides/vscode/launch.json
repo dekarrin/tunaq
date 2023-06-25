@@ -18,6 +18,17 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Server In Debug Mode",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/cmd/tqserver/main.go",
+            "args": [
+                "--db",
+                "sqlite:${workspaceFolder}/db"
+            ]
+        },
+        {
             "name": "Current File Tests In Debug Mode",
             "type": "go",
             "request": "launch",
