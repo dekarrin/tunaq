@@ -4,9 +4,7 @@ package result
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
-	"strings"
 )
 
 type ErrorResponse struct {
@@ -171,10 +169,10 @@ func InternalServerError(internalMsg ...interface{}) Result {
 func Response(status int, respObj interface{}, internalMsg string, v ...interface{}) Result {
 	msg := fmt.Sprintf(internalMsg, v...)
 	return Result{
-		isJSON:      true,
-		isErr:       false,
+		IsJSON:      true,
+		IsErr:       false,
 		Status:      status,
-		internalMsg: msg,
+		InternalMsg: msg,
 		resp:        respObj,
 	}
 }
@@ -184,10 +182,10 @@ func Response(status int, respObj interface{}, internalMsg string, v ...interfac
 func Err(status int, userMsg, internalMsg string, v ...interface{}) Result {
 	msg := fmt.Sprintf(internalMsg, v...)
 	return Result{
-		isJSON:      true,
-		isErr:       true,
+		IsJSON:      true,
+		IsErr:       true,
 		Status:      status,
-		internalMsg: msg,
+		InternalMsg: msg,
 		resp: ErrorResponse{
 			Error:  userMsg,
 			Status: status,
@@ -199,7 +197,7 @@ func Redirection(uri string) Result {
 	msg := fmt.Sprintf("redirect -> %s", uri)
 	return Result{
 		Status:      http.StatusPermanentRedirect,
-		internalMsg: msg,
+		InternalMsg: msg,
 		redir:       uri,
 	}
 }
@@ -210,31 +208,34 @@ func Redirection(uri string) Result {
 func TextErr(status int, userMsg, internalMsg string, v ...interface{}) Result {
 	msg := fmt.Sprintf(internalMsg, v...)
 	return Result{
-		isJSON:      false,
-		isErr:       true,
+		IsJSON:      false,
+		IsErr:       true,
 		Status:      status,
-		internalMsg: msg,
+		InternalMsg: msg,
 		resp:        userMsg,
 	}
 }
 
 type Result struct {
-	Status int
+	Status      int
+	IsErr       bool
+	IsJSON      bool
+	InternalMsg string
 
-	isErr       bool
-	isJSON      bool
-	internalMsg string
-	resp        interface{}
-	redir       string // only used for redirects
-	hdrs        [][2]string
+	resp  interface{}
+	redir string // only used for redirects
+	hdrs  [][2]string
+
+	// set by calling PrepareMarshaledResponse.
+	respJSONBytes []byte
 }
 
 func (r Result) WithHeader(name, val string) Result {
 	erCopy := Result{
-		isErr:       r.isErr,
-		isJSON:      r.isJSON,
+		IsErr:       r.IsErr,
+		IsJSON:      r.IsJSON,
 		Status:      r.Status,
-		internalMsg: r.internalMsg,
+		InternalMsg: r.InternalMsg,
 		resp:        r.resp,
 		hdrs:        r.hdrs,
 	}
@@ -243,39 +244,47 @@ func (r Result) WithHeader(name, val string) Result {
 	return erCopy
 }
 
-func (r Result) WriteResponse(w http.ResponseWriter, req *http.Request) {
-	// if this hasn't been properly created, output error directly and do not
-	// try to read properties
-	if r.Status == 0 {
-		logHttpResponse("ERROR", req, http.StatusInternalServerError, "endpoint result was never populated")
-		http.Error(w, "An internal server error occurred", http.StatusInternalServerError)
-		return
+// PrepareMarshaledResponse sets the respJSONBytes to the marshaled version of
+// the response if required. If required, and there is a problem marshaling, an
+// error is returned. If not required, nil error is always returned.
+//
+// If PrepareMarshaledResponse has been successfully called with a non-nil
+// returned error at least once for r, calling this method again has no effect
+// and will returna  non-nil error.
+func (r *Result) PrepareMarshaledResponse() error {
+	if r.respJSONBytes != nil {
+		return nil
 	}
 
-	var respJSON []byte
-	if r.isJSON && r.Status != http.StatusNoContent && r.redir == "" {
+	if r.IsJSON && r.Status != http.StatusNoContent && r.redir == "" {
 		var err error
-		respJSON, err = json.Marshal(r.resp)
+		r.respJSONBytes, err = json.Marshal(r.resp)
 		if err != nil {
-			res := Err(r.Status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
-			res.WriteResponse(w, req)
-			return
+			return err
 		}
 	}
 
-	if r.isErr {
-		logHttpResponse("ERROR", req, r.Status, r.internalMsg)
-	} else {
-		logHttpResponse("INFO", req, r.Status, r.internalMsg)
+	return nil
+}
+
+func (r Result) WriteResponse(w http.ResponseWriter) {
+	// if this hasn't been properly created, panic
+	if r.Status == 0 {
+		panic("result not populated")
+	}
+
+	err := r.PrepareMarshaledResponse()
+	if err != nil {
+		panic(fmt.Sprintf("could not marshal response: %s", err.Error()))
 	}
 
 	var respBytes []byte
 
-	if r.isJSON {
+	if r.IsJSON {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		if r.redir == "" {
-			respBytes = respJSON
+			respBytes = r.respJSONBytes
 		}
 	} else {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -299,20 +308,4 @@ func (r Result) WriteResponse(w http.ResponseWriter, req *http.Request) {
 	if r.Status != http.StatusNoContent {
 		w.Write(respBytes)
 	}
-}
-
-func logHttpResponse(level string, req *http.Request, respStatus int, msg string) {
-	if len(level) > 5 {
-		level = level[0:5]
-	}
-
-	for len(level) < 5 {
-		level += " "
-	}
-
-	// we don't really care about the ephemeral port from the client end
-	remoteAddrParts := strings.SplitN(req.RemoteAddr, ":", 2)
-	remoteIP := remoteAddrParts[0]
-
-	log.Printf("%s %s %s %s: HTTP-%d %s", level, remoteIP, req.Method, req.URL.Path, respStatus, msg)
 }

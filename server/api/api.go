@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"runtime/debug"
 	"strings"
@@ -103,22 +104,59 @@ type EndpointFunc func(req *http.Request) result.Result
 func httpEndpoint(unauthDelay time.Duration, ep EndpointFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		defer panicTo500(w, req)
-		result := ep(req)
+		r := ep(req)
 
-		if result.Status == http.StatusUnauthorized || result.Status == http.StatusForbidden || result.Status == http.StatusInternalServerError {
+		// if this hasn't been properly created, output error directly and do not
+		// try to read properties
+		if r.Status == 0 {
+			logHttpResponse("ERROR", req, http.StatusInternalServerError, "endpoint result was never populated")
+			http.Error(w, "An internal server error occurred", http.StatusInternalServerError)
+			return
+		}
+
+		// pre-call PrepareMarshaledResponse bc if it fails in call to
+		// WriteResponse, it will panic.
+		if err := r.PrepareMarshaledResponse(); err != nil {
+			newResp := result.Err(r.Status, "An internal server error occurred", "could not marshal JSON response: "+err.Error())
+			// not pre-callin PrepareMarshaledResponse here; if our generalized
+			// Err response causes panic to marshal, well, we need to just fix
+			// that and panicTo500 will convert it into a raw text error with
+			// no marshaling needed.
+
+			newResp.WriteResponse(w, req)
+			return
+		}
+
+		if r.IsErr {
+			logHttpResponse("ERROR", req, r.Status, r.InternalMsg)
+		} else {
+			logHttpResponse("INFO", req, r.Status, r.InternalMsg)
+		}
+
+		if r.Status == http.StatusUnauthorized || r.Status == http.StatusForbidden || r.Status == http.StatusInternalServerError {
 			// if it's one of these statusus, either the user is improperly
 			// logging in or tried to access a forbidden resource, both of which
 			// should force the wait time before responding.
 			time.Sleep(unauthDelay)
 		}
 
-		// TODO: pull logging out of writeResponse and do that immediately after
-		// getting the result so it isn't subject to the wait time.
-		result.WriteResponse(w, req)
+		r.WriteResponse(w, req)
 	}
 }
 
-func panicTo500(w http.ResponseWriter, req *http.Request) (panicRecovered bool) {
+// PrepHTTPResult prepares an HTTP response from the given result and checks it
+// for ability to send. If any issues occur, this will result in an error
+// response being immediately sent back to the client, and the error that caused
+// the issue is returned.
+//
+// If this function ever returns a non-nil error, the caller should assume that
+// an HTTP response indicating the error has already been sent to the user, and
+// should not send any furhter response.
+func PrepHTTPResponse(w http.ResponseWriter, req *http.Request, r result.Result) {
+
+}
+
+func panicTo500(w http.ResponseWriter, req *http.Request) (panicVal interface{}) {
 	if panicErr := recover(); panicErr != nil {
 		result.TextErr(
 			http.StatusInternalServerError,
@@ -128,4 +166,20 @@ func panicTo500(w http.ResponseWriter, req *http.Request) (panicRecovered bool) 
 		return true
 	}
 	return false
+}
+
+func logHttpResponse(level string, req *http.Request, respStatus int, msg string) {
+	if len(level) > 5 {
+		level = level[0:5]
+	}
+
+	for len(level) < 5 {
+		level += " "
+	}
+
+	// we don't really care about the ephemeral port from the client end
+	remoteAddrParts := strings.SplitN(req.RemoteAddr, ":", 2)
+	remoteIP := remoteAddrParts[0]
+
+	log.Printf("%s %s %s %s: HTTP-%d %s", level, remoteIP, req.Method, req.URL.Path, respStatus, msg)
 }
