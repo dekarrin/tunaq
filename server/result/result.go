@@ -4,7 +4,9 @@ package result
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"strings"
 )
 
 type ErrorResponse struct {
@@ -308,4 +310,28 @@ func (r Result) WriteResponse(w http.ResponseWriter) {
 	if r.Status != http.StatusNoContent {
 		w.Write(respBytes)
 	}
+}
+
+func (r Result) Log(req *http.Request) {
+	if r.IsErr {
+		LogHTTPResponse("ERROR", req, r.Status, r.InternalMsg)
+	} else {
+		LogHTTPResponse("INFO", req, r.Status, r.InternalMsg)
+	}
+}
+
+func LogHTTPResponse(level string, req *http.Request, respStatus int, msg string) {
+	if len(level) > 5 {
+		level = level[0:5]
+	}
+
+	for len(level) < 5 {
+		level += " "
+	}
+
+	// we don't really care about the ephemeral port from the client end
+	remoteAddrParts := strings.SplitN(req.RemoteAddr, ":", 2)
+	remoteIP := remoteAddrParts[0]
+
+	log.Printf("%s %s %s %s: HTTP-%d %s", level, remoteIP, req.Method, req.URL.Path, respStatus, msg)
 }

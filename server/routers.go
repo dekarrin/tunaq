@@ -45,6 +45,7 @@ func p(nameType string) string {
 func newRouter(api httpapi.API) chi.Router {
 	r := chi.NewRouter()
 
+	r.Use(middle.DontPanic())
 	r.Mount(httpapi.PathPrefix, newAPIRouter(api))
 
 	return r
@@ -64,12 +65,16 @@ func newAPIRouter(api httpapi.API) chi.Router {
 	r.Mount("/info", info)
 	r.HandleFunc("/info/", RedirectNoTrailingSlash)
 
-	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		result.NotFound().WriteResponse(w, r)
+	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
+		res := result.NotFound()
+		res.WriteResponse(w)
+		res.Log(req)
 	})
-	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+	r.MethodNotAllowed(func(w http.ResponseWriter, req *http.Request) {
 		time.Sleep(api.UnauthDelay)
-		result.MethodNotAllowed(r).WriteResponse(w, r)
+		res := result.MethodNotAllowed(req)
+		res.WriteResponse(w)
+		res.Log(req)
 	})
 
 	return r
@@ -131,5 +136,7 @@ func newInfoRouter(api httpapi.API) chi.Router {
 // request but with no trailing slash.
 func RedirectNoTrailingSlash(w http.ResponseWriter, req *http.Request) {
 	redirPath := strings.TrimRight(req.URL.Path, "/")
-	result.Redirection(redirPath).WriteResponse(w, req)
+	r := result.Redirection(redirPath)
+	r.WriteResponse(w)
+	r.Log(req)
 }

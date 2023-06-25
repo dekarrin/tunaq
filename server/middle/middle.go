@@ -3,13 +3,21 @@ package middle
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"runtime/debug"
 	"time"
 
 	"github.com/dekarrin/tunaq/server/dao"
 	"github.com/dekarrin/tunaq/server/result"
 	"github.com/dekarrin/tunaq/server/token"
 )
+
+type mwFunc http.HandlerFunc
+
+func (sf mwFunc) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	sf(w, req)
+}
 
 // Middleware is a function that takes a handler and returns a new handler which
 // wraps the given one and provides some additional functionality.
@@ -53,9 +61,10 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			// expected format, which for all intents and purposes is non-existent).
 			// This is not okay if auth is required.
 
-			result := result.Unauthorized("", err.Error())
+			r := result.Unauthorized("", err.Error())
 			time.Sleep(ah.unauthedDelay)
-			result.WriteResponse(w, req)
+			r.WriteResponse(w)
+			r.Log(req)
 			return
 		}
 	} else {
@@ -67,9 +76,10 @@ func (ah *AuthHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				// there was a validation error. the user does not count as logged in.
 				// if logging in is required, that's not okay.
 
-				result := result.Unauthorized("", err.Error())
+				r := result.Unauthorized("", err.Error())
 				time.Sleep(ah.unauthedDelay)
-				result.WriteResponse(w, req)
+				r.WriteResponse(w)
+				r.Log(req)
 				return
 			}
 		} else {
@@ -109,4 +119,30 @@ func OptionalAuth(db dao.UserRepository, secret []byte, unauthDelay time.Duratio
 			next:          next,
 		}
 	}
+}
+
+// DontPanic returns a Middleware that performs a panic check as it exits. If
+// the function is panicking, it will write out an HTTP response with a generic
+// message to the client and add it to the log.
+func DontPanic() Middleware {
+	return func(next http.Handler) http.Handler {
+		return mwFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer panicTo500(w, r)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func panicTo500(w http.ResponseWriter, req *http.Request) (panicVal interface{}) {
+	if panicErr := recover(); panicErr != nil {
+		r := result.TextErr(
+			http.StatusInternalServerError,
+			"An internal server error occurred",
+			fmt.Sprintf("panic: %v\nSTACK TRACE: %s", panicErr, string(debug.Stack())),
+		)
+		r.WriteResponse(w)
+		r.Log(req)
+		return true
+	}
+	return false
 }
